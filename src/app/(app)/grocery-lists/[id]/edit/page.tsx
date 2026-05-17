@@ -3,17 +3,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getGroceryList } from "@/server/grocery";
 
 export const dynamic = "force-dynamic";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export default async function EditGroceryListPage({
   params,
@@ -48,7 +41,8 @@ export default async function EditGroceryListPage({
       await updateGroceryList(id, sess.activeOrganization.id, sess.user.id, parsed.data);
       redirect(`/grocery-lists/${id}`);
     } catch (error) {
-      redirect(`/grocery-lists/${id}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update grocery list."))}`);
+      rethrowIfRedirectError(error);
+      redirect(`/grocery-lists/${id}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update grocery list."))}`);
     }
   }
 

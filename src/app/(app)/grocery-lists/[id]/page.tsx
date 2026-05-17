@@ -4,18 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getGroceryList } from "@/server/grocery";
 import { confidenceBadgeProps, mergeBadgeProps } from "@/lib/grocery-display";
 
 export const dynamic = "force-dynamic";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 const STATUS_TONE: Record<string, "neutral" | "success" | "warning" | "danger" | "info"> = {
   draft: "neutral",
@@ -64,7 +57,8 @@ export default async function GroceryListPage({
       const { revalidatePath } = await import("next/cache");
       revalidatePath(`/grocery-lists/${listId}`);
     } catch (error) {
-      redirect(`/grocery-lists/${listId}?message=${encodeURIComponent(getErrorMessage(error, "Unable to update grocery item."))}`);
+      rethrowIfRedirectError(error);
+      redirect(`/grocery-lists/${listId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update grocery item."))}`);
     }
   }
 

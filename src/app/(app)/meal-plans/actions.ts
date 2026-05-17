@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { requireMembership } from "@/lib/auth/session";
 import {
   addMealPlanEntry,
@@ -16,14 +17,6 @@ import {
   updateMealPlanEntry,
   updateMealPlanPreference,
 } from "@/server/meal-plans";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function listFromFormData(formData: FormData, key: string) {
   return formData
@@ -70,7 +63,8 @@ export async function createMealPlanAction(formData: FormData) {
     revalidatePath("/meal-plans");
     redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created.`);
   } catch (error) {
-    redirect(`/meal-plans/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to create meal plan."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create meal plan."))}`);
   }
 }
 
@@ -99,7 +93,8 @@ export async function updateMealPlanAction(formData: FormData) {
     revalidatePath("/meal-plans");
     redirect(`/meal-plans/${mealPlanId}/edit?message=Meal plan updated.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal plan."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update meal plan."))}`);
   }
 }
 
@@ -127,7 +122,8 @@ export async function addMealPlanEntryAction(formData: FormData) {
     revalidatePath(`/meal-plans/${mealPlanId}/edit`);
     redirect(`/meal-plans/${mealPlanId}/edit?message=Meal added.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to add meal."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to add meal."))}`);
   }
 }
 
@@ -156,7 +152,8 @@ export async function updateMealPlanEntryAction(formData: FormData) {
     revalidatePath(`/meal-plans/${mealPlanId}/edit`);
     redirect(`/meal-plans/${mealPlanId}/edit?message=Meal updated.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update meal."))}`);
   }
 }
 
@@ -177,7 +174,8 @@ export async function deleteMealPlanEntryAction(formData: FormData) {
     revalidatePath(`/meal-plans/${mealPlanId}/edit`);
     redirect(`/meal-plans/${mealPlanId}/edit?message=Meal removed.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to remove meal."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to remove meal."))}`);
   }
 }
 
@@ -200,7 +198,8 @@ export async function moveMealPlanEntryAction(formData: FormData) {
     revalidatePath(`/meal-plans/${mealPlanId}/edit`);
     redirect(`/meal-plans/${mealPlanId}/edit`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to move meal."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to move meal."))}`);
   }
 }
 
@@ -223,7 +222,8 @@ export async function duplicateMealPlanAction(formData: FormData) {
     revalidatePath("/meal-plans");
     redirect(`/meal-plans/${duplicate.id}/edit?message=Meal plan duplicated.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}?message=${encodeURIComponent(getErrorMessage(error, "Unable to duplicate meal plan."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to duplicate meal plan."))}`);
   }
 }
 
@@ -242,7 +242,8 @@ export async function deleteMealPlanAction(formData: FormData) {
     revalidatePath("/meal-plans");
     redirect("/meal-plans?message=Meal plan deleted.");
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to delete meal plan."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to delete meal plan."))}`);
   }
 }
 
@@ -263,7 +264,8 @@ export async function generateMealPlanGroceryListAction(formData: FormData) {
     revalidatePath("/grocery-lists");
     redirect(`/grocery-lists/${groceryList.id}?message=Grocery list generated from meal plan.`);
   } catch (error) {
-    redirect(`/meal-plans/${mealPlanId}/grocery-list?message=${encodeURIComponent(getErrorMessage(error, "Unable to generate grocery list."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/grocery-list?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to generate grocery list."))}`);
   }
 }
 
@@ -290,6 +292,7 @@ export async function updateMealPlanPreferencesAction(formData: FormData) {
     revalidatePath("/settings/meal-preferences");
     redirect("/settings/meal-preferences?message=Meal preferences updated.");
   } catch (error) {
-    redirect(`/settings/meal-preferences?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal preferences."))}`);
+    rethrowIfRedirectError(error);
+    redirect(`/settings/meal-preferences?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update meal preferences."))}`);
   }
 }

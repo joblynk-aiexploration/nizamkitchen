@@ -2,17 +2,10 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { listCuisines } from "@/server/cuisines";
 
 export const dynamic = "force-dynamic";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export default async function NewRecipePage() {
   await requireMembership();
@@ -47,7 +40,8 @@ export default async function NewRecipePage() {
 
       redirect(`/recipes/${recipe.id}/edit`);
     } catch (error) {
-      redirect(`/recipes/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to create recipe."))}`);
+      rethrowIfRedirectError(error);
+      redirect(`/recipes/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create recipe."))}`);
     }
   }
 

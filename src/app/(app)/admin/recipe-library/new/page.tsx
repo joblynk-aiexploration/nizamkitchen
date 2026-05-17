@@ -2,17 +2,10 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card } from "@/components/ui/card";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { listCuisines } from "@/server/cuisines";
 
 export const dynamic = "force-dynamic";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export default async function AdminNewRecipePage() {
   const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
@@ -43,7 +36,8 @@ export default async function AdminNewRecipePage() {
       });
       redirect(`/admin/recipe-library/${recipe.id}`);
     } catch (error) {
-      redirect(`/admin/recipe-library/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to create recipe."))}`);
+      rethrowIfRedirectError(error);
+      redirect(`/admin/recipe-library/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create recipe."))}`);
     }
   }
 

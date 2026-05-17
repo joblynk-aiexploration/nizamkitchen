@@ -5,18 +5,11 @@ import { Card } from "@/components/ui/card";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminDangerZone } from "@/components/admin/admin-danger-zone";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
 
 export const dynamic = "force-dynamic";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export default async function AdminRecipeDetailPage({
   params,
@@ -55,7 +48,8 @@ export default async function AdminRecipeDetailPage({
       revalidatePath(`/admin/recipe-library/${id}`);
       revalidatePath("/admin/recipe-library");
     } catch (error) {
-      redirect(`/admin/recipe-library/${id}?message=${encodeURIComponent(getErrorMessage(error, "Unable to update recipe publication."))}`);
+      rethrowIfRedirectError(error);
+      redirect(`/admin/recipe-library/${id}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update recipe publication."))}`);
     }
   }
 
