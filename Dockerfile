@@ -4,11 +4,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Provide build-time env so env.ts validation passes (runtime values injected at container start)
+RUN cp .env.example .env
 RUN npm run db:generate
 RUN npm run build
 
