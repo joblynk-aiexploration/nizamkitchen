@@ -1,32 +1,41 @@
 import { requirePlatformRole } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
-import { DataTable } from "@/components/ui/data-table";
-import { PageHeader } from "@/components/ui/page-header";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { listAdminSystemSettings } from "@/server/admin/system-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSystemSettingsPage() {
-  await requirePlatformRole(["platform_owner", "platform_admin"]);
-  const settings = await prisma.systemSetting.findMany({
-    orderBy: { key: "asc" },
-  });
+  const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+  const settings = await listAdminSystemSettings();
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Runtime governance"
-        title="System settings"
-        description="Global platform settings are centralized here and kept separate from tenant-owned data."
-      />
-      <DataTable
-        columns={[
-          { key: "key", header: "Setting", render: (item) => <span className="font-semibold">{item.key}</span> },
-          { key: "description", header: "Description", render: (item) => item.description ?? "N/A" },
-          { key: "value", header: "Value", render: (item) => JSON.stringify(item.value) },
-        ]}
-        data={settings}
-        emptyMessage="No system settings found."
-      />
-    </div>
+    <AdminShell
+      session={session}
+      title="System settings"
+      description="Control platform-wide defaults and operational switches without blending them into organization administration."
+    >
+      <div className="grid gap-4">
+        {settings.map((setting) => (
+          <Card key={setting.key}>
+            <form action="/api/admin/system-settings" method="post" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)_auto] lg:items-end">
+              <input type="hidden" name="key" value={setting.key} />
+              <input type="hidden" name="description" value={setting.description} />
+              <div>
+                <p className="text-sm font-semibold text-[var(--color-ink)]">{setting.label}</p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">{setting.description}</p>
+              </div>
+              <input
+                name="value"
+                defaultValue={setting.value}
+                className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
+              />
+              <Button type="submit">Save</Button>
+            </form>
+          </Card>
+        ))}
+      </div>
+    </AdminShell>
   );
 }
