@@ -36,7 +36,7 @@ export function AIAnalysisButton({
       return;
     }
     if (!aiConfigured) {
-      setState({ phase: "error", message: "AI video analysis is not configured yet. A platform admin needs to set up the AI provider." });
+      setState({ phase: "error", message: "AI video analysis is not configured. Use the local_rules provider for free transcript analysis, or configure a local AI server via LOCAL_AI_BASE_URL in your environment." });
       return;
     }
     if (providerName === "local_rules") {

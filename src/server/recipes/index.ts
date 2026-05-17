@@ -6,6 +6,20 @@ import { recordAdminAuditLog } from "@/server/audit/audit-service";
 import { isRecipeVisibleToOrganization } from "@/lib/recipe-utils";
 import type { RecipeDifficulty, SpiceLevel, RecipeVisibility, RecipeSourceType } from "@prisma/client";
 
+// Exclude recipes that were created as QA/test placeholders.
+// These slugs and name patterns should never appear in production user-facing queries.
+const QA_SLUG_PREFIXES = ["qa-", "test-", "admin-qa-"];
+const QA_NAME_PREFIXES = ["QA ", "Test ", "Admin QA"];
+
+function qaExcludeFilter() {
+  return {
+    NOT: [
+      ...QA_SLUG_PREFIXES.map((p) => ({ slug: { startsWith: p } })),
+      ...QA_NAME_PREFIXES.map((p) => ({ name: { startsWith: p } })),
+    ],
+  };
+}
+
 const RECIPE_INCLUDE = {
   cuisine: true,
   ingredients: {
@@ -50,6 +64,7 @@ export async function listRecipes(params: {
 
   return prisma.recipe.findMany({
     where: {
+      ...qaExcludeFilter(),
       ...(publishedOnly ? { isPublished: true } : {}),
       ...(cuisineId ? { cuisineId } : {}),
       ...(difficulty ? { difficulty } : {}),
@@ -312,9 +327,11 @@ export async function listAdminRecipes(params?: {
   cuisineId?: string;
   isPublished?: boolean;
   countryCode?: string;
+  includeQa?: boolean;
 }) {
   return prisma.recipe.findMany({
     where: {
+      ...(params?.includeQa ? {} : qaExcludeFilter()),
       ...(params?.search ? { name: { contains: params.search, mode: "insensitive" } } : {}),
       ...(params?.cuisineId ? { cuisineId: params.cuisineId } : {}),
       ...(params?.isPublished !== undefined ? { isPublished: params.isPublished } : {}),

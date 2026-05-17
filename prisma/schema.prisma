@@ -1245,29 +1245,51 @@ model VideoRecipeDifference {
   @@index([videoAnalysisId])
 }
 
+model VideoAnalysisSourceFile {
+  id               String              @id @default(cuid())
+  organizationId   String?
+  uploadedByUserId String
+  storageKey       String              @unique
+  contentType      String
+  sizeBytes        Int
+  originalFileName String?
+  durationSeconds  Int?
+  processingStatus String              @default("pending")
+  errorMessage     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  analysisJobs     VideoAnalysisJob[]
+
+  @@index([organizationId])
+  @@index([uploadedByUserId])
+  @@index([processingStatus])
+}
+
 model VideoAnalysisJob {
-  id                     String                  @id @default(cuid())
+  id                     String                    @id @default(cuid())
   recipeMediaReferenceId String
   recipeId               String
   organizationId         String?
   requestedByUserId      String
-  status                 VideoAnalysisJobStatus  @default(queued)
+  status                 VideoAnalysisJobStatus    @default(queued)
   sourceType             VideoAnalysisSourceType
   transcriptText         String?
   uploadedFileId         String?
   errorMessage           String?
   startedAt              DateTime?
   completedAt            DateTime?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  mediaReference         RecipeMediaReference    @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
-  recipe                 Recipe                  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  requestedBy            User                    @relation("VideoAnalysisJobRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  mediaReference         RecipeMediaReference      @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
+  recipe                 Recipe                    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  requestedBy            User                      @relation("VideoAnalysisJobRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  sourceFile             VideoAnalysisSourceFile?  @relation(fields: [uploadedFileId], references: [id], onDelete: SetNull)
 
   @@index([recipeMediaReferenceId])
   @@index([recipeId])
   @@index([organizationId])
   @@index([status])
+  @@index([uploadedFileId])
 }
 
 // ─── AI Training Foundation ──────────────────────────────────────────────────

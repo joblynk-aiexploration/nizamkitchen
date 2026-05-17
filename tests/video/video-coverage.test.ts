@@ -249,16 +249,18 @@ describe("importBestCandidateIfStrictlyQualified", () => {
     setupRecipe();
     mockPrisma.recipeMediaReference.findMany.mockResolvedValue([]);
     mockPrisma.youTubeVideoCandidate.count.mockResolvedValue(1);
+    // getRecipeVideoCoverage calls findFirst first (for bestCandidateScore),
+    // then importBestCandidateIfStrictlyQualified calls it again (for the actual candidate).
     mockPrisma.youTubeVideoCandidate.findFirst
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce({ score: 60 }) // consumed by getRecipeVideoCoverage (bestCandidateScore)
+      .mockResolvedValueOnce({              // consumed by importBestCandidateIfStrictlyQualified
         id: "cand-1",
         score: 60,
         rejectionReasonsJson: ["Video appears to be a Short (too brief for a full recipe)."],
         providerVideoId: "abc123",
         recipeId: "recipe-1",
         status: "pending",
-      })
-      .mockResolvedValueOnce({ score: 60 }); // for bestCandidateScore
+      });
 
     const result = await importBestCandidateIfStrictlyQualified({ recipeId: "recipe-1", ...actor });
 
