@@ -1,3 +1,4 @@
+import { Prisma, type GroceryListSourceType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ScaledIngredient, CalculationOutput } from "@/lib/grocery";
 import { calculateGroceryItems } from "./grocery-calculator";
@@ -20,8 +21,28 @@ export async function generateGroceryList(params: {
   countryCode: string | null;
   createdById: string;
   input: GroceryListCreateInput;
+  sourceType?: GroceryListSourceType;
+  mealPlanId?: string | null;
+  plannedStartDate?: Date | null;
+  plannedEndDate?: Date | null;
+  recipeTimeline?: Array<{
+    recipeId: string;
+    targetServings: number;
+    mealSlot?: string | null;
+    plannedDate?: Date | null;
+  }>;
 }) {
-  const { organizationId, countryCode, createdById, input } = params;
+  const {
+    organizationId,
+    countryCode,
+    createdById,
+    input,
+    sourceType = "recipes",
+    mealPlanId = null,
+    plannedStartDate = null,
+    plannedEndDate = null,
+    recipeTimeline,
+  } = params;
 
   // Fetch all units and global conversions
   const [units, globalConversions, recipes] = await Promise.all([
@@ -31,7 +52,7 @@ export async function generateGroceryList(params: {
       include: { fromUnit: true, toUnit: true, ingredient: true },
     }),
     prisma.recipe.findMany({
-      where: { id: { in: input.recipes.map((r) => r.recipeId) } },
+      where: { id: { in: [...new Set(input.recipes.map((r) => r.recipeId))] } },
       include: RECIPE_INCLUDE,
     }),
   ]);
@@ -52,10 +73,15 @@ export async function generateGroceryList(params: {
 
   // Build scaled ingredient entries
   const scaledIngredients: ScaledIngredient[] = [];
-  const recipeTargetMap = new Map(input.recipes.map((r) => [r.recipeId, r.targetServings]));
+  const recipesById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
 
-  for (const recipe of recipes) {
-    const targetServings = recipeTargetMap.get(recipe.id) ?? recipe.servings;
+  for (const recipeInput of input.recipes) {
+    const recipe = recipesById.get(recipeInput.recipeId);
+    if (!recipe) {
+      throw new Error(`Recipe ${recipeInput.recipeId} not found for grocery generation.`);
+    }
+
+    const targetServings = recipeInput.targetServings;
     const scaleFactor = targetServings / recipe.servings;
 
     for (const ri of recipe.ingredients) {
@@ -90,14 +116,18 @@ export async function generateGroceryList(params: {
         organizationId,
         countryCode,
         createdById,
+        mealPlanId,
         name: input.name,
         notes: input.notes ?? null,
         householdSize: input.householdSize ?? null,
-        sourceType: "recipes",
+        sourceType,
         status: "draft",
+        plannedStartDate,
+        plannedEndDate,
         recipes: {
-          create: input.recipes.map((r) => {
-            const recipe = recipes.find((rec) => rec.id === r.recipeId)!;
+          create: input.recipes.map((r, index) => {
+            const recipe = recipesById.get(r.recipeId)!;
+            const timelineItem = recipeTimeline?.[index];
             return {
               recipeId: r.recipeId,
               recipeNameSnapshot: recipe.name,
@@ -105,6 +135,7 @@ export async function generateGroceryList(params: {
               targetServings: r.targetServings,
               scaleFactor: r.targetServings / recipe.servings,
               mealSlot: r.mealSlot ?? null,
+              plannedDate: timelineItem?.plannedDate ?? null,
             };
           }),
         },
@@ -162,7 +193,13 @@ export async function generateGroceryList(params: {
     action: "grocery_list.created",
     targetType: "grocery_list",
     targetId: groceryList.id,
-    details: { name: input.name, recipeCount: input.recipes.length, itemCount: calculation.items.length },
+    details: {
+      name: input.name,
+      recipeCount: input.recipes.length,
+      itemCount: calculation.items.length,
+      sourceType,
+      mealPlanId,
+    } as Prisma.InputJsonValue,
   });
 
   return groceryList;

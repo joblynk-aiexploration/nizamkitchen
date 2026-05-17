@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BookOpen,
   Building2,
+  CalendarDays,
   ChefHat,
   CircleDollarSign,
   Flag,
@@ -49,6 +50,10 @@ const adminNavGroups = [
       { href: "/admin/units", label: "Units", icon: Ruler },
       { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
     ],
+  },
+  {
+    title: "Planning",
+    items: [{ href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays }],
   },
   {
     title: "Grocery Engine",

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireMembership } from "@/lib/auth/session";
 import { Card } from "@/components/ui/card";
 import { CountryBadge } from "@/components/ui/country-badge";
@@ -50,6 +51,22 @@ export default async function SettingsPage() {
             <p className="mt-2 text-lg font-semibold">{session.activeOrganization.defaultLocale}</p>
           </div>
         </div>
+      </Card>
+
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Meal planner</p>
+          <p className="mt-2 text-lg font-semibold">Household planning preferences</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Save your default household size, spice profile, and cooking rhythm for new meal plans.
+          </p>
+        </div>
+        <Link
+          href="/settings/meal-preferences"
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] hover:bg-slate-50"
+        >
+          Open meal preferences
+        </Link>
       </Card>
     </div>
   );

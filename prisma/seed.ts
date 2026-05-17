@@ -654,7 +654,7 @@ async function seedMealTypes() {
   ];
 
   for (const t of types) {
-    await prisma.mealType.upsert({
+    await prisma.mealTypeOption.upsert({
       where: { slug: t.slug },
       update: { name: t.name, displayOrder: t.displayOrder },
       create: t,

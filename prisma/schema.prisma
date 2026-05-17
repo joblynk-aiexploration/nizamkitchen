@@ -61,17 +61,17 @@ enum UserStatus {
 }
 
 model User {
-  id                 String               @id @default(cuid())
-  email              String               @unique
+  id                 String              @id @default(cuid())
+  email              String              @unique
   passwordHash       String
   fullName           String
-  status             UserStatus           @default(active)
+  status             UserStatus          @default(active)
   platformRole       PlatformRole?
-  preferredLocale    String?              @default("en-US")
-  preferredTimezone  String?              @default("UTC")
+  preferredLocale    String?             @default("en-US")
+  preferredTimezone  String?             @default("UTC")
   lastLoginAt        DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   sessions           Session[]
   memberships        Membership[]
   countryAssignments CountryAssignment[]
@@ -79,6 +79,7 @@ model User {
   emailLogs          EmailLog[]
   apiKeys            ApiKey[]
   groceryLists       GroceryList[]
+  createdMealPlans   MealPlan[]          @relation("MealPlanCreatedBy")
 }
 
 model Session {
@@ -124,21 +125,23 @@ model Organization {
   emailLogs            EmailLog[]
   countryConfigs       CountryConfig[]
   groceryLists         GroceryList[]
+  mealPlans            MealPlan[]
+  mealPlanPreference   MealPlanPreference?
 
   @@index([countryCode])
   @@index([status])
 }
 
 model Membership {
-  id             String             @id @default(cuid())
+  id             String           @id @default(cuid())
   userId         String
   organizationId String
   role           OrganizationRole
-  status         MembershipStatus   @default(active)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status         MembershipStatus @default(active)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -146,22 +149,23 @@ model Membership {
 }
 
 model Country {
-  id                 String             @id @default(cuid())
-  countryCode        String             @unique
+  id                 String              @id @default(cuid())
+  countryCode        String              @unique
   countryName        String
   currencyCode       String
   defaultTimezone    String
   defaultLocale      String
   measurementSystem  MeasurementSystem
   phoneCountryCode   String
-  isActive           Boolean            @default(true)
+  isActive           Boolean             @default(true)
   supportedModules   String[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   organizations      Organization[]
   countryAssignments CountryAssignment[]
   countryConfigs     CountryConfig[]
   auditLogs          AuditLog[]
+  mealPlans          MealPlan[]
 }
 
 model CountryAssignment {
@@ -399,31 +403,31 @@ model Cuisine {
 }
 
 model Unit {
-  id                String           @id @default(cuid())
-  code              String           @unique
-  name              String
-  pluralName        String
-  type              UnitType
-  system            UnitSystem
-  symbol            String?
-  isBaseUnit        Boolean          @default(false)
-  isGlobal          Boolean          @default(true)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  ingredients                   Ingredient[]            @relation("IngredientDefaultUnit")
-  recipeIngredients             RecipeIngredient[]
-  conversionsFrom               UnitConversion[]        @relation("ConversionFromUnit")
-  conversionsTo                 UnitConversion[]        @relation("ConversionToUnit")
-  groceryListItems              GroceryListItem[]
-  originalGroceryItemSources    GroceryListItemSource[] @relation("SourceOriginalUnit")
-  scaledGroceryItemSources      GroceryListItemSource[] @relation("SourceScaledUnit")
+  id                         String                  @id @default(cuid())
+  code                       String                  @unique
+  name                       String
+  pluralName                 String
+  type                       UnitType
+  system                     UnitSystem
+  symbol                     String?
+  isBaseUnit                 Boolean                 @default(false)
+  isGlobal                   Boolean                 @default(true)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
+  recipeIngredients          RecipeIngredient[]
+  conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
+  conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
+  groceryListItems           GroceryListItem[]
+  originalGroceryItemSources GroceryListItemSource[] @relation("SourceOriginalUnit")
+  scaledGroceryItemSources   GroceryListItemSource[] @relation("SourceScaledUnit")
 
   @@index([type])
   @@index([system])
 }
 
 model Ingredient {
-  id                      String             @id @default(cuid())
+  id                      String                     @id @default(cuid())
   organizationId          String?
   countryCode             String?
   name                    String
@@ -433,11 +437,11 @@ model Ingredient {
   defaultUnitId           String?
   densityGramPerMl        Float?
   averagePieceWeightGrams Float?
-  isGlobal                Boolean            @default(true)
-  isActive                Boolean            @default(true)
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
-  defaultUnit             Unit?              @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
+  isGlobal                Boolean                    @default(true)
+  isActive                Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
   aliases                 IngredientAlias[]
   recipeIngredients       RecipeIngredient[]
   unitConversions         UnitConversion[]
@@ -488,36 +492,37 @@ model UnitConversion {
 }
 
 model Recipe {
-  id             String               @id @default(cuid())
-  organizationId String?
-  countryCode    String?
-  cuisineId      String
-  name           String
-  slug           String
-  description    String?
-  story          String?
-  difficulty     RecipeDifficulty
-  spiceLevel     SpiceLevel
-  prepMinutes    Int
-  cookMinutes    Int
-  restMinutes    Int?
-  servings       Int
-  servingUnit    String               @default("serving")
-  visibility     RecipeVisibility     @default(global)
-  sourceType     RecipeSourceType
-  createdById    String?
-  isGlobal       Boolean              @default(false)
-  isPublished    Boolean              @default(false)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  cuisine              Cuisine                    @relation(fields: [cuisineId], references: [id])
-  ingredients          RecipeIngredient[]
-  steps                RecipeStep[]
-  mediaRefs            RecipeMediaReference[]
-  dietaryTags          RecipeDietaryTag[]
-  groceryListRecipes   GroceryListRecipe[]
-  groceryItemSources   GroceryListItemSource[]
-  groceryWarnings      GroceryConversionWarning[]
+  id                 String                     @id @default(cuid())
+  organizationId     String?
+  countryCode        String?
+  cuisineId          String
+  name               String
+  slug               String
+  description        String?
+  story              String?
+  difficulty         RecipeDifficulty
+  spiceLevel         SpiceLevel
+  prepMinutes        Int
+  cookMinutes        Int
+  restMinutes        Int?
+  servings           Int
+  servingUnit        String                     @default("serving")
+  visibility         RecipeVisibility           @default(global)
+  sourceType         RecipeSourceType
+  createdById        String?
+  isGlobal           Boolean                    @default(false)
+  isPublished        Boolean                    @default(false)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  cuisine            Cuisine                    @relation(fields: [cuisineId], references: [id])
+  ingredients        RecipeIngredient[]
+  steps              RecipeStep[]
+  mediaRefs          RecipeMediaReference[]
+  dietaryTags        RecipeDietaryTag[]
+  groceryListRecipes GroceryListRecipe[]
+  groceryItemSources GroceryListItemSource[]
+  groceryWarnings    GroceryConversionWarning[]
+  mealPlanEntries    MealPlanEntry[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -548,7 +553,7 @@ model RecipeIngredient {
 }
 
 model RecipeStep {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   recipeId        String
   stepNumber      Int
   title           String?
@@ -556,8 +561,8 @@ model RecipeStep {
   durationMinutes Int?
   temperature     String?
   tips            String?
-  displayOrder    Int      @default(0)
-  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  displayOrder    Int     @default(0)
+  recipe          Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@unique([recipeId, stepNumber])
   @@index([recipeId])
@@ -595,7 +600,7 @@ model RecipeDietaryTag {
   @@id([recipeId, dietaryTagId])
 }
 
-model MealType {
+model MealTypeOption {
   id           String @id @default(cuid())
   name         String @unique
   slug         String @unique
@@ -603,6 +608,31 @@ model MealType {
 }
 
 // ─── Grocery Engine ───────────────────────────────────────────────────────────
+
+enum MealPlanStatus {
+  draft
+  active
+  completed
+  archived
+}
+
+enum MealPlanEntryStatus {
+  planned
+  cooked
+  skipped
+  ordered_instead
+  replaced
+}
+
+enum MealType {
+  breakfast
+  lunch
+  dinner
+  snack
+  dessert
+  side
+  prep
+}
 
 enum GroceryListStatus {
   draft
@@ -639,29 +669,112 @@ enum WarningSeverity {
 }
 
 model GroceryList {
-  id                 String                    @id @default(cuid())
+  id                 String                     @id @default(cuid())
   organizationId     String
   countryCode        String?
   createdById        String
+  mealPlanId         String?
   name               String
-  status             GroceryListStatus         @default(draft)
-  sourceType         GroceryListSourceType     @default(recipes)
+  status             GroceryListStatus          @default(draft)
+  sourceType         GroceryListSourceType      @default(recipes)
   plannedStartDate   DateTime?
   plannedEndDate     DateTime?
   householdSize      Int?
   notes              String?
-  calculationVersion Int                       @default(1)
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  organization       Organization              @relation(fields: [organizationId], references: [id])
-  createdBy          User                      @relation(fields: [createdById], references: [id])
+  calculationVersion Int                        @default(1)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  organization       Organization               @relation(fields: [organizationId], references: [id])
+  createdBy          User                       @relation(fields: [createdById], references: [id])
+  mealPlan           MealPlan?                  @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
   recipes            GroceryListRecipe[]
   items              GroceryListItem[]
   warnings           GroceryConversionWarning[]
 
   @@index([organizationId])
   @@index([createdById])
+  @@index([mealPlanId])
   @@index([status])
+}
+
+model MealPlan {
+  id             String         @id @default(cuid())
+  organizationId String
+  countryCode    String
+  createdById    String
+  name           String
+  status         MealPlanStatus @default(draft)
+  startDate      DateTime
+  endDate        DateTime
+  householdSize  Int
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  country        Country        @relation(fields: [countryCode], references: [countryCode], onDelete: Restrict)
+  createdBy      User           @relation("MealPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  days           MealPlanDay[]
+  groceryLists   GroceryList[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([createdById])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model MealPlanDay {
+  id         String          @id @default(cuid())
+  mealPlanId String
+  date       DateTime
+  dayLabel   String?
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  mealPlan   MealPlan        @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  entries    MealPlanEntry[]
+
+  @@unique([mealPlanId, date])
+  @@index([date])
+}
+
+model MealPlanEntry {
+  id             String              @id @default(cuid())
+  mealPlanDayId  String
+  recipeId       String?
+  customMealName String?
+  mealType       MealType
+  targetServings Int
+  notes          String?
+  status         MealPlanEntryStatus @default(planned)
+  displayOrder   Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  mealPlanDay    MealPlanDay         @relation(fields: [mealPlanDayId], references: [id], onDelete: Cascade)
+  recipe         Recipe?             @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([mealPlanDayId])
+  @@index([recipeId])
+  @@index([mealType])
+  @@index([status])
+}
+
+model MealPlanPreference {
+  id                   String             @id @default(cuid())
+  organizationId       String             @unique
+  defaultHouseholdSize Int?
+  defaultCountryCode   String?
+  preferredCuisines    String[]
+  avoidedIngredients   String[]
+  spicePreference      SpiceLevel?
+  dietaryNotes         String?
+  weeklyCookingDays    String[]
+  measurementSystem    MeasurementSystem?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([defaultCountryCode])
 }
 
 model GroceryListRecipe {
@@ -683,7 +796,7 @@ model GroceryListRecipe {
 }
 
 model GroceryListItem {
-  id                      String             @id @default(cuid())
+  id                      String                  @id @default(cuid())
   groceryListId           String
   ingredientId            String
   ingredientNameSnapshot  String
@@ -694,16 +807,16 @@ model GroceryListItem {
   unitNameSnapshot        String
   displayQuantity         Float
   displayUnit             String
-  confidence              GroceryConfidence  @default(unknown)
-  mergeStatus             GroceryMergeStatus @default(separate)
+  confidence              GroceryConfidence       @default(unknown)
+  mergeStatus             GroceryMergeStatus      @default(separate)
   notes                   String?
-  isChecked               Boolean            @default(false)
-  sortOrder               Int                @default(0)
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
-  groceryList             GroceryList        @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
-  ingredient              Ingredient         @relation(fields: [ingredientId], references: [id])
-  unit                    Unit               @relation(fields: [unitId], references: [id])
+  isChecked               Boolean                 @default(false)
+  sortOrder               Int                     @default(0)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  groceryList             GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  ingredient              Ingredient              @relation(fields: [ingredientId], references: [id])
+  unit                    Unit                    @relation(fields: [unitId], references: [id])
   sources                 GroceryListItemSource[]
 
   @@index([groceryListId])

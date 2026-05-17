@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChefHat, Cog, CreditCard, Flag, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users } from "lucide-react";
 import { hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const appLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/recipes", label: "Recipes", icon: BookOpen },
   { href: "/ingredients", label: "Ingredients", icon: ChefHat },
+  { href: "/meal-plans", label: "Meal Plans", icon: CalendarDays },
   { href: "/grocery-lists", label: "Grocery Lists", icon: ShoppingCart },
   { href: "/organizations", label: "Organizations", icon: Building2 },
   { href: "/team", label: "Team", icon: Users },
@@ -26,6 +27,7 @@ const adminLinks = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/audit-logs", label: "Audit Trail", icon: Logs },
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
+  { href: "/admin/meal-planner", label: "Meal Planner", icon: CalendarDays },
   { href: "/admin/system-settings", label: "System Settings", icon: Cog },
 ];
 
