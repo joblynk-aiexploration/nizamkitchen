@@ -6,33 +6,45 @@ import { listCuisines } from "@/server/cuisines";
 
 export const dynamic = "force-dynamic";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default async function AdminNewRecipePage() {
   const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
   const cuisines = await listCuisines();
 
   async function handleCreate(formData: FormData) {
     "use server";
-    const { requirePlatformRole: getSession } = await import("@/lib/auth/session");
-    const { createRecipe: create } = await import("@/server/recipes");
-    const { slugify: toSlug } = await import("@/lib/slug");
-    const sess = await getSession(["platform_owner", "platform_admin"]);
-    const name = formData.get("name") as string;
-    const recipe = await create(sess, {
-      name,
-      slug: toSlug(name),
-      cuisineId: formData.get("cuisineId") as string,
-      description: (formData.get("description") as string) || null,
-      difficulty: formData.get("difficulty") as never,
-      spiceLevel: formData.get("spiceLevel") as never,
-      prepMinutes: Number(formData.get("prepMinutes")),
-      cookMinutes: Number(formData.get("cookMinutes")),
-      servings: Number(formData.get("servings")),
-      visibility: "global",
-      sourceType: "platform",
-      isGlobal: true,
-      isPublished: false,
-    });
-    redirect(`/admin/recipe-library/${recipe.id}`);
+    try {
+      const { requirePlatformRole: getSession } = await import("@/lib/auth/session");
+      const { createRecipe: create } = await import("@/server/recipes");
+      const { slugify: toSlug } = await import("@/lib/slug");
+      const sess = await getSession(["platform_owner", "platform_admin"]);
+      const name = formData.get("name") as string;
+      const recipe = await create(sess, {
+        name,
+        slug: toSlug(name),
+        cuisineId: formData.get("cuisineId") as string,
+        description: (formData.get("description") as string) || null,
+        difficulty: formData.get("difficulty") as never,
+        spiceLevel: formData.get("spiceLevel") as never,
+        prepMinutes: Number(formData.get("prepMinutes")),
+        cookMinutes: Number(formData.get("cookMinutes")),
+        servings: Number(formData.get("servings")),
+        visibility: "global",
+        sourceType: "platform",
+        isGlobal: true,
+        isPublished: false,
+      });
+      redirect(`/admin/recipe-library/${recipe.id}`);
+    } catch (error) {
+      redirect(`/admin/recipe-library/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to create recipe."))}`);
+    }
   }
 
   return (

@@ -6,6 +6,14 @@ import { listRecipes } from "@/server/recipes";
 
 export const dynamic = "force-dynamic";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default async function NewGroceryListPage() {
   const session = await requireMembership();
   const orgId = session.activeOrganization.id;
@@ -17,45 +25,48 @@ export default async function NewGroceryListPage() {
 
   async function createGroceryList(formData: FormData) {
     "use server";
-    const { requireMembership: getSession } = await import("@/lib/auth/session");
-    const { generateGroceryList } = await import("@/server/grocery");
-    const { groceryListCreateSchema } = await import("@/lib/validation/grocery");
+    try {
+      const { requireMembership: getSession } = await import("@/lib/auth/session");
+      const { generateGroceryList } = await import("@/server/grocery");
+      const { groceryListCreateSchema } = await import("@/lib/validation/grocery");
 
-    const sess = await getSession();
-    const orgId = sess.activeOrganization.id;
+      const sess = await getSession();
+      const orgId = sess.activeOrganization.id;
 
-    const name = formData.get("name") as string;
-    const notes = (formData.get("notes") as string) || undefined;
-    const householdSize = formData.get("householdSize") ? Number(formData.get("householdSize")) : undefined;
+      const name = formData.get("name") as string;
+      const notes = (formData.get("notes") as string) || undefined;
+      const householdSize = formData.get("householdSize") ? Number(formData.get("householdSize")) : undefined;
 
-    // Collect recipe entries from form fields recipe_<id>_servings
-    const recipeEntries: Array<{ recipeId: string; targetServings: number }> = [];
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith("recipe_") && key.endsWith("_servings") && value) {
-        const recipeId = key.replace("recipe_", "").replace("_servings", "");
-        recipeEntries.push({ recipeId, targetServings: Number(value) });
+      const recipeEntries: Array<{ recipeId: string; targetServings: number }> = [];
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith("recipe_") && key.endsWith("_servings") && value) {
+          const recipeId = key.replace("recipe_", "").replace("_servings", "");
+          recipeEntries.push({ recipeId, targetServings: Number(value) });
+        }
       }
+
+      const parsed = groceryListCreateSchema.safeParse({
+        name,
+        recipes: recipeEntries,
+        notes,
+        householdSize,
+      });
+
+      if (!parsed.success) {
+        redirect("/grocery-lists/new?message=Enter a list name and at least one recipe.");
+      }
+
+      const list = await generateGroceryList({
+        organizationId: orgId,
+        countryCode: sess.activeOrganization.countryCode,
+        createdById: sess.user.id,
+        input: parsed.data,
+      });
+
+      redirect(`/grocery-lists/${list.id}`);
+    } catch (error) {
+      redirect(`/grocery-lists/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to generate grocery list."))}`);
     }
-
-    const parsed = groceryListCreateSchema.safeParse({
-      name,
-      recipes: recipeEntries,
-      notes,
-      householdSize,
-    });
-
-    if (!parsed.success) {
-      redirect("/grocery-lists/new?error=invalid");
-    }
-
-    const list = await generateGroceryList({
-      organizationId: orgId,
-      countryCode: sess.activeOrganization.countryCode,
-      createdById: sess.user.id,
-      input: parsed.data,
-    });
-
-    redirect(`/grocery-lists/${list.id}`);
   }
 
   return (

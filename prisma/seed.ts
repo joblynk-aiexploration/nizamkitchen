@@ -32,6 +32,10 @@ const FEATURE_FLAGS = [
   "ai_suggestions",
 ];
 
+// Flags that are enabled globally on a fresh seed.
+// Re-seeding never overwrites the enabled state so manual changes are preserved.
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner"]);
+
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
   { countryCode: "IN", countryName: "India", currencyCode: "INR", defaultTimezone: "Asia/Kolkata", defaultLocale: "en-IN", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+91" },
@@ -1103,7 +1107,7 @@ async function seedRecipes(
 
     // Sync steps
     await prisma.recipeStep.deleteMany({ where: { recipeId: recipe.id } });
-    r.steps.forEach(async (step, index) => {
+    for (const [index, step] of r.steps.entries()) {
       await prisma.recipeStep.create({
         data: {
           recipeId: recipe.id,
@@ -1115,7 +1119,7 @@ async function seedRecipes(
           displayOrder: index,
         },
       });
-    });
+    }
 
     // Sync dietary tags
     await prisma.recipeDietaryTag.deleteMany({ where: { recipeId: recipe.id } });
@@ -1162,9 +1166,10 @@ async function main() {
   for (const key of FEATURE_FLAGS) {
     const existing = await prisma.featureFlag.findFirst({ where: { key, organizationId: null, countryCode: null } });
     if (existing) {
-      await prisma.featureFlag.update({ where: { id: existing.id }, data: { name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.`, enabled: false } });
+      // Never overwrite enabled state — preserve manual changes made after seeding
+      await prisma.featureFlag.update({ where: { id: existing.id }, data: { name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.` } });
     } else {
-      await prisma.featureFlag.create({ data: { key, name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.`, enabled: false } });
+      await prisma.featureFlag.create({ data: { key, name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.`, enabled: GLOBALLY_ENABLED_FLAGS.has(key) } });
     }
   }
 

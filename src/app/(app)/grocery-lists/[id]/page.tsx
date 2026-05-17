@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,14 @@ import { getGroceryList } from "@/server/grocery";
 import { confidenceBadgeProps, mergeBadgeProps } from "@/lib/grocery-display";
 
 export const dynamic = "force-dynamic";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 const STATUS_TONE: Record<string, "neutral" | "success" | "warning" | "danger" | "info"> = {
   draft: "neutral",
@@ -44,15 +52,20 @@ export default async function GroceryListPage({
 
   async function toggleItem(formData: FormData) {
     "use server";
-    const { requireMembership: getSession } = await import("@/lib/auth/session");
-    const { updateGroceryItem: update } = await import("@/server/grocery");
-    const sess = await getSession();
-    const itemId = formData.get("itemId") as string;
-    const isChecked = formData.get("isChecked") === "true";
     const listId = formData.get("listId") as string;
-    await update(itemId, listId, sess.activeOrganization.id, sess.user.id, { isChecked: !isChecked });
-    const { revalidatePath } = await import("next/cache");
-    revalidatePath(`/grocery-lists/${listId}`);
+
+    try {
+      const { requireMembership: getSession } = await import("@/lib/auth/session");
+      const { updateGroceryItem: update } = await import("@/server/grocery");
+      const sess = await getSession();
+      const itemId = formData.get("itemId") as string;
+      const isChecked = formData.get("isChecked") === "true";
+      await update(itemId, listId, sess.activeOrganization.id, sess.user.id, { isChecked: !isChecked });
+      const { revalidatePath } = await import("next/cache");
+      revalidatePath(`/grocery-lists/${listId}`);
+    } catch (error) {
+      redirect(`/grocery-lists/${listId}?message=${encodeURIComponent(getErrorMessage(error, "Unable to update grocery item."))}`);
+    }
   }
 
   return (

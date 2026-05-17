@@ -78,7 +78,9 @@ export async function POST(request: Request) {
       ...(await getRequestMetadata()),
     });
 
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(
+      new URL(getPostLoginRedirectPath(user.platformRole, activeMembership?.organizationId), request.url),
+    );
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return NextResponse.redirect(
@@ -98,4 +100,23 @@ function isDatabaseUnavailableError(error: unknown) {
     error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P1001")
   );
+}
+
+function getPostLoginRedirectPath(
+  platformRole: string | null,
+  activeOrganizationId?: string | null,
+) {
+  if (activeOrganizationId) {
+    return "/dashboard";
+  }
+
+  if (platformRole === "country_manager") {
+    return "/admin/my-countries";
+  }
+
+  if (platformRole) {
+    return "/admin";
+  }
+
+  return "/organizations";
 }

@@ -17,6 +17,14 @@ import {
   updateMealPlanPreference,
 } from "@/server/meal-plans";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function listFromFormData(formData: FormData, key: string) {
   return formData
     .getAll(key)
@@ -43,197 +51,245 @@ async function requireMealPlannerAccess() {
 }
 
 export async function createMealPlanAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
+  try {
+    const session = await requireMealPlannerAccess();
 
-  const plan = await createMealPlan({
-    organizationId: session.activeOrganization.id,
-    countryCode: session.activeOrganization.countryCode,
-    createdById: session.user.id,
-    input: {
-      name: formData.get("name"),
-      startDate: formData.get("startDate"),
-      endDate: formData.get("endDate"),
-      householdSize: formData.get("householdSize"),
-      notes: formData.get("notes"),
-    },
-  });
+    const plan = await createMealPlan({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      createdById: session.user.id,
+      input: {
+        name: formData.get("name"),
+        startDate: formData.get("startDate"),
+        endDate: formData.get("endDate"),
+        householdSize: formData.get("householdSize"),
+        notes: formData.get("notes"),
+      },
+    });
 
-  revalidatePath("/meal-plans");
-  redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created.`);
+    revalidatePath("/meal-plans");
+    redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created.`);
+  } catch (error) {
+    redirect(`/meal-plans/new?message=${encodeURIComponent(getErrorMessage(error, "Unable to create meal plan."))}`);
+  }
 }
 
 export async function updateMealPlanAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  await updateMealPlan({
-    mealPlanId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    input: {
-      name: formData.get("name"),
-      startDate: formData.get("startDate"),
-      endDate: formData.get("endDate"),
-      householdSize: formData.get("householdSize"),
-      notes: formData.get("notes"),
-      status: formData.get("status") || undefined,
-    },
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/edit`);
-  revalidatePath("/meal-plans");
-  redirect(`/meal-plans/${mealPlanId}/edit?message=Meal plan updated.`);
+    await updateMealPlan({
+      mealPlanId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      input: {
+        name: formData.get("name"),
+        startDate: formData.get("startDate"),
+        endDate: formData.get("endDate"),
+        householdSize: formData.get("householdSize"),
+        notes: formData.get("notes"),
+        status: formData.get("status") || undefined,
+      },
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    revalidatePath("/meal-plans");
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Meal plan updated.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal plan."))}`);
+  }
 }
 
 export async function addMealPlanEntryAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  await addMealPlanEntry({
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    input: {
-      mealPlanDayId: formData.get("mealPlanDayId"),
-      recipeId: formData.get("recipeId") || undefined,
-      customMealName: formData.get("customMealName") || undefined,
-      mealType: formData.get("mealType"),
-      targetServings: formData.get("targetServings"),
-      notes: formData.get("notes") || undefined,
-      status: formData.get("status") || "planned",
-    },
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/edit`);
-  redirect(`/meal-plans/${mealPlanId}/edit?message=Meal added.`);
+    await addMealPlanEntry({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      input: {
+        mealPlanDayId: formData.get("mealPlanDayId"),
+        recipeId: formData.get("recipeId") || undefined,
+        customMealName: formData.get("customMealName") || undefined,
+        mealType: formData.get("mealType"),
+        targetServings: formData.get("targetServings"),
+        notes: formData.get("notes") || undefined,
+        status: formData.get("status") || "planned",
+      },
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Meal added.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to add meal."))}`);
+  }
 }
 
 export async function updateMealPlanEntryAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
   const entryId = String(formData.get("entryId"));
 
-  await updateMealPlanEntry({
-    entryId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    input: {
-      recipeId: formData.get("recipeId") || undefined,
-      customMealName: formData.get("customMealName") || undefined,
-      mealType: formData.get("mealType") || undefined,
-      targetServings: formData.get("targetServings") || undefined,
-      notes: formData.get("notes") || undefined,
-      status: formData.get("status") || undefined,
-    },
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/edit`);
-  redirect(`/meal-plans/${mealPlanId}/edit?message=Meal updated.`);
+    await updateMealPlanEntry({
+      entryId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      input: {
+        recipeId: formData.get("recipeId") || undefined,
+        customMealName: formData.get("customMealName") || undefined,
+        mealType: formData.get("mealType") || undefined,
+        targetServings: formData.get("targetServings") || undefined,
+        notes: formData.get("notes") || undefined,
+        status: formData.get("status") || undefined,
+      },
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Meal updated.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal."))}`);
+  }
 }
 
 export async function deleteMealPlanEntryAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
   const entryId = String(formData.get("entryId"));
 
-  await deleteMealPlanEntry({
-    entryId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/edit`);
-  redirect(`/meal-plans/${mealPlanId}/edit?message=Meal removed.`);
+    await deleteMealPlanEntry({
+      entryId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Meal removed.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to remove meal."))}`);
+  }
 }
 
 export async function moveMealPlanEntryAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
   const entryId = String(formData.get("entryId"));
   const direction = String(formData.get("direction")) as "up" | "down";
 
-  await moveMealPlanEntry({
-    entryId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    direction,
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/edit`);
-  redirect(`/meal-plans/${mealPlanId}/edit`);
+    await moveMealPlanEntry({
+      entryId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      direction,
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    redirect(`/meal-plans/${mealPlanId}/edit`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to move meal."))}`);
+  }
 }
 
 export async function duplicateMealPlanAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  const duplicate = await duplicateMealPlan({
-    mealPlanId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    input: {
-      name: formData.get("name") || undefined,
-      startDate: formData.get("startDate") || undefined,
-    },
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath("/meal-plans");
-  redirect(`/meal-plans/${duplicate.id}/edit?message=Meal plan duplicated.`);
+    const duplicate = await duplicateMealPlan({
+      mealPlanId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      input: {
+        name: formData.get("name") || undefined,
+        startDate: formData.get("startDate") || undefined,
+      },
+    });
+
+    revalidatePath("/meal-plans");
+    redirect(`/meal-plans/${duplicate.id}/edit?message=Meal plan duplicated.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}?message=${encodeURIComponent(getErrorMessage(error, "Unable to duplicate meal plan."))}`);
+  }
 }
 
 export async function deleteMealPlanAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  await deleteMealPlan({
-    mealPlanId,
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath("/meal-plans");
-  redirect("/meal-plans?message=Meal plan deleted.");
+    await deleteMealPlan({
+      mealPlanId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+    });
+
+    revalidatePath("/meal-plans");
+    redirect("/meal-plans?message=Meal plan deleted.");
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to delete meal plan."))}`);
+  }
 }
 
 export async function generateMealPlanGroceryListAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
   const mealPlanId = String(formData.get("mealPlanId"));
 
-  const groceryList = await generateGroceryListFromMealPlan({
-    organizationId: session.activeOrganization.id,
-    mealPlanId,
-    createdById: session.user.id,
-  });
+  try {
+    const session = await requireMealPlannerAccess();
 
-  revalidatePath(`/meal-plans/${mealPlanId}`);
-  revalidatePath(`/meal-plans/${mealPlanId}/grocery-list`);
-  revalidatePath("/grocery-lists");
-  redirect(`/grocery-lists/${groceryList.id}?message=Grocery list generated from meal plan.`);
+    const groceryList = await generateGroceryListFromMealPlan({
+      organizationId: session.activeOrganization.id,
+      mealPlanId,
+      createdById: session.user.id,
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/grocery-list`);
+    revalidatePath("/grocery-lists");
+    redirect(`/grocery-lists/${groceryList.id}?message=Grocery list generated from meal plan.`);
+  } catch (error) {
+    redirect(`/meal-plans/${mealPlanId}/grocery-list?message=${encodeURIComponent(getErrorMessage(error, "Unable to generate grocery list."))}`);
+  }
 }
 
 export async function updateMealPlanPreferencesAction(formData: FormData) {
-  const session = await requireMealPlannerAccess();
+  try {
+    const session = await requireMealPlannerAccess();
 
-  await updateMealPlanPreference({
-    organizationId: session.activeOrganization.id,
-    actorUserId: session.user.id,
-    countryCode: session.activeOrganization.countryCode,
-    input: {
-      defaultHouseholdSize: formData.get("defaultHouseholdSize") || null,
-      defaultCountryCode: formData.get("defaultCountryCode") || null,
-      preferredCuisines: listFromFormData(formData, "preferredCuisines"),
-      avoidedIngredients: listFromFormData(formData, "avoidedIngredients"),
-      spicePreference: formData.get("spicePreference") || null,
-      dietaryNotes: formData.get("dietaryNotes") || null,
-      weeklyCookingDays: formData.getAll("weeklyCookingDays"),
-      measurementSystem: formData.get("measurementSystem") || null,
-    },
-  });
+    await updateMealPlanPreference({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      countryCode: session.activeOrganization.countryCode,
+      input: {
+        defaultHouseholdSize: formData.get("defaultHouseholdSize") || null,
+        defaultCountryCode: formData.get("defaultCountryCode") || null,
+        preferredCuisines: listFromFormData(formData, "preferredCuisines"),
+        avoidedIngredients: listFromFormData(formData, "avoidedIngredients"),
+        spicePreference: formData.get("spicePreference") || null,
+        dietaryNotes: formData.get("dietaryNotes") || null,
+        weeklyCookingDays: formData.getAll("weeklyCookingDays"),
+        measurementSystem: formData.get("measurementSystem") || null,
+      },
+    });
 
-  revalidatePath("/settings/meal-preferences");
-  redirect("/settings/meal-preferences?message=Meal preferences updated.");
+    revalidatePath("/settings/meal-preferences");
+    redirect("/settings/meal-preferences?message=Meal preferences updated.");
+  } catch (error) {
+    redirect(`/settings/meal-preferences?message=${encodeURIComponent(getErrorMessage(error, "Unable to update meal preferences."))}`);
+  }
 }

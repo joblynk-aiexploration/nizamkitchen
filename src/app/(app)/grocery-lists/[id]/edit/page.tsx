@@ -7,6 +7,14 @@ import { getGroceryList } from "@/server/grocery";
 
 export const dynamic = "force-dynamic";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default async function EditGroceryListPage({
   params,
 }: {
@@ -21,23 +29,27 @@ export default async function EditGroceryListPage({
 
   async function updateList(formData: FormData) {
     "use server";
-    const { requireMembership: getSession } = await import("@/lib/auth/session");
-    const { updateGroceryList } = await import("@/server/grocery");
-    const { groceryListUpdateSchema } = await import("@/lib/validation/grocery");
+    try {
+      const { requireMembership: getSession } = await import("@/lib/auth/session");
+      const { updateGroceryList } = await import("@/server/grocery");
+      const { groceryListUpdateSchema } = await import("@/lib/validation/grocery");
 
-    const sess = await getSession();
-    const parsed = groceryListUpdateSchema.safeParse({
-      name: formData.get("name") || undefined,
-      status: formData.get("status") || undefined,
-      notes: formData.get("notes") || null,
-    });
+      const sess = await getSession();
+      const parsed = groceryListUpdateSchema.safeParse({
+        name: formData.get("name") || undefined,
+        status: formData.get("status") || undefined,
+        notes: formData.get("notes") || null,
+      });
 
-    if (!parsed.success) {
-      redirect(`/grocery-lists/${id}/edit?error=invalid`);
+      if (!parsed.success) {
+        redirect(`/grocery-lists/${id}/edit?message=Please correct the grocery list details.`);
+      }
+
+      await updateGroceryList(id, sess.activeOrganization.id, sess.user.id, parsed.data);
+      redirect(`/grocery-lists/${id}`);
+    } catch (error) {
+      redirect(`/grocery-lists/${id}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to update grocery list."))}`);
     }
-
-    await updateGroceryList(id, sess.activeOrganization.id, sess.user.id, parsed.data);
-    redirect(`/grocery-lists/${id}`);
   }
 
   return (

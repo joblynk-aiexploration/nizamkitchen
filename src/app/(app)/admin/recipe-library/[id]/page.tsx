@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,14 @@ import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
 
 export const dynamic = "force-dynamic";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 export default async function AdminRecipeDetailPage({
   params,
@@ -34,15 +42,21 @@ export default async function AdminRecipeDetailPage({
 
   async function togglePublished() {
     "use server";
-    const { requirePlatformRole: getSession } = await import("@/lib/auth/session");
-    const { updateRecipe } = await import("@/server/recipes");
-    const { revalidatePath } = await import("next/cache");
-    const sess = await getSession(["platform_owner", "platform_admin"]);
-    const current = await (await import("@/server/recipes")).getRecipeById(id);
-    if (!current) return;
-    await updateRecipe(sess, id, { isPublished: !current.isPublished });
-    revalidatePath(`/admin/recipe-library/${id}`);
-    revalidatePath("/admin/recipe-library");
+    try {
+      const { requirePlatformRole: getSession } = await import("@/lib/auth/session");
+      const { updateRecipe } = await import("@/server/recipes");
+      const { revalidatePath } = await import("next/cache");
+      const sess = await getSession(["platform_owner", "platform_admin"]);
+      const current = await (await import("@/server/recipes")).getRecipeById(id);
+      if (!current) {
+        redirect("/admin/recipe-library?message=Recipe not found.");
+      }
+      await updateRecipe(sess, id, { isPublished: !current.isPublished });
+      revalidatePath(`/admin/recipe-library/${id}`);
+      revalidatePath("/admin/recipe-library");
+    } catch (error) {
+      redirect(`/admin/recipe-library/${id}?message=${encodeURIComponent(getErrorMessage(error, "Unable to update recipe publication."))}`);
+    }
   }
 
   return (

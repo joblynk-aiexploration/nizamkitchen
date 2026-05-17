@@ -9,6 +9,14 @@ import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default async function EditRecipePage({
   params,
 }: {
@@ -32,36 +40,44 @@ export default async function EditRecipePage({
 
   async function addIngredient(formData: FormData) {
     "use server";
-    const { requireMembership: getSession } = await import("@/lib/auth/session");
-    const { addRecipeIngredient } = await import("@/server/recipes");
-    const sess = await getSession();
-    await addRecipeIngredient(sess, {
-      recipeId: id,
-      ingredientId: formData.get("ingredientId") as string,
-      quantity: Number(formData.get("quantity")),
-      unitId: formData.get("unitId") as string,
-      preparationNote: (formData.get("preparationNote") as string) || null,
-      section: (formData.get("section") as string) || null,
-      isOptional: formData.get("isOptional") === "on",
-      displayOrder: recipe!.ingredients.length,
-    });
-    redirect(`/recipes/${id}/edit`);
+    try {
+      const { requireMembership: getSession } = await import("@/lib/auth/session");
+      const { addRecipeIngredient } = await import("@/server/recipes");
+      const sess = await getSession();
+      await addRecipeIngredient(sess, {
+        recipeId: id,
+        ingredientId: formData.get("ingredientId") as string,
+        quantity: Number(formData.get("quantity")),
+        unitId: formData.get("unitId") as string,
+        preparationNote: (formData.get("preparationNote") as string) || null,
+        section: (formData.get("section") as string) || null,
+        isOptional: formData.get("isOptional") === "on",
+        displayOrder: recipe!.ingredients.length,
+      });
+      redirect(`/recipes/${id}/edit`);
+    } catch (error) {
+      redirect(`/recipes/${id}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to add ingredient."))}`);
+    }
   }
 
   async function addStep(formData: FormData) {
     "use server";
-    const { requireMembership: getSession } = await import("@/lib/auth/session");
-    const { addRecipeStep } = await import("@/server/recipes");
-    const sess = await getSession();
-    await addRecipeStep(sess, {
-      recipeId: id,
-      stepNumber: recipe!.steps.length + 1,
-      title: (formData.get("title") as string) || null,
-      instruction: formData.get("instruction") as string,
-      durationMinutes: formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null,
-      tips: (formData.get("tips") as string) || null,
-    });
-    redirect(`/recipes/${id}/edit`);
+    try {
+      const { requireMembership: getSession } = await import("@/lib/auth/session");
+      const { addRecipeStep } = await import("@/server/recipes");
+      const sess = await getSession();
+      await addRecipeStep(sess, {
+        recipeId: id,
+        stepNumber: recipe!.steps.length + 1,
+        title: (formData.get("title") as string) || null,
+        instruction: formData.get("instruction") as string,
+        durationMinutes: formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null,
+        tips: (formData.get("tips") as string) || null,
+      });
+      redirect(`/recipes/${id}/edit`);
+    } catch (error) {
+      redirect(`/recipes/${id}/edit?message=${encodeURIComponent(getErrorMessage(error, "Unable to add step."))}`);
+    }
   }
 
   return (
