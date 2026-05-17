@@ -159,8 +159,12 @@ export default async function RecipeDetailPage({
           <div className="space-y-4">
             <h2 className="font-semibold text-[var(--color-ink)]">Video</h2>
 
-            {primaryRef && (
+            {primaryRef ? (
               <VideoReferenceCard ref_={primaryRef} showEmbed />
+            ) : (
+              <Card>
+                <p className="text-sm text-[var(--color-muted)]">No verified cooking video has been added yet.</p>
+              </Card>
             )}
 
             {youtubeRefs.length > 1 && (

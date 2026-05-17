@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 import { parseYouTubeUrl } from "@/lib/youtube";
 import { isSafeUrl } from "@/lib/media-url";
+import { getYouTubeDiscoveryConfig } from "@/lib/youtube-discovery-config";
+import { verifyVideoAvailability } from "@/lib/youtube-api";
 import type { MediaReferenceCreateInput } from "@/lib/validation/video";
 import type { Prisma } from "@prisma/client";
 
@@ -41,6 +43,59 @@ export async function createMediaReference(params: {
     externalId = parsed.externalId;
   }
 
+  // Verify YouTube availability if API key is configured.
+  // Without a key: save as unchecked — do not mark available without verification.
+  let availabilityFields: {
+    availabilityStatus: "available" | "unavailable" | "unchecked";
+    lastAvailabilityCheckedAt: Date | null;
+    isEmbeddable: boolean;
+    isPublic: boolean;
+    uploadStatus: string | null;
+    liveBroadcastContent: string | null;
+    qualityDefinition: string | null;
+    unavailableReason: string | null;
+  } = {
+    availabilityStatus: "unchecked",
+    lastAvailabilityCheckedAt: null,
+    isEmbeddable: false,
+    isPublic: false,
+    uploadStatus: null,
+    liveBroadcastContent: null,
+    qualityDefinition: null,
+    unavailableReason: null,
+  };
+
+  if (externalId && (input.type === "youtube" || input.provider === "youtube")) {
+    const cfg = getYouTubeDiscoveryConfig();
+    if (cfg.enabled) {
+      const check = await verifyVideoAvailability({ videoId: externalId, apiKey: cfg.apiKey });
+      if (check.available) {
+        availabilityFields = {
+          availabilityStatus: "available",
+          lastAvailabilityCheckedAt: new Date(),
+          isEmbeddable: check.isEmbeddable,
+          isPublic: check.isPublic,
+          uploadStatus: check.uploadStatus,
+          liveBroadcastContent: check.liveBroadcastContent,
+          qualityDefinition: check.qualityDefinition,
+          unavailableReason: null,
+        };
+      } else {
+        availabilityFields = {
+          availabilityStatus: "unavailable",
+          lastAvailabilityCheckedAt: new Date(),
+          isEmbeddable: check.isEmbeddable,
+          isPublic: check.isPublic,
+          uploadStatus: check.uploadStatus ?? null,
+          liveBroadcastContent: check.liveBroadcastContent ?? null,
+          qualityDefinition: check.qualityDefinition ?? null,
+          unavailableReason: check.reason,
+        };
+        throw new Error(`Video is not available for embedding: ${check.reason}`);
+      }
+    }
+  }
+
   // If setting as primary, unset other primaries
   if (input.isPrimary) {
     await prisma.recipeMediaReference.updateMany({
@@ -65,6 +120,14 @@ export async function createMediaReference(params: {
       isPrimary: input.isPrimary,
       displayOrder: input.displayOrder,
       notes: input.notes ?? null,
+      availabilityStatus: availabilityFields.availabilityStatus,
+      lastAvailabilityCheckedAt: availabilityFields.lastAvailabilityCheckedAt,
+      isEmbeddable: availabilityFields.isEmbeddable,
+      isPublic: availabilityFields.isPublic,
+      uploadStatus: availabilityFields.uploadStatus,
+      liveBroadcastContent: availabilityFields.liveBroadcastContent,
+      qualityDefinition: availabilityFields.qualityDefinition,
+      unavailableReason: availabilityFields.unavailableReason,
     },
   });
 
@@ -75,7 +138,12 @@ export async function createMediaReference(params: {
     action: "recipe_media_reference.created",
     targetType: "recipe_media_reference",
     targetId: ref.id,
-    details: { recipeId, type: input.type, provider: input.provider } as Prisma.InputJsonValue,
+    details: {
+      recipeId,
+      type: input.type,
+      provider: input.provider,
+      availabilityStatus: availabilityFields.availabilityStatus,
+    } as Prisma.InputJsonValue,
   });
 
   return ref;
