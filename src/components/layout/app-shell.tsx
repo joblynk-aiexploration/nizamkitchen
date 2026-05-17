@@ -18,7 +18,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="flex flex-col bg-[linear-gradient(180deg,var(--color-sidebar)_0%,var(--color-sidebar-strong)_100%)] px-6 py-8 text-[var(--color-sidebar-text)] lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
         <LogoMark />
 
-        {/* User card with Sign out */}
+        {/* User card */}
         <div className="mt-8 rounded-3xl border border-white/10 bg-white/6 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">Signed in as</p>
           <p className="mt-3 font-semibold text-white">{session.user.fullName}</p>
@@ -27,9 +27,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <Sparkles className="h-4 w-4" />
             <span>{session.activeOrganization?.name ?? "No active organization"}</span>
           </div>
-          <div className="mt-3 border-t border-white/10 pt-3">
-            <LogoutForm />
-          </div>
         </div>
 
         {/* Scrollable nav */}
@@ -37,12 +34,13 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarNav session={session} />
         </div>
 
-        {/* Footer link */}
-        <div className="border-t border-white/10 pt-4">
-          <Link href="/" className="flex items-center gap-2 text-sm text-slate-300 hover:text-white">
+        {/* Footer */}
+        <div className="border-t border-white/10 pt-4 space-y-1">
+          <Link href="/" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white">
             <ChevronLeft className="h-4 w-4" />
             Public site
           </Link>
+          <LogoutForm />
         </div>
       </aside>
       <main className="min-h-screen px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
