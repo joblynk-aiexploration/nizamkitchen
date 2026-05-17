@@ -98,8 +98,14 @@ export const featureFlagCreateSchema = z.object({
   description: z.string().trim().max(300).optional(),
   enabled: z.coerce.boolean().default(false),
   scopeType: z.enum(["global", "country", "organization"]),
-  countryCode: z.string().trim().toUpperCase().length(2).optional(),
-  organizationId: z.string().trim().min(1).optional(),
+  countryCode: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().trim().toUpperCase().length(2).optional(),
+  ),
+  organizationId: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().trim().min(1).optional(),
+  ),
 });
 
 export const featureFlagUpdateSchema = featureFlagCreateSchema.partial({
