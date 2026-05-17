@@ -16,15 +16,31 @@ type Props = {
   recipeId: string;
   recipeMediaReferenceId: string;
   aiConfigured: boolean;
+  providerName?: string | null;
+  videoAvailable?: boolean;
 };
 
-export function AIAnalysisButton({ recipeId, recipeMediaReferenceId, aiConfigured }: Props) {
+export function AIAnalysisButton({
+  recipeId,
+  recipeMediaReferenceId,
+  aiConfigured,
+  providerName,
+  videoAvailable = true,
+}: Props) {
   const [state, setState] = useState<AnalysisState>({ phase: "idle" });
   const [transcript, setTranscript] = useState("");
 
   function handleClick() {
+    if (!videoAvailable) {
+      setState({ phase: "error", message: "This video is unavailable and cannot be analyzed." });
+      return;
+    }
     if (!aiConfigured) {
       setState({ phase: "error", message: "AI video analysis is not configured yet. A platform admin needs to set up the AI provider." });
+      return;
+    }
+    if (providerName === "local_rules") {
+      setState({ phase: "transcript_input" });
       return;
     }
     setState({ phase: "choosing" });
@@ -58,19 +74,31 @@ export function AIAnalysisButton({ recipeId, recipeMediaReferenceId, aiConfigure
       }
 
       setState({ phase: "done", analysisId: data.analysisId ?? "" });
-      // Refresh the page to show the new analysis
       window.location.reload();
     } catch {
       setState({ phase: "error", message: "Network error. Please try again." });
     }
   }
 
+  const providerLabel = providerName === "local_rules"
+    ? "Local rules"
+    : providerName === "local_http"
+      ? "Local AI server"
+      : providerName === "mock"
+        ? "Mock (test)"
+        : providerName ?? null;
+
   if (state.phase === "idle") {
     return (
-      <Button variant="secondary" onClick={handleClick} className="gap-2">
-        <Sparkles className="h-4 w-4" />
-        Analyze with AI
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button variant="secondary" onClick={handleClick} className="gap-2">
+          <Sparkles className="h-4 w-4" />
+          Analyze with AI
+        </Button>
+        {providerLabel && (
+          <span className="text-xs text-[var(--color-muted)]">Provider: {providerLabel}</span>
+        )}
+      </div>
     );
   }
 
@@ -91,6 +119,16 @@ export function AIAnalysisButton({ recipeId, recipeMediaReferenceId, aiConfigure
     return (
       <div className="space-y-2 rounded-2xl border border-[var(--color-border)] p-4">
         <p className="text-sm font-medium text-[var(--color-ink)]">Choose analysis input:</p>
+        {providerName === "local_http" && (
+          <p className="text-xs text-[var(--color-muted)]">
+            Uses your local AI server at the configured base URL. Make sure it is running before starting.
+          </p>
+        )}
+        {providerName === "mock" && (
+          <p className="text-xs text-amber-700 rounded-xl bg-amber-50 px-3 py-2">
+            Mock provider active — output is synthetic test data only.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" onClick={() => setState({ phase: "transcript_input" })}>
             Paste transcript
@@ -110,7 +148,9 @@ export function AIAnalysisButton({ recipeId, recipeMediaReferenceId, aiConfigure
     return (
       <form onSubmit={handleTranscriptSubmit} className="space-y-3">
         <p className="text-sm text-[var(--color-muted)]">
-          Paste the video transcript below. The AI will analyze it and extract ingredients, steps, and differences from the written recipe.
+          {providerName === "local_rules"
+            ? "Paste the video transcript below. The local rules analyzer will extract ingredients, steps, and differences without any paid AI service."
+            : "Paste the video transcript below. The AI will analyze it and extract ingredients, steps, and differences from the written recipe."}
         </p>
         <textarea
           value={transcript}

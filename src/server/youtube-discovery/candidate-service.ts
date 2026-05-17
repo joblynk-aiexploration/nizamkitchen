@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 import { parseYouTubeUrl } from "@/lib/youtube";
+import { getYouTubeDiscoveryConfig } from "@/lib/youtube-discovery-config";
+import { verifyVideoAvailability } from "@/lib/youtube-api";
 import type { Prisma } from "@prisma/client";
 
 const CANDIDATE_INCLUDE = {
@@ -113,6 +115,82 @@ export async function importCandidate(params: {
   if (candidate.status === "rejected") throw new Error("Cannot import rejected candidate.");
   if (candidate.status === "imported") throw new Error("Candidate already imported.");
 
+  // Verify availability via YouTube API before creating a RecipeMediaReference.
+  // If no API key is configured, skip the check (treat as unchecked).
+  const cfg = getYouTubeDiscoveryConfig();
+  let availabilityData: {
+    availabilityStatus: "available" | "unavailable" | "unchecked";
+    isEmbeddable: boolean;
+    isPublic: boolean;
+    uploadStatus: string | null;
+    liveBroadcastContent: string | null;
+    qualityDefinition: string | null;
+    unavailableReason: string | null;
+  } = {
+    availabilityStatus: "unchecked",
+    isEmbeddable: false,
+    isPublic: false,
+    uploadStatus: null,
+    liveBroadcastContent: null,
+    qualityDefinition: null,
+    unavailableReason: null,
+  };
+
+  if (cfg.enabled) {
+    const check = await verifyVideoAvailability({ videoId: candidate.providerVideoId, apiKey: cfg.apiKey });
+    if (!check.available) {
+      // Mark candidate rejected-unavailable and throw
+      await prisma.youTubeVideoCandidate.update({
+        where: { id: candidateId },
+        data: {
+          availabilityStatus: "unavailable",
+          unavailableReason: check.reason,
+          lastAvailabilityCheckedAt: new Date(),
+          isEmbeddable: check.isEmbeddable,
+          isPublic: check.isPublic,
+          status: "rejected",
+          rejectionReasonsJson: [
+            ...((candidate.rejectionReasonsJson as string[] | null) ?? []),
+            `Availability check failed: ${check.reason}`,
+          ] as Prisma.InputJsonValue,
+        },
+      });
+      await createAuditEvent({
+        actorUserId,
+        organizationId,
+        countryCode,
+        action: "youtube_candidate.rejected_unavailable",
+        targetType: "youtube_video_candidate",
+        targetId: candidateId,
+        details: { videoId: candidate.providerVideoId, reason: check.reason } as Prisma.InputJsonValue,
+      });
+      throw new Error(`Video is not available for import: ${check.reason}`);
+    }
+    availabilityData = {
+      availabilityStatus: "available",
+      isEmbeddable: check.isEmbeddable,
+      isPublic: check.isPublic,
+      uploadStatus: check.uploadStatus,
+      liveBroadcastContent: check.liveBroadcastContent,
+      qualityDefinition: check.qualityDefinition,
+      unavailableReason: null,
+    };
+    // Update candidate availability fields
+    await prisma.youTubeVideoCandidate.update({
+      where: { id: candidateId },
+      data: {
+        availabilityStatus: "available",
+        lastAvailabilityCheckedAt: new Date(),
+        isEmbeddable: check.isEmbeddable,
+        isPublic: check.isPublic,
+        uploadStatus: check.uploadStatus,
+        liveBroadcastContent: check.liveBroadcastContent,
+        qualityDefinition: check.qualityDefinition,
+        unavailableReason: null,
+      },
+    });
+  }
+
   // Build safe embed/normalized URLs from providerVideoId (never from raw stored URL)
   const parsed = parseYouTubeUrl(`https://www.youtube.com/watch?v=${candidate.providerVideoId}`);
   if (!parsed) throw new Error("Could not parse candidate video ID.");
@@ -140,6 +218,13 @@ export async function importCandidate(params: {
       thumbnailUrl: candidate.thumbnailUrl ?? null,
       isPrimary,
       displayOrder: 0,
+      availabilityStatus: availabilityData.availabilityStatus,
+      lastAvailabilityCheckedAt: cfg.enabled ? new Date() : null,
+      isEmbeddable: availabilityData.isEmbeddable,
+      isPublic: availabilityData.isPublic,
+      uploadStatus: availabilityData.uploadStatus,
+      liveBroadcastContent: availabilityData.liveBroadcastContent,
+      qualityDefinition: availabilityData.qualityDefinition,
     },
   });
 

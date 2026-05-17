@@ -7,14 +7,17 @@ import { formatYouTubeDuration } from "@/lib/youtube";
 type Props = {
   ref_: RecipeMediaReference;
   showEmbed?: boolean;
+  isAdmin?: boolean;
 };
 
-export function VideoReferenceCard({ ref_: ref, showEmbed = true }: Props) {
+export function VideoReferenceCard({ ref_: ref, showEmbed = true, isAdmin = false }: Props) {
   const isYouTube = ref.type === "youtube" && ref.embedUrl;
+  const isUnavailable =
+    ref.availabilityStatus === "unavailable" || ref.availabilityStatus === "restricted";
 
   return (
     <Card className="overflow-hidden p-0">
-      {isYouTube && showEmbed && (
+      {isYouTube && showEmbed && !isUnavailable && (
         <div className="aspect-video w-full bg-black">
           <iframe
             src={ref.embedUrl!}
@@ -27,6 +30,16 @@ export function VideoReferenceCard({ ref_: ref, showEmbed = true }: Props) {
           />
         </div>
       )}
+      {isUnavailable && showEmbed && !isAdmin && (
+        <div className="flex aspect-video w-full items-center justify-center bg-slate-100">
+          <p className="text-sm text-[var(--color-muted)]">Video reference is currently unavailable.</p>
+        </div>
+      )}
+      {isUnavailable && isAdmin && (
+        <div className="rounded-t-2xl border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Unavailable: {ref.unavailableReason ?? "unknown reason"}
+        </div>
+      )}
       <div className="p-4 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -36,6 +49,11 @@ export function VideoReferenceCard({ ref_: ref, showEmbed = true }: Props) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {isAdmin && ref.availabilityStatus !== "unchecked" && (
+              <Badge tone={isUnavailable ? "danger" : ref.availabilityStatus === "available" ? "success" : "neutral"}>
+                {ref.availabilityStatus}
+              </Badge>
+            )}
             {ref.language && <Badge tone="neutral">{ref.language}</Badge>}
             {ref.durationSeconds && (
               <Badge tone="neutral">{formatYouTubeDuration(ref.durationSeconds)}</Badge>

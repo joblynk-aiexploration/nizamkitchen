@@ -9,7 +9,7 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
-import { isAIVideoAnalysisAvailable } from "@/lib/video-analysis-config";
+import { isAIVideoAnalysisAvailable, getVideoAnalysisConfig } from "@/lib/video-analysis-config";
 import { isYouTubeDiscoveryAvailable } from "@/lib/youtube-discovery-config";
 import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
 import { listAnalysisJobsForReference } from "@/server/video-analysis/video-analysis-jobs";
@@ -48,6 +48,7 @@ export default async function AdminRecipeDetailPage({
 
   const sections = groupIngredientsBySection(recipe.ingredients);
   const aiConfigured = isAIVideoAnalysisAvailable();
+  const aiProviderName = getVideoAnalysisConfig().provider;
   const discoveryAvailable = isYouTubeDiscoveryAvailable();
 
   const youtubeRefs = recipe.mediaRefs
@@ -143,12 +144,21 @@ export default async function AdminRecipeDetailPage({
           <div className="mt-4 space-y-6">
             {refAnalysisData.map(({ ref, analyses, jobs }) => (
               <div key={ref.id} className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
-                <VideoReferenceCard ref_={ref} showEmbed={false} />
+                <VideoReferenceCard ref_={ref} showEmbed={false} isAdmin />
 
                 <div className="flex flex-wrap items-center gap-2">
                   {ref.isPrimary && <Badge tone="success">Primary</Badge>}
                   <Badge tone="neutral">{ref.language ?? "no language"}</Badge>
                   {ref.creatorName && <span className="text-sm text-[var(--color-muted)]">{ref.creatorName}</span>}
+                  {canMutate && (
+                    <form action="/api/admin/youtube-discovery/recheck-availability" method="post" className="ml-auto">
+                      <input type="hidden" name="target" value="media_reference" />
+                      <input type="hidden" name="mediaReferenceId" value={ref.id} />
+                      <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)] hover:bg-slate-50">
+                        Recheck availability
+                      </button>
+                    </form>
+                  )}
                 </div>
 
                 {/* Analysis controls */}
@@ -162,6 +172,8 @@ export default async function AdminRecipeDetailPage({
                         recipeId={recipe.id}
                         recipeMediaReferenceId={ref.id}
                         aiConfigured={aiConfigured}
+                        providerName={aiProviderName}
+                        videoAvailable={ref.availabilityStatus !== "unavailable" && ref.availabilityStatus !== "restricted"}
                       />
                     )}
                   </div>
@@ -194,6 +206,11 @@ export default async function AdminRecipeDetailPage({
                           {analysis.verificationStatus}
                         </Badge>
                         <Badge tone="neutral">{analysis.confidence}</Badge>
+                        {analysis.aiProvider && <Badge tone="neutral">source: {analysis.aiProvider}</Badge>}
+                        {analysis.rawTranscriptProvided && <Badge tone="info">transcript provided</Badge>}
+                        {analysis.trainingExamples.length > 0 && (
+                          <Badge tone="success">training example ready</Badge>
+                        )}
                         <span className="text-xs text-[var(--color-muted)]">
                           {analysis.createdAt.toLocaleDateString()}
                         </span>
@@ -203,7 +220,7 @@ export default async function AdminRecipeDetailPage({
                           <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
                             <input type="hidden" name="verificationStatus" value="verified" />
                             <button type="submit" className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
-                              Verify
+                              Verify and add to training data
                             </button>
                           </form>
                         )}
@@ -223,6 +240,11 @@ export default async function AdminRecipeDetailPage({
                             </button>
                           </form>
                         )}
+                      </div>
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+                        Only verified corrected analyses should become training data.
+                        {analysis.aiProvider === "mock" ? " Mock output should not be used unless an admin has manually corrected it first." : ""}
+                        {analysis.trainingExamples.length > 0 ? ` Training example: ${analysis.trainingExamples[0].status}.` : " No training example has been created yet."}
                       </div>
                       <VideoAnalysisDisplay analysis={analysis} />
                     </div>

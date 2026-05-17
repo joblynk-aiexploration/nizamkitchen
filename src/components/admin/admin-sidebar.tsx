@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  BrainCircuit,
   BookOpen,
   Building2,
   CalendarDays,
@@ -48,6 +49,7 @@ const adminNavGroups = [
     items: [
       { href: "/admin/recipe-library", label: "Recipe library", icon: BookOpen },
       { href: "/admin/youtube-discovery", label: "YouTube discovery", icon: TvMinimalPlay },
+      { href: "/admin/ai-training", label: "AI Training", icon: BrainCircuit },
       { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
       { href: "/admin/units", label: "Units", icon: Ruler },
       { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
@@ -111,6 +113,10 @@ function canSeeLink(session: Session, href: string) {
 
   // YouTube discovery: only owner/admin
   if (href === "/admin/youtube-discovery") {
+    return role === "platform_owner" || role === "platform_admin";
+  }
+
+  if (href === "/admin/ai-training") {
     return role === "platform_owner" || role === "platform_admin";
   }
 

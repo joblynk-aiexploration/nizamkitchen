@@ -11,6 +11,7 @@ const supportedModuleValues = [
   "payments",
   "subscriptions",
   "ai_suggestions",
+  "ai_training",
   "country_specific_recipes",
   "chef_verification",
   "family_profiles",

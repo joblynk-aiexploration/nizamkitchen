@@ -178,6 +178,148 @@ export async function getYouTubeVideoDetails(params: {
   return details;
 }
 
+export type VideoAvailabilityResult =
+  | {
+      available: true;
+      videoId: string;
+      isEmbeddable: boolean;
+      isPublic: boolean;
+      uploadStatus: string;
+      liveBroadcastContent: string;
+      qualityDefinition: string | null;
+      durationSeconds: number | null;
+    }
+  | {
+      available: false;
+      videoId: string;
+      reason: string;
+      isEmbeddable: boolean;
+      isPublic: boolean;
+      uploadStatus: string | null;
+      liveBroadcastContent: string | null;
+      qualityDefinition: string | null;
+    };
+
+export async function verifyVideoAvailability(params: {
+  videoId: string;
+  apiKey: string;
+}): Promise<VideoAvailabilityResult> {
+  const { videoId, apiKey } = params;
+
+  const url = new URL(`${YOUTUBE_API_BASE}/videos`);
+  url.searchParams.set("part", "snippet,contentDetails,statistics,status");
+  url.searchParams.set("id", videoId);
+  url.searchParams.set("key", apiKey);
+
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    return {
+      available: false,
+      videoId,
+      reason: `YouTube API error ${res.status}`,
+      isEmbeddable: false,
+      isPublic: false,
+      uploadStatus: null,
+      liveBroadcastContent: null,
+      qualityDefinition: null,
+    };
+  }
+
+  const data = await res.json();
+  const item = (data.items ?? [])[0];
+
+  if (!item) {
+    return {
+      available: false,
+      videoId,
+      reason: "Video not found or deleted.",
+      isEmbeddable: false,
+      isPublic: false,
+      uploadStatus: null,
+      liveBroadcastContent: null,
+      qualityDefinition: null,
+    };
+  }
+
+  const status = item.status ?? {};
+  const snippet = item.snippet ?? {};
+  const contentDetails = item.contentDetails ?? {};
+
+  const isPublic = status.privacyStatus === "public";
+  const isEmbeddable = status.embeddable !== false;
+  const uploadStatus: string = status.uploadStatus ?? "";
+  const liveBroadcastContent: string = snippet.liveBroadcastContent ?? "none";
+  const qualityDefinition: string | null = contentDetails.definition ?? null;
+  const durationSeconds = parseDuration(contentDetails.duration ?? "");
+
+  if (!isPublic) {
+    return {
+      available: false,
+      videoId,
+      reason: `Video is ${status.privacyStatus ?? "not public"}.`,
+      isEmbeddable,
+      isPublic,
+      uploadStatus,
+      liveBroadcastContent,
+      qualityDefinition,
+    };
+  }
+
+  if (!isEmbeddable) {
+    return {
+      available: false,
+      videoId,
+      reason: "Video is not embeddable.",
+      isEmbeddable,
+      isPublic,
+      uploadStatus,
+      liveBroadcastContent,
+      qualityDefinition,
+    };
+  }
+
+  if (uploadStatus && uploadStatus !== "processed") {
+    return {
+      available: false,
+      videoId,
+      reason: `Video upload status is '${uploadStatus}' (not processed).`,
+      isEmbeddable,
+      isPublic,
+      uploadStatus,
+      liveBroadcastContent,
+      qualityDefinition,
+    };
+  }
+
+  if (liveBroadcastContent === "live") {
+    return {
+      available: false,
+      videoId,
+      reason: "Video is a live stream.",
+      isEmbeddable,
+      isPublic,
+      uploadStatus,
+      liveBroadcastContent,
+      qualityDefinition,
+    };
+  }
+
+  return {
+    available: true,
+    videoId,
+    isEmbeddable,
+    isPublic,
+    uploadStatus,
+    liveBroadcastContent,
+    qualityDefinition,
+    durationSeconds,
+  };
+}
+
 export async function getYouTubeChannelDetails(params: {
   channelIds: string[];
   apiKey: string;

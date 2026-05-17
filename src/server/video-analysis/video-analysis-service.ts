@@ -9,6 +9,9 @@ import { OpenAIProvider } from "./providers/openai-provider";
 import { AnthropicProvider } from "./providers/anthropic-provider";
 import { GeminiProvider } from "./providers/gemini-provider";
 import { LocalVisionProvider } from "./providers/local-vision-provider";
+import { LocalRulesProvider } from "./providers/local-rules-provider";
+import { LocalHttpProvider } from "./providers/local-http-provider";
+import { createTrainingExampleFromVerifiedAnalysis } from "@/server/ai-training";
 import type { VideoAnalysisProvider } from "./providers/types";
 import type { VerificationUpdateInput } from "@/lib/validation/video";
 import type { Prisma } from "@prisma/client";
@@ -21,6 +24,8 @@ function getProvider(): VideoAnalysisProvider {
     case "anthropic": return new AnthropicProvider();
     case "gemini": return new GeminiProvider();
     case "local_vision": return new LocalVisionProvider();
+    case "local_rules": return new LocalRulesProvider();
+    case "local_http": return new LocalHttpProvider();
     case "mock": return new MockProvider();
     default: return new DisabledProvider();
   }
@@ -30,6 +35,7 @@ const ANALYSIS_INCLUDE = {
   ingredients: { orderBy: { displayOrder: "asc" as const } },
   steps: { orderBy: { displayOrder: "asc" as const } },
   differences: true,
+  trainingExamples: { select: { id: true, status: true } },
   analyzedBy: { select: { fullName: true } },
   verifiedBy: { select: { fullName: true } },
 } as const;
@@ -70,6 +76,7 @@ export async function runTranscriptAnalysis(params: {
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
       include: {
+        cuisine: true,
         ingredients: { include: { ingredient: true, unit: true }, orderBy: { displayOrder: "asc" } },
         steps: { orderBy: { displayOrder: "asc" } },
         mediaRefs: { where: { id: recipeMediaReferenceId } },
@@ -80,10 +87,23 @@ export async function runTranscriptAnalysis(params: {
 
     const mediaRef = recipe.mediaRefs[0];
     const provider = getProvider();
+    if (provider.name === "local_rules" || provider.name === "local_http") {
+      await createAuditEvent({
+        actorUserId: requestedByUserId,
+        organizationId,
+        countryCode,
+        action: "local_ai.analysis_started",
+        targetType: "video_analysis_job",
+        targetId: jobId,
+        details: { provider: provider.name } as Prisma.InputJsonValue,
+      });
+    }
 
     const result = await analyzeTranscript(provider, {
       recipeId,
       recipeTitle: recipe.name,
+      recipeCuisine: recipe.cuisine.name,
+      recipeCountryCode: recipe.countryCode,
       recipeIngredients: recipe.ingredients.map((ri) => ({
         name: ri.ingredient.name,
         quantity: ri.quantity,
@@ -109,6 +129,17 @@ export async function runTranscriptAnalysis(params: {
         targetId: jobId,
         details: { error: result.error } as Prisma.InputJsonValue,
       });
+      if (provider.name === "local_rules" || provider.name === "local_http") {
+        await createAuditEvent({
+          actorUserId: requestedByUserId,
+          organizationId,
+          countryCode,
+          action: "local_ai.analysis_failed",
+          targetType: "video_analysis_job",
+          targetId: jobId,
+          details: { provider: provider.name, error: result.error } as Prisma.InputJsonValue,
+        });
+      }
       return { success: false as const, error: result.error };
     }
 
@@ -207,6 +238,17 @@ export async function runTranscriptAnalysis(params: {
       targetType: "video_analysis_job",
       targetId: jobId,
     });
+    if (result.provider === "local_rules" || result.provider === "local_http") {
+      await createAuditEvent({
+        actorUserId: requestedByUserId,
+        organizationId,
+        countryCode,
+        action: "local_ai.analysis_completed",
+        targetType: "recipe_video_analysis",
+        targetId: analysis.id,
+        details: { provider: result.provider, model: result.model } as Prisma.InputJsonValue,
+      });
+    }
 
     return { success: true as const, analysisId: analysis.id };
   } catch (error) {
@@ -262,6 +304,13 @@ export async function updateVerificationStatus(params: {
     targetId: analysisId,
     details: { verificationStatus: input.verificationStatus, notes: input.notes } as Prisma.InputJsonValue,
   });
+
+  if (input.verificationStatus === "verified") {
+    await createTrainingExampleFromVerifiedAnalysis({
+      analysisId,
+      actorUserId,
+    });
+  }
 
   return updated;
 }

@@ -9,7 +9,7 @@ import { formatTotalTime, formatQuantity, groupIngredientsBySection } from "@/li
 import { getRecipeById } from "@/server/recipes";
 import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { isAIVideoAnalysisAvailable } from "@/lib/video-analysis-config";
+import { isAIVideoAnalysisAvailable, getVideoAnalysisConfig } from "@/lib/video-analysis-config";
 import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
 import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
@@ -66,9 +66,16 @@ export default async function RecipeDetailPage({
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
-  const youtubeRefs = recipe.mediaRefs
+  const isAdmin = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES);
+
+  const allYoutubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")
     .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
+
+  // Hide unavailable refs from non-admin users
+  const youtubeRefs = isAdmin
+    ? allYoutubeRefs
+    : allYoutubeRefs.filter((r) => r.availabilityStatus !== "unavailable" && r.availabilityStatus !== "restricted");
 
   const otherRefs = recipe.mediaRefs.filter((r) => r.type !== "youtube");
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
@@ -83,6 +90,7 @@ export default async function RecipeDetailPage({
   ) ?? primaryAnalyses[0] ?? null;
 
   const aiConfigured = isAIVideoAnalysisAvailable();
+  const aiProviderName = getVideoAnalysisConfig().provider;
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
   const [favorite, avoidedIngredients] = showHouseholdTools
     ? await Promise.all([
@@ -175,6 +183,8 @@ export default async function RecipeDetailPage({
                     recipeId={recipe.id}
                     recipeMediaReferenceId={primaryRef.id}
                     aiConfigured={aiConfigured}
+                    providerName={aiProviderName}
+                    videoAvailable={primaryRef.availabilityStatus !== "unavailable" && primaryRef.availabilityStatus !== "restricted"}
                   />
                 </div>
 

@@ -3,6 +3,8 @@ import type { AIProviderOutput } from "@/lib/validation/video";
 export type AnalyzeVideoInput = {
   recipeId: string;
   recipeTitle: string;
+  recipeCuisine?: string | null;
+  recipeCountryCode?: string | null;
   recipeIngredients: Array<{ name: string; quantity: number; unit: string }>;
   recipeStepCount: number;
   transcriptText?: string | null;

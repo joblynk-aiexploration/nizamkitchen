@@ -86,6 +86,9 @@ model User {
   discoveryRuns              YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
   reviewedCandidates         YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
   favoriteRecipesCreated     FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
+  aiTrainingExamplesCreated  AiTrainingExample[]     @relation("AiTrainingExampleCreatedBy")
+  aiTrainingExamplesVerified AiTrainingExample[]     @relation("AiTrainingExampleVerifiedBy")
+  aiTrainingDatasetsCreated  AiTrainingDataset[]     @relation("AiTrainingDatasetCreatedBy")
 }
 
 model Session {
@@ -138,6 +141,7 @@ model Organization {
   avoidedIngredients   AvoidedIngredient[]
   favoriteRecipes      FavoriteRecipe[]
   pantryItems          HouseholdPantryItem[]
+  aiTrainingExamples   AiTrainingExample[]
 
   @@index([countryCode])
   @@index([status])
@@ -460,6 +464,50 @@ enum DifferenceSeverity {
   important
 }
 
+enum AiTrainingExampleStatus {
+  draft
+  verified
+  rejected
+  exported
+}
+
+enum AiTrainingSourceType {
+  manual
+  ai_draft_corrected
+  transcript
+  video_analysis
+  imported
+}
+
+enum AiTrainingTaskType {
+  cooking_video_transcript_to_structured_analysis
+  ingredient_extraction
+  cooking_step_extraction
+  recipe_difference_detection
+}
+
+enum AiTrainingDatasetStatus {
+  draft
+  ready
+  exported
+  archived
+}
+
+enum AiTrainingRunStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
+
+enum AiModelType {
+  local_rules
+  local_finetune_placeholder
+  local_http
+  external_placeholder
+}
+
 enum YouTubeDiscoveryRunStatus {
   queued
   running
@@ -472,6 +520,14 @@ enum YouTubeVideoCandidateStatus {
   approved
   rejected
   imported
+}
+
+enum VideoAvailabilityStatus {
+  unchecked
+  available
+  unavailable
+  restricted
+  unknown
 }
 
 enum CookingSkillLevel {
@@ -632,6 +688,7 @@ model Recipe {
   discoveryRuns      YouTubeDiscoveryRun[]
   youtubeCandidates  YouTubeVideoCandidate[]
   favoriteRecipes    FavoriteRecipe[]
+  aiTrainingExamples AiTrainingExample[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -678,27 +735,36 @@ model RecipeStep {
 }
 
 model RecipeMediaReference {
-  id              String                @id @default(cuid())
-  recipeId        String
-  type            MediaReferenceType
-  provider        MediaProvider         @default(manual)
-  title           String
-  url             String
-  normalizedUrl   String?
-  embedUrl        String?
-  externalId      String?
-  thumbnailUrl    String?
-  language        String?
-  creatorName     String?
-  durationSeconds Int?
-  isPrimary       Boolean               @default(false)
-  displayOrder    Int                   @default(0)
-  notes           String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  recipe          Recipe                @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  videoAnalyses   RecipeVideoAnalysis[]
-  analysisJobs    VideoAnalysisJob[]
+  id                        String                  @id @default(cuid())
+  recipeId                  String
+  type                      MediaReferenceType
+  provider                  MediaProvider           @default(manual)
+  title                     String
+  url                       String
+  normalizedUrl             String?
+  embedUrl                  String?
+  externalId                String?
+  thumbnailUrl              String?
+  language                  String?
+  creatorName               String?
+  durationSeconds           Int?
+  isPrimary                 Boolean                 @default(false)
+  displayOrder              Int                     @default(0)
+  notes                     String?
+  availabilityStatus        VideoAvailabilityStatus @default(unchecked)
+  lastAvailabilityCheckedAt DateTime?
+  unavailableReason         String?
+  isEmbeddable              Boolean                 @default(false)
+  isPublic                  Boolean                 @default(false)
+  uploadStatus              String?
+  liveBroadcastContent      String?
+  qualityDefinition         String?
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  recipe                    Recipe                  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  videoAnalyses             RecipeVideoAnalysis[]
+  analysisJobs              VideoAnalysisJob[]
+  trainingExamples          AiTrainingExample[]
 
   @@index([recipeId])
   @@index([isPrimary])
@@ -1107,6 +1173,7 @@ model RecipeVideoAnalysis {
   ingredients            VideoAnalysisIngredient[]
   steps                  VideoAnalysisStep[]
   differences            VideoRecipeDifference[]
+  trainingExamples       AiTrainingExample[]
 
   @@index([recipeMediaReferenceId])
   @@index([recipeId])
@@ -1203,6 +1270,94 @@ model VideoAnalysisJob {
   @@index([status])
 }
 
+// ─── AI Training Foundation ──────────────────────────────────────────────────
+
+model AiTrainingExample {
+  id                     String                     @id @default(cuid())
+  organizationId         String?
+  countryCode            String?
+  recipeId               String?
+  recipeMediaReferenceId String?
+  recipeVideoAnalysisId  String?
+  createdByUserId        String
+  verifiedByUserId       String?
+  status                 AiTrainingExampleStatus    @default(draft)
+  sourceType             AiTrainingSourceType
+  taskType               AiTrainingTaskType
+  inputJson              Json
+  expectedOutputJson     Json
+  notes                  String?
+  qualityScore           Int?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  verifiedAt             DateTime?
+  organization           Organization?              @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  recipe                 Recipe?                    @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  recipeMediaReference   RecipeMediaReference?      @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: SetNull)
+  recipeVideoAnalysis    RecipeVideoAnalysis?       @relation(fields: [recipeVideoAnalysisId], references: [id], onDelete: SetNull)
+  createdBy              User                       @relation("AiTrainingExampleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  verifiedBy             User?                      @relation("AiTrainingExampleVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+  datasetExamples        AiTrainingDatasetExample[]
+
+  @@unique([recipeVideoAnalysisId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([recipeId])
+  @@index([status])
+  @@index([taskType])
+}
+
+model AiTrainingDataset {
+  id              String                     @id @default(cuid())
+  name            String
+  description     String?
+  status          AiTrainingDatasetStatus    @default(draft)
+  taskType        AiTrainingTaskType
+  exampleCount    Int                        @default(0)
+  version         Int                        @default(1)
+  createdByUserId String
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  createdBy       User                       @relation("AiTrainingDatasetCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  examples        AiTrainingDatasetExample[]
+  runs            AiTrainingRun[]
+
+  @@index([status])
+  @@index([taskType])
+}
+
+model AiTrainingDatasetExample {
+  id        String            @id @default(cuid())
+  datasetId String
+  exampleId String
+  createdAt DateTime          @default(now())
+  dataset   AiTrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  example   AiTrainingExample @relation(fields: [exampleId], references: [id], onDelete: Cascade)
+
+  @@unique([datasetId, exampleId])
+  @@index([exampleId])
+}
+
+model AiTrainingRun {
+  id                 String              @id @default(cuid())
+  datasetId          String
+  status             AiTrainingRunStatus @default(queued)
+  modelType          AiModelType
+  baseModel          String?
+  outputModelPath    String?
+  trainingConfigJson Json
+  metricsJson        Json?
+  errorMessage       String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  dataset            AiTrainingDataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@index([datasetId])
+  @@index([status])
+}
+
 // ─── YouTube Discovery ────────────────────────────────────────────────────────
 
 model YouTubeDiscoveryRun {
@@ -1229,33 +1384,41 @@ model YouTubeDiscoveryRun {
 }
 
 model YouTubeVideoCandidate {
-  id                      String                      @id @default(cuid())
-  discoveryRunId          String
-  recipeId                String
-  providerVideoId         String
-  title                   String
-  description             String?
-  channelId               String?
-  channelTitle            String?
-  thumbnailUrl            String?
-  publishedAt             DateTime?
-  durationSeconds         Int?
-  viewCount               BigInt?
-  likeCount               BigInt?
-  commentCount            BigInt?
-  searchQuery             String
-  score                   Float                       @default(0)
-  scoreReasonsJson        Json                        @default("[]")
-  professionalSignalsJson Json                        @default("[]")
-  rejectionReasonsJson    Json?
-  status                  YouTubeVideoCandidateStatus @default(pending)
-  reviewedByUserId        String?
-  reviewedAt              DateTime?
-  createdAt               DateTime                    @default(now())
-  updatedAt               DateTime                    @updatedAt
-  discoveryRun            YouTubeDiscoveryRun         @relation(fields: [discoveryRunId], references: [id], onDelete: Cascade)
-  recipe                  Recipe                      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  reviewedBy              User?                       @relation("CandidateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  id                        String                      @id @default(cuid())
+  discoveryRunId            String
+  recipeId                  String
+  providerVideoId           String
+  title                     String
+  description               String?
+  channelId                 String?
+  channelTitle              String?
+  thumbnailUrl              String?
+  publishedAt               DateTime?
+  durationSeconds           Int?
+  viewCount                 BigInt?
+  likeCount                 BigInt?
+  commentCount              BigInt?
+  searchQuery               String
+  score                     Float                       @default(0)
+  scoreReasonsJson          Json                        @default("[]")
+  professionalSignalsJson   Json                        @default("[]")
+  rejectionReasonsJson      Json?
+  status                    YouTubeVideoCandidateStatus @default(pending)
+  reviewedByUserId          String?
+  reviewedAt                DateTime?
+  availabilityStatus        VideoAvailabilityStatus     @default(unchecked)
+  lastAvailabilityCheckedAt DateTime?
+  unavailableReason         String?
+  isEmbeddable              Boolean                     @default(false)
+  isPublic                  Boolean                     @default(false)
+  uploadStatus              String?
+  liveBroadcastContent      String?
+  qualityDefinition         String?
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  discoveryRun              YouTubeDiscoveryRun         @relation(fields: [discoveryRunId], references: [id], onDelete: Cascade)
+  recipe                    Recipe                      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  reviewedBy                User?                       @relation("CandidateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([recipeId, providerVideoId])
   @@index([discoveryRunId])

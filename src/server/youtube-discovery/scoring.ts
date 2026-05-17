@@ -10,11 +10,13 @@ export type ScoreResult = {
 const COOKING_CHANNEL_KEYWORDS = [
   "kitchen", "cook", "chef", "recipe", "food", "cuisine", "culinary",
   "biryani", "masala", "tadka", "dum", "authentic", "bake", "grill",
+  "vahchef", "cook with", "home cooking", "cooking channel", "cooking show",
+  "hebbar", "vahrehvah", "spice", "curry", "indian food", "desi",
 ];
 
 const PROFESSIONAL_TITLE_KEYWORDS = [
-  "chef", "restaurant style", "professional", "authentic", "restaurant",
-  "michelin", "culinary",
+  "restaurant style", "authentic", "restaurant", "michelin", "culinary",
+  "professional", "hotel style", "dhaba style",
 ];
 
 const POSITIVE_TITLE_KEYWORDS = [
@@ -36,6 +38,27 @@ const SPAM_PATTERNS = [
   /\b(hot|sexy|viral)\b/i,
 ];
 
+// Dish types that are inherently complex/long (biryani, haleem, korma)
+const COMPLEX_DISH_TERMS = [
+  "biryani", "haleem", "korma", "nihari", "paya", "kofta", "kebab", "dum",
+];
+
+// Dish types that are simple/quick (chutneys, raitas, salads)
+const SIMPLE_DISH_TERMS = [
+  "chutney", "raita", "salad", "pickle", "achaar", "dip", "sauce",
+];
+
+function getDishDurationRange(recipeName: string): { min: number; ideal: number; max: number } {
+  const lower = recipeName.toLowerCase();
+  if (COMPLEX_DISH_TERMS.some((t) => lower.includes(t))) {
+    return { min: 480, ideal: 900, max: 2700 }; // 8–45 min
+  }
+  if (SIMPLE_DISH_TERMS.some((t) => lower.includes(t))) {
+    return { min: 180, ideal: 480, max: 1200 }; // 3–20 min
+  }
+  return { min: 300, ideal: 720, max: 2700 }; // 5–45 min default
+}
+
 function normalizeTitle(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
 }
@@ -49,10 +72,8 @@ function recipeTitleMatch(videoTitle: string, recipeName: string): number {
   const normVideo = normalizeTitle(videoTitle);
   const normRecipe = normalizeTitle(recipeName);
 
-  // Full recipe name in title
   if (normVideo.includes(normRecipe)) return 40;
 
-  // All words of recipe name found in video title
   const recipeWords = normRecipe.split(/\s+/).filter((w) => w.length > 2);
   const matchedWords = recipeWords.filter((w) => normVideo.includes(w));
   if (recipeWords.length > 0 && matchedWords.length === recipeWords.length) return 30;
@@ -97,7 +118,6 @@ export function scoreCandidate(params: {
   const negativeHits = titleContains(video.title, NEGATIVE_KEYWORDS);
   if (negativeHits.length > 0) {
     rejectionReasons.push(`Title contains off-topic signals: ${negativeHits.slice(0, 2).join(", ")}.`);
-    // Strong penalty — off-topic content should not rank positively even with high view counts
     score -= 60;
   }
 
@@ -131,7 +151,7 @@ export function scoreCandidate(params: {
   const profTitleHits = titleContains(video.title, PROFESSIONAL_TITLE_KEYWORDS);
   if (profTitleHits.length > 0) {
     score += 10;
-    professionalSignals.push("Professional-looking title signal.");
+    professionalSignals.push("Professional-looking cooking signal in title.");
   }
 
   // ── Channel analysis ──────────────────────────────────────────────────────
@@ -150,27 +170,34 @@ export function scoreCandidate(params: {
     }
   }
 
-  // ── Duration ─────────────────────────────────────────────────────────────
+  // ── Duration (dish-type-aware) ────────────────────────────────────────────
   if (video.durationSeconds !== null) {
-    if (video.durationSeconds < 120) {
+    const range = getDishDurationRange(recipeName);
+    if (video.durationSeconds < 60) {
+      score -= 30;
+      rejectionReasons.push("Video is extremely short (< 1 min).");
+    } else if (video.durationSeconds < range.min) {
       score -= 20;
-      rejectionReasons.push("Video is very short for a recipe (< 2 min).");
-    } else if (video.durationSeconds >= 300) {
+      rejectionReasons.push(`Video is short for this dish type (${Math.floor(video.durationSeconds / 60)} min).`);
+    } else if (video.durationSeconds <= range.max) {
       score += 10;
-      scoreReasons.push(`Good duration (${Math.floor(video.durationSeconds / 60)} min).`);
+      scoreReasons.push(`Good duration for this dish (${Math.floor(video.durationSeconds / 60)} min).`);
+      if (video.durationSeconds >= range.ideal) {
+        score += 5;
+        scoreReasons.push("Full recipe walkthrough length.");
+      }
     }
-    if (video.durationSeconds >= 600) {
-      score += 5;
-      scoreReasons.push("Full recipe walkthrough length.");
-    }
+    // Excessively long videos (> max) get no bonus but no penalty either
   }
+
+  // ── HD signal ────────────────────────────────────────────────────────────
+  // (isShort check above handles YouTube Shorts; no separate HD flag in YouTubeVideoDetails)
 
   // ── Views ─────────────────────────────────────────────────────────────────
   if (video.viewCount !== null) {
     if (video.viewCount >= BigInt(1_000_000)) {
       score += 20;
       scoreReasons.push(`High view count (${(Number(video.viewCount) / 1_000_000).toFixed(1)}M views).`);
-      professionalSignals.push("High-confidence recipe match.");
     } else if (video.viewCount >= BigInt(100_000)) {
       score += 10;
       scoreReasons.push(`Good view count (${(Number(video.viewCount) / 1000).toFixed(0)}K views).`);
@@ -183,7 +210,7 @@ export function scoreCandidate(params: {
 
   // ── Professional-looking summary ─────────────────────────────────────────
   if (professionalSignals.length === 0) {
-    professionalSignals.push("Needs review — no strong professional signals detected.");
+    professionalSignals.push("Needs admin review — no strong cooking-channel signals detected.");
   }
 
   return {
