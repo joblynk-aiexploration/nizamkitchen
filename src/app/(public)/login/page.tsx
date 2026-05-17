@@ -34,14 +34,14 @@ export default async function LoginPage({
           name="email"
           type="email"
           required
-          placeholder="owner@nizamkitchen.dev"
+          placeholder="Enter Email Address"
         />
         <TextInput
           label="Password"
           name="password"
           type="password"
           required
-          placeholder="Password123!"
+          placeholder="Enter Password"
         />
         <Button type="submit" className="w-full">
           Sign in

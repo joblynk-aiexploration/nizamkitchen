@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   Building2,
+  ChefHat,
   CircleDollarSign,
   Flag,
   Globe2,
   LayoutDashboard,
   Logs,
+  Ruler,
   Settings,
   Shield,
+  UtensilsCrossed,
   UserRoundSearch,
   Users,
 } from "lucide-react";
@@ -32,6 +36,15 @@ const adminNavGroups = [
       { href: "/admin/organizations", label: "Organizations", icon: Building2 },
       { href: "/admin/users", label: "Users", icon: Users },
       { href: "/admin/audit-logs", label: "Audit logs", icon: Logs },
+    ],
+  },
+  {
+    title: "Food library",
+    items: [
+      { href: "/admin/recipe-library", label: "Recipe library", icon: BookOpen },
+      { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
+      { href: "/admin/units", label: "Units", icon: Ruler },
+      { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
     ],
   },
   {
@@ -66,6 +79,16 @@ function canSeeLink(session: Session, href: string) {
 
   if (href === "/admin/support") {
     return role !== "country_manager" && role !== "auditor";
+  }
+
+  // Food library is visible to all platform roles
+  if (
+    href === "/admin/recipe-library" ||
+    href === "/admin/ingredients" ||
+    href === "/admin/units" ||
+    href === "/admin/cuisines"
+  ) {
+    return true;
   }
 
   return true;

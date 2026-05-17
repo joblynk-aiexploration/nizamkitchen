@@ -14,7 +14,7 @@ const serif = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "NizamKitchen SaaS Foundation",
+  title: "Nizam Kitchen",
   description: "Enterprise multi-tenant SaaS foundation for NizamKitchen.",
 };
 

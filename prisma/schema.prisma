@@ -309,3 +309,285 @@ model SystemSetting {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ─── Food Foundation ─────────────────────────────────────────────────────────
+
+enum UnitType {
+  mass
+  volume
+  count
+  length
+  package
+  custom
+}
+
+enum UnitSystem {
+  metric
+  imperial
+  mixed
+  traditional
+}
+
+enum IngredientCategory {
+  vegetable
+  fruit
+  meat
+  poultry
+  seafood
+  dairy
+  grain
+  lentil
+  spice
+  herb
+  oil
+  condiment
+  nut
+  sweetener
+  beverage
+  packaged
+  other
+}
+
+enum RecipeDifficulty {
+  easy
+  medium
+  hard
+  expert
+}
+
+enum SpiceLevel {
+  mild
+  medium
+  hot
+  extra_hot
+}
+
+enum RecipeVisibility {
+  global
+  organization
+  private
+}
+
+enum RecipeSourceType {
+  platform
+  organization
+  imported
+  user_created
+}
+
+enum MediaReferenceType {
+  youtube
+  image
+  article
+  other
+}
+
+model Cuisine {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  countryCode String?
+  isGlobal    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  recipes     Recipe[]
+
+  @@index([countryCode])
+}
+
+model Unit {
+  id                String           @id @default(cuid())
+  code              String           @unique
+  name              String
+  pluralName        String
+  type              UnitType
+  system            UnitSystem
+  symbol            String?
+  isBaseUnit        Boolean          @default(false)
+  isGlobal          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  ingredients       Ingredient[]     @relation("IngredientDefaultUnit")
+  recipeIngredients RecipeIngredient[]
+  conversionsFrom   UnitConversion[] @relation("ConversionFromUnit")
+  conversionsTo     UnitConversion[] @relation("ConversionToUnit")
+
+  @@index([type])
+  @@index([system])
+}
+
+model Ingredient {
+  id                      String             @id @default(cuid())
+  organizationId          String?
+  countryCode             String?
+  name                    String
+  canonicalName           String
+  slug                    String
+  category                IngredientCategory
+  defaultUnitId           String?
+  densityGramPerMl        Float?
+  averagePieceWeightGrams Float?
+  isGlobal                Boolean            @default(true)
+  isActive                Boolean            @default(true)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  defaultUnit             Unit?              @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
+  aliases                 IngredientAlias[]
+  recipeIngredients       RecipeIngredient[]
+  unitConversions         UnitConversion[]
+
+  @@unique([slug, organizationId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([category])
+  @@index([isGlobal])
+}
+
+model IngredientAlias {
+  id           String     @id @default(cuid())
+  ingredientId String
+  alias        String
+  language     String?
+  countryCode  String?
+  confidence   Float      @default(1.0)
+  createdAt    DateTime   @default(now())
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([ingredientId])
+  @@index([alias])
+}
+
+model UnitConversion {
+  id           String      @id @default(cuid())
+  fromUnitId   String
+  toUnitId     String
+  ingredientId String?
+  multiplier   Float
+  offset       Float?
+  confidence   Float       @default(1.0)
+  notes        String?
+  isGlobal     Boolean     @default(true)
+  countryCode  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  fromUnit     Unit        @relation("ConversionFromUnit", fields: [fromUnitId], references: [id])
+  toUnit       Unit        @relation("ConversionToUnit", fields: [toUnitId], references: [id])
+  ingredient   Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([fromUnitId, toUnitId])
+  @@index([ingredientId])
+  @@index([isGlobal])
+}
+
+model Recipe {
+  id             String               @id @default(cuid())
+  organizationId String?
+  countryCode    String?
+  cuisineId      String
+  name           String
+  slug           String
+  description    String?
+  story          String?
+  difficulty     RecipeDifficulty
+  spiceLevel     SpiceLevel
+  prepMinutes    Int
+  cookMinutes    Int
+  restMinutes    Int?
+  servings       Int
+  servingUnit    String               @default("serving")
+  visibility     RecipeVisibility     @default(global)
+  sourceType     RecipeSourceType
+  createdById    String?
+  isGlobal       Boolean              @default(false)
+  isPublished    Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  cuisine        Cuisine              @relation(fields: [cuisineId], references: [id])
+  ingredients    RecipeIngredient[]
+  steps          RecipeStep[]
+  mediaRefs      RecipeMediaReference[]
+  dietaryTags    RecipeDietaryTag[]
+
+  @@unique([slug, organizationId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([cuisineId])
+  @@index([isPublished])
+  @@index([visibility])
+}
+
+model RecipeIngredient {
+  id              String     @id @default(cuid())
+  recipeId        String
+  ingredientId    String
+  quantity        Float
+  unitId          String
+  preparationNote String?
+  section         String?
+  isOptional      Boolean    @default(false)
+  displayOrder    Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  recipe          Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient      Ingredient @relation(fields: [ingredientId], references: [id])
+  unit            Unit       @relation(fields: [unitId], references: [id])
+
+  @@index([recipeId])
+  @@index([ingredientId])
+}
+
+model RecipeStep {
+  id              String   @id @default(cuid())
+  recipeId        String
+  stepNumber      Int
+  title           String?
+  instruction     String
+  durationMinutes Int?
+  temperature     String?
+  tips            String?
+  displayOrder    Int      @default(0)
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, stepNumber])
+  @@index([recipeId])
+}
+
+model RecipeMediaReference {
+  id         String             @id @default(cuid())
+  recipeId   String
+  type       MediaReferenceType
+  title      String
+  url        String
+  provider   String
+  externalId String?
+  language   String?
+  isPrimary  Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+  recipe     Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+model DietaryTag {
+  id      String             @id @default(cuid())
+  name    String             @unique
+  slug    String             @unique
+  recipes RecipeDietaryTag[]
+}
+
+model RecipeDietaryTag {
+  recipeId     String
+  dietaryTagId String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  dietaryTag   DietaryTag @relation(fields: [dietaryTagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, dietaryTagId])
+}
+
+model MealType {
+  id           String @id @default(cuid())
+  name         String @unique
+  slug         String @unique
+  displayOrder Int    @default(0)
+}
