@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --color-app-surface: #edf2f7;
+  --color-ink: #102235;
+  --color-muted: #5e6b78;
+  --color-border: #d7e0e8;
+  --color-card: #ffffff;
+  --color-card-alt: #f8fbfd;
+  --color-sidebar: #10263a;
+  --color-sidebar-strong: #091a2b;
+  --color-sidebar-text: #f3f7fb;
+  --color-primary: #0f766e;
+  --color-primary-strong: #115e59;
+  --color-accent: #c2410c;
+  --color-success: #166534;
+  --color-warning: #a16207;
+  --color-danger: #b91c1c;
+  --color-info: #1d4ed8;
+  --shadow-card: 0 16px 44px rgba(15, 35, 54, 0.08);
+}
+
+@theme inline {
+  --color-background: var(--color-app-surface);
+  --color-foreground: var(--color-ink);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 30%),
+    linear-gradient(180deg, #f4f7fa 0%, #eaf0f6 100%);
+  color: var(--color-ink);
+  font-family: var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.card-shadow {
+  box-shadow: var(--shadow-card);
+}
+
+.table-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .table-grid {
+    grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
+  }
+}
