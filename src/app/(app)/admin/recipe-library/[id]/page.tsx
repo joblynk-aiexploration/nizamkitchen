@@ -10,12 +10,16 @@ import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-acti
 import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
 import { isAIVideoAnalysisAvailable } from "@/lib/video-analysis-config";
+import { isYouTubeDiscoveryAvailable } from "@/lib/youtube-discovery-config";
 import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
 import { listAnalysisJobsForReference } from "@/server/video-analysis/video-analysis-jobs";
+import { listCandidatesForRecipe } from "@/server/youtube-discovery/candidate-service";
+import { getDiscoveryRunsForRecipe } from "@/server/youtube-discovery/discovery-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
 import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
 import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
 import { FormMessage } from "@/components/ui/form-message";
+import { formatYouTubeDuration } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
 
@@ -44,21 +48,30 @@ export default async function AdminRecipeDetailPage({
 
   const sections = groupIngredientsBySection(recipe.ingredients);
   const aiConfigured = isAIVideoAnalysisAvailable();
+  const discoveryAvailable = isYouTubeDiscoveryAvailable();
 
   const youtubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")
     .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
 
-  // Fetch analyses and jobs for each YouTube ref (admin sees all)
-  const refAnalysisData = await Promise.all(
-    youtubeRefs.map(async (ref) => {
-      const [analyses, jobs] = await Promise.all([
-        getVideoAnalysesForReference(ref.id),
-        listAnalysisJobsForReference(ref.id),
-      ]);
-      return { ref, analyses, jobs };
-    }),
-  );
+  // Fetch analyses, jobs, and candidates in parallel
+  const [refAnalysisData, candidates, discoveryRuns] = await Promise.all([
+    Promise.all(
+      youtubeRefs.map(async (ref) => {
+        const [analyses, jobs] = await Promise.all([
+          getVideoAnalysesForReference(ref.id),
+          listAnalysisJobsForReference(ref.id),
+        ]);
+        return { ref, analyses, jobs };
+      }),
+    ),
+    listCandidatesForRecipe(id),
+    getDiscoveryRunsForRecipe(id),
+  ]);
+
+  const pendingCandidates = candidates.filter((c) => c.status === "pending");
+  const importedCandidates = candidates.filter((c) => c.status === "imported");
+  const rejectedCandidates = candidates.filter((c) => c.status === "rejected");
 
   async function togglePublished() {
     "use server";
@@ -290,6 +303,116 @@ export default async function AdminRecipeDetailPage({
                 <Button type="submit" variant="primary">Add video reference</Button>
               </div>
             </form>
+          </div>
+        )}
+      </Card>
+
+      {/* ── YouTube Discovery Candidates ── */}
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-[var(--color-ink)]">
+              YouTube candidates ({pendingCandidates.length} pending, {importedCandidates.length} imported)
+            </h2>
+            {discoveryRuns.length > 0 && (
+              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                Last run: {discoveryRuns[0].createdAt.toLocaleDateString()} · status: {discoveryRuns[0].status}
+              </p>
+            )}
+          </div>
+          {canMutate && (
+            <div className="flex gap-2">
+              {discoveryAvailable ? (
+                <form action="/api/admin/youtube-discovery/runs" method="post">
+                  <input type="hidden" name="recipeId" value={recipe.id} />
+                  <input type="hidden" name="forceRefresh" value="true" />
+                  <Button type="submit" variant="secondary">
+                    {pendingCandidates.length > 0 ? "Refresh candidates" : "Discover videos"}
+                  </Button>
+                </form>
+              ) : (
+                <p className="text-xs text-[var(--color-muted)]">
+                  YouTube discovery not configured.{" "}
+                  <a href="/admin/youtube-discovery" className="text-[var(--color-primary)] hover:underline">
+                    Setup →
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {pendingCandidates.length === 0 && importedCandidates.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            No candidates yet.{discoveryAvailable ? " Click Discover videos to search YouTube." : ""}
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {pendingCandidates.map((c) => (
+              <div key={c.id} className="flex gap-4 rounded-2xl border border-[var(--color-border)] p-4">
+                {c.thumbnailUrl ? (
+                  <img src={c.thumbnailUrl} alt={c.title} width={120} height={68}
+                    className="h-17 w-28 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div className="h-16 w-28 shrink-0 rounded-xl bg-slate-100" />
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-medium text-[var(--color-ink)] line-clamp-2">{c.title}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{c.channelTitle}</p>
+                  <div className="flex flex-wrap gap-2 text-xs text-[var(--color-muted)]">
+                    {c.durationSeconds != null && <span>⏱ {formatYouTubeDuration(c.durationSeconds)}</span>}
+                    {c.viewCount != null && <span>👁 {(Number(c.viewCount) / 1000).toFixed(0)}K</span>}
+                    <Badge tone={c.score >= 30 ? "success" : c.score >= 0 ? "neutral" : "danger"}>
+                      Score {c.score.toFixed(0)}
+                    </Badge>
+                  </div>
+                  {Array.isArray(c.professionalSignalsJson) && (c.professionalSignalsJson as string[]).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(c.professionalSignalsJson as string[]).map((s, i) => (
+                        <span key={i} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{s}</span>
+                      ))}
+                    </div>
+                  )}
+                  {canMutate && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <a href={`https://www.youtube.com/watch?v=${c.providerVideoId}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="rounded-xl border border-[var(--color-border)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)] hover:bg-slate-50">
+                        Open on YouTube ↗
+                      </a>
+                      <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
+                        <input type="hidden" name="action" value="import" />
+                        <input type="hidden" name="isPrimary" value="on" />
+                        <button type="submit"
+                          className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                          Import as primary
+                        </button>
+                      </form>
+                      <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
+                        <input type="hidden" name="action" value="import" />
+                        <button type="submit"
+                          className="rounded-xl border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+                          Import
+                        </button>
+                      </form>
+                      <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
+                        <input type="hidden" name="action" value="reject" />
+                        <button type="submit"
+                          className="rounded-xl border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+                          Reject
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {rejectedCandidates.length > 0 && (
+              <p className="text-xs text-[var(--color-muted)]">
+                {rejectedCandidates.length} rejected candidate{rejectedCandidates.length !== 1 ? "s" : ""} hidden.
+              </p>
+            )}
           </div>
         )}
       </Card>

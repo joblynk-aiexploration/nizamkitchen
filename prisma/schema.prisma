@@ -83,6 +83,8 @@ model User {
   videoAnalysesAnalyzedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisAnalyzedBy")
   videoAnalysesVerifiedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisVerifiedBy")
   videoAnalysisJobsRequested VideoAnalysisJob[]      @relation("VideoAnalysisJobRequestedBy")
+  discoveryRuns            YouTubeDiscoveryRun[]     @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates       YouTubeVideoCandidate[]   @relation("CandidateReviewedBy")
 }
 
 model Session {
@@ -452,6 +454,20 @@ enum DifferenceSeverity {
   important
 }
 
+enum YouTubeDiscoveryRunStatus {
+  queued
+  running
+  completed
+  failed
+}
+
+enum YouTubeVideoCandidateStatus {
+  pending
+  approved
+  rejected
+  imported
+}
+
 model Cuisine {
   id          String   @id @default(cuid())
   name        String
@@ -591,6 +607,8 @@ model Recipe {
   mealPlanEntries    MealPlanEntry[]
   videoAnalyses      RecipeVideoAnalysis[]
   videoAnalysisJobs  VideoAnalysisJob[]
+  discoveryRuns      YouTubeDiscoveryRun[]
+  youtubeCandidates  YouTubeVideoCandidate[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -1071,5 +1089,65 @@ model VideoAnalysisJob {
   @@index([recipeMediaReferenceId])
   @@index([recipeId])
   @@index([organizationId])
+  @@index([status])
+}
+
+// ─── YouTube Discovery ────────────────────────────────────────────────────────
+
+model YouTubeDiscoveryRun {
+  id                String                      @id @default(cuid())
+  recipeId          String?
+  organizationId    String?
+  countryCode       String?
+  requestedByUserId String
+  status            YouTubeDiscoveryRunStatus   @default(queued)
+  queryCount        Int                         @default(0)
+  candidatesFound   Int                         @default(0)
+  errorMessage      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  recipe            Recipe?                     @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  requestedBy       User                        @relation("DiscoveryRunRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  candidates        YouTubeVideoCandidate[]
+
+  @@index([recipeId])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model YouTubeVideoCandidate {
+  id                      String                       @id @default(cuid())
+  discoveryRunId          String
+  recipeId                String
+  providerVideoId         String
+  title                   String
+  description             String?
+  channelId               String?
+  channelTitle            String?
+  thumbnailUrl            String?
+  publishedAt             DateTime?
+  durationSeconds         Int?
+  viewCount               BigInt?
+  likeCount               BigInt?
+  commentCount            BigInt?
+  searchQuery             String
+  score                   Float                        @default(0)
+  scoreReasonsJson        Json                         @default("[]")
+  professionalSignalsJson Json                         @default("[]")
+  rejectionReasonsJson    Json?
+  status                  YouTubeVideoCandidateStatus  @default(pending)
+  reviewedByUserId        String?
+  reviewedAt              DateTime?
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+  discoveryRun            YouTubeDiscoveryRun          @relation(fields: [discoveryRunId], references: [id], onDelete: Cascade)
+  recipe                  Recipe                       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  reviewedBy              User?                        @relation("CandidateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([recipeId, providerVideoId])
+  @@index([discoveryRunId])
+  @@index([recipeId])
   @@index([status])
 }

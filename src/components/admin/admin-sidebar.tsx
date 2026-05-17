@@ -21,6 +21,7 @@ import {
   UtensilsCrossed,
   UserRoundSearch,
   Users,
+  TvMinimalPlay,
 } from "lucide-react";
 import type { getCurrentSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ const adminNavGroups = [
     title: "Food library",
     items: [
       { href: "/admin/recipe-library", label: "Recipe library", icon: BookOpen },
+      { href: "/admin/youtube-discovery", label: "YouTube discovery", icon: TvMinimalPlay },
       { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
       { href: "/admin/units", label: "Units", icon: Ruler },
       { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
@@ -105,6 +107,11 @@ function canSeeLink(session: Session, href: string) {
     href === "/admin/cuisines"
   ) {
     return true;
+  }
+
+  // YouTube discovery: only owner/admin
+  if (href === "/admin/youtube-discovery") {
+    return role === "platform_owner" || role === "platform_admin";
   }
 
   return true;
