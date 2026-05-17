@@ -121,3 +121,20 @@ export const verificationUpdateSchema = z.object({
 });
 
 export type VerificationUpdateInput = z.infer<typeof verificationUpdateSchema>;
+
+// ─── YouTube Discovery Admin Mutations ───────────────────────────────────────
+
+export const youtubeDiscoveryRunSchema = z.object({
+  recipeId: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().min(1).optional()),
+  mode: z.enum(["all", "missing"]).optional(),
+  forceRefresh: z.coerce.boolean().default(false),
+});
+
+export const youtubeCandidateActionSchema = z.object({
+  action: z.enum(["approve", "reject", "import"]),
+  isPrimary: z.coerce.boolean().default(false),
+  reason: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().trim().max(300).optional()),
+});
+
+export type YouTubeDiscoveryRunInput = z.infer<typeof youtubeDiscoveryRunSchema>;
+export type YouTubeCandidateActionInput = z.infer<typeof youtubeCandidateActionSchema>;

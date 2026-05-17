@@ -381,6 +381,13 @@ export default async function AdminRecipeDetailPage({
                         Open on YouTube ↗
                       </a>
                       <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
+                        <input type="hidden" name="action" value="approve" />
+                        <button type="submit"
+                          className="rounded-xl border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+                          Approve
+                        </button>
+                      </form>
+                      <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
                         <input type="hidden" name="action" value="import" />
                         <input type="hidden" name="isPrimary" value="on" />
                         <button type="submit"

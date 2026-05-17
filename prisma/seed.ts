@@ -1241,6 +1241,20 @@ async function main() {
 async function seedVideoReferences() {
   const VIDEO_REFS = [
     {
+      recipeSlug: "bagara-khana",
+      refs: [
+        {
+          title: "Bagara Khana - Hyderabadi Tempered Rice",
+          url: "https://www.youtube.com/watch?v=BnYSKZPZBwA",
+          externalId: "BnYSKZPZBwA",
+          language: "en",
+          creatorName: "Hyderabadi cooking reference",
+          isPrimary: true,
+          notes: "Seeded demo reference so the household recipe page shows the YouTube workflow.",
+        },
+      ],
+    },
+    {
       recipeSlug: "hyderabadi-chicken-biryani",
       refs: [
         {

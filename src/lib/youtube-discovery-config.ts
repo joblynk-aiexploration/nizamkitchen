@@ -7,10 +7,10 @@ export function getYouTubeDiscoveryConfig(): YouTubeDiscoveryConfig {
   const apiKey = process.env.YOUTUBE_DATA_API_KEY?.trim() ?? "";
 
   if (!enabled) {
-    return { enabled: false, reason: "YOUTUBE_DISCOVERY_ENABLED is not set to true." };
+    return { enabled: false, reason: "YouTube discovery is disabled. Set YOUTUBE_DISCOVERY_ENABLED=true to enable video discovery." };
   }
   if (!apiKey) {
-    return { enabled: false, reason: "YOUTUBE_DATA_API_KEY is not configured." };
+    return { enabled: false, reason: "YouTube discovery is not configured. Add YOUTUBE_DATA_API_KEY to enable video discovery." };
   }
   return { enabled: true, apiKey };
 }

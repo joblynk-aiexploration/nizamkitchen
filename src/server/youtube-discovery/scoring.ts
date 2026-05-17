@@ -131,14 +131,14 @@ export function scoreCandidate(params: {
   const profTitleHits = titleContains(video.title, PROFESSIONAL_TITLE_KEYWORDS);
   if (profTitleHits.length > 0) {
     score += 10;
-    professionalSignals.push("Chef/cooking-channel signal in title.");
+    professionalSignals.push("Professional-looking title signal.");
   }
 
   // ── Channel analysis ──────────────────────────────────────────────────────
   const channelTitle = channel?.title ?? video.channelTitle;
   if (channelIsCookingFocused(channelTitle, channel?.description ?? "")) {
     score += 15;
-    professionalSignals.push("Cooking-focused channel.");
+    professionalSignals.push("Cooking-channel signal.");
     scoreReasons.push("Channel title/description indicates cooking focus.");
   }
 
@@ -170,7 +170,7 @@ export function scoreCandidate(params: {
     if (video.viewCount >= BigInt(1_000_000)) {
       score += 20;
       scoreReasons.push(`High view count (${(Number(video.viewCount) / 1_000_000).toFixed(1)}M views).`);
-      professionalSignals.push("High-confidence recipe match (1M+ views).");
+      professionalSignals.push("High-confidence recipe match.");
     } else if (video.viewCount >= BigInt(100_000)) {
       score += 10;
       scoreReasons.push(`Good view count (${(Number(video.viewCount) / 1000).toFixed(0)}K views).`);

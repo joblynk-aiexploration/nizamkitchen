@@ -6,7 +6,7 @@ export type DiscoveryQuery = {
 };
 
 const HYDERABADI_TERMS = ["hyderabadi", "hyderabad", "nizami", "deccani"];
-const SOUTH_ASIAN_TERMS = ["biryani", "korma", "nihari", "haleem", "kebab", "tikka", "masala", "curry", "pulao", "pilaf"];
+const SOUTH_ASIAN_TERMS = ["biryani", "korma", "nihari", "haleem", "salan", "kebab", "tikka", "masala", "curry", "pulao", "pilaf"];
 
 function looksHyderabadi(recipeName: string): boolean {
   const lower = recipeName.toLowerCase();
@@ -38,10 +38,10 @@ export function buildDiscoveryQueries(params: {
 
   // Hyderabadi-specific signals
   if (isHyderabadi) {
-    queries.push({ query: `${recipeName} Hyderabadi authentic`, videoDuration: duration });
+    queries.push({ query: `${recipeName} Hyderabadi recipe`, videoDuration: duration });
+    queries.push({ query: `${recipeName} authentic`, videoDuration: duration });
     queries.push({ query: `${recipeName} restaurant style`, videoDuration: duration });
-    queries.push({ query: `${recipeName} professional chef`, videoDuration: duration });
-    queries.push({ query: `${recipeName} traditional recipe`, videoDuration: duration });
+    queries.push({ query: `${recipeName} chef`, videoDuration: duration });
     queries.push({ query: `${recipeName} step by step`, videoDuration: duration });
   } else {
     queries.push({ query: `${recipeName} restaurant style`, videoDuration: duration });

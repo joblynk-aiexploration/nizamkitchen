@@ -5,6 +5,9 @@ import {
   rejectCandidate,
   importCandidate,
 } from "@/server/youtube-discovery/candidate-service";
+import { youtubeCandidateActionSchema } from "@/lib/validation/video";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
@@ -18,22 +21,24 @@ export async function POST(
     const countryCode = session.activeOrganization?.countryCode ?? null;
 
     const body = await request.formData().catch(() => null);
-    const action = body?.get("action") as string | null;
-    const isPrimary = body?.get("isPrimary") === "on" || body?.get("isPrimary") === "true";
+    const input = youtubeCandidateActionSchema.parse({
+      action: body?.get("action"),
+      isPrimary: body?.get("isPrimary") === "on" || body?.get("isPrimary") === "true",
+      reason: body?.get("reason"),
+    });
 
-    if (action === "approve") {
+    if (input.action === "approve") {
       await approveCandidate({ candidateId, actorUserId: userId, organizationId, countryCode });
       return redirectWithMessage(request, `Candidate approved.`);
     }
 
-    if (action === "reject") {
-      const reason = (body?.get("reason") as string | null) ?? undefined;
-      await rejectCandidate({ candidateId, actorUserId: userId, organizationId, countryCode, reason });
+    if (input.action === "reject") {
+      await rejectCandidate({ candidateId, actorUserId: userId, organizationId, countryCode, reason: input.reason });
       return redirectWithMessage(request, `Candidate rejected.`);
     }
 
-    if (action === "import") {
-      await importCandidate({ candidateId, actorUserId: userId, organizationId, countryCode, isPrimary });
+    if (input.action === "import") {
+      await importCandidate({ candidateId, actorUserId: userId, organizationId, countryCode, isPrimary: input.isPrimary });
       return redirectWithMessage(request, `Video imported successfully.`);
     }
 
@@ -42,8 +47,10 @@ export async function POST(
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    return redirectWithMessage(request, `Error: ${msg}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[youtube-discovery] candidate action failed", error);
+    }
+    return redirectWithMessage(request, getSafeCandidateActionError(error));
   }
 }
 
@@ -52,4 +59,13 @@ function redirectWithMessage(request: Request, message: string) {
   const url = new URL(referer);
   url.searchParams.set("message", message);
   return NextResponse.redirect(url.toString());
+}
+
+function getSafeCandidateActionError(error: unknown) {
+  if (!(error instanceof Error)) return "Unable to update candidate.";
+  if (error.message.includes("already imported")) return "This video was already imported.";
+  if (error.message.includes("rejected candidate")) return "Rejected candidates cannot be imported.";
+  if (error.message.includes("not found")) return "Candidate not found.";
+  if (error.message.includes("Could not parse")) return "This candidate has an invalid YouTube video ID.";
+  return error.message;
 }

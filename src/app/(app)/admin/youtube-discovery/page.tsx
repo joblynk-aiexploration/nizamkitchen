@@ -19,13 +19,6 @@ function runStatusTone(status: string): "success" | "warning" | "neutral" | "dan
   return "neutral";
 }
 
-function candidateStatusTone(status: string): "success" | "warning" | "neutral" | "info" {
-  if (status === "approved") return "success";
-  if (status === "imported") return "info";
-  if (status === "rejected") return "neutral";
-  return "warning";
-}
-
 export default async function YouTubeDiscoveryPage({
   searchParams,
 }: {
@@ -234,6 +227,12 @@ export default async function YouTubeDiscoveryPage({
                           >
                             Open on YouTube ↗
                           </a>
+                          <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
+                            <input type="hidden" name="action" value="approve" />
+                            <button type="submit" className="rounded-xl border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+                              Approve
+                            </button>
+                          </form>
                           <form action={`/api/admin/youtube-discovery/candidates/${c.id}`} method="post">
                             <input type="hidden" name="action" value="import" />
                             <input type="hidden" name="isPrimary" value="on" />

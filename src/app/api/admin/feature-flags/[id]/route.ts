@@ -41,6 +41,12 @@ export async function POST(
       return NextResponse.redirect(new URL("/admin/feature-flags?message=Access denied.", request.url));
     }
 
-    return NextResponse.redirect(new URL("/admin/feature-flags?message=Unable to update feature flag.", request.url));
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[feature-flags] update failed", error);
+    }
+
+    return NextResponse.redirect(
+      new URL("/admin/feature-flags?message=Feature flag update failed. Check required fields and try again.", request.url),
+    );
   }
 }

@@ -97,7 +97,7 @@ describe("discovery disabled state", () => {
   it("returns error when YOUTUBE_DISCOVERY_ENABLED is false", async () => {
     (getYouTubeDiscoveryConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       enabled: false,
-      reason: "YOUTUBE_DISCOVERY_ENABLED is not set to true.",
+      reason: "YouTube discovery is disabled. Set YOUTUBE_DISCOVERY_ENABLED=true to enable video discovery.",
     });
     mockPrisma.recipe.findUnique.mockResolvedValue(null);
 
@@ -110,14 +110,14 @@ describe("discovery disabled state", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toContain("YOUTUBE_DISCOVERY_ENABLED");
+      expect(result.error).toContain("YouTube discovery is disabled");
     }
   });
 
   it("returns error when YOUTUBE_DATA_API_KEY is missing", async () => {
     (getYouTubeDiscoveryConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       enabled: false,
-      reason: "YOUTUBE_DATA_API_KEY is not configured.",
+      reason: "YouTube discovery is not configured. Add YOUTUBE_DATA_API_KEY to enable video discovery.",
     });
 
     const result = await runDiscoveryForRecipe({
@@ -160,10 +160,11 @@ describe("buildDiscoveryQueries for Hyderabadi Chicken Biryani", () => {
   it("includes Hyderabadi-specific terms for Hyderabadi recipes", () => {
     const queries = buildDiscoveryQueries({ recipeName: "Hyderabadi Chicken Biryani" });
     const queryTexts = queries.map((q) => q.query.toLowerCase());
-    const hasAuthenticOrHyderabadi = queryTexts.some(
-      (q) => q.includes("authentic") || q.includes("hyderabadi") || q.includes("restaurant style"),
-    );
-    expect(hasAuthenticOrHyderabadi).toBe(true);
+    expect(queryTexts).toContain("hyderabadi chicken biryani hyderabadi recipe");
+    expect(queryTexts).toContain("hyderabadi chicken biryani authentic");
+    expect(queryTexts).toContain("hyderabadi chicken biryani restaurant style");
+    expect(queryTexts).toContain("hyderabadi chicken biryani chef");
+    expect(queryTexts).toContain("hyderabadi chicken biryani step by step");
   });
 
   it("generates no duplicate queries", () => {
