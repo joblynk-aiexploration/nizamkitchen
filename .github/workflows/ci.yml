@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Create CI environment file
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  docker-image-placeholder:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image placeholder
+        run: docker build -t nizamkitchen:ci .
+
+      - name: Placeholder registry push
+        run: echo "Push to GHCR/ECR can be added here once registry credentials are configured."
+
+  deploy-placeholder:
+    runs-on: ubuntu-latest
+    needs: docker-image-placeholder
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Placeholder deploy job
+        run: echo "Single-VPS deploy or ECS/Fargate rollout can be wired here with protected secrets."

@@ -20,19 +20,19 @@ Initial enterprise-grade SaaS foundation for NizamKitchen. This phase intentiona
 - Country registry, country assignments, and country configs
 - Audit logs, feature flags, billing placeholders, API key placeholders, storage file placeholders, email log placeholders, and system settings
 - Public, protected, and platform admin route structure
-- Health endpoints at `/api/health` and `/api/health/db`
+- Health endpoints at `/api/health`, `/api/health/db`, `/api/health/redis`, and `/api/health/storage`
 - Seed data for demo users, organizations, countries, and flags
 - Docker assets for PostgreSQL, Redis, MinIO, and Mailpit
+- CI validation workflow and deployment documentation
 
 ## Quick start
 
 1. Copy `.env.example` to `.env`.
-2. Start local dependencies with `npm run docker:up`.
-3. Install dependencies with `npm install`.
-4. Generate Prisma client with `npm run db:generate`.
-5. Create the database schema with `npm run db:migrate`.
-6. Seed demo data with `npm run db:seed`.
-7. Run the app with `npm run dev`.
+2. Install dependencies with `npm install`.
+3. Start the full local stack with `npm run docker:up`.
+4. Create the database schema with `npm run db:migrate`.
+5. Seed demo data with `npm run db:seed`.
+6. Open `http://localhost:3000`.
 
 ## Demo credentials
 
@@ -54,9 +54,19 @@ Initial enterprise-grade SaaS foundation for NizamKitchen. This phase intentiona
 - `npm run db:generate`
 - `npm run db:migrate`
 - `npm run db:deploy`
+- `npm run db:status`
 - `npm run db:seed`
 - `npm run docker:up`
 - `npm run docker:down`
+
+## Deployment docs
+
+- [Infrastructure](docs/infrastructure.md)
+- [Deployment](docs/deployment.md)
+- [Environment Variables](docs/environment-variables.md)
+- [Database Migrations](docs/database-migrations.md)
+- [Backup And Restore](docs/backup-restore.md)
+- [Security Notes](docs/security.md)
 
 ## Architecture notes
 
