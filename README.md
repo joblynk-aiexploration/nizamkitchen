@@ -34,6 +34,27 @@ Initial enterprise-grade SaaS foundation for NizamKitchen. This phase intentiona
 5. Seed demo data with `npm run db:seed`.
 6. Open `http://localhost:3000`.
 
+## Environment variables
+
+- Core runtime values are documented in `.env.example`.
+- Infrastructure placeholders include PostgreSQL, Redis, object storage, SMTP, logging, and observability settings.
+- Full reference: [Environment Variables](docs/environment-variables.md)
+
+## Database setup
+
+1. Confirm `DATABASE_URL` points to PostgreSQL.
+2. Run `npm run db:generate`.
+3. Run `npm run db:migrate`.
+4. Run `npm run db:seed`.
+5. Use `npm run db:deploy` for production releases only.
+
+## Docker setup
+
+- Local stack: `npm run docker:up`
+- Local shutdown: `npm run docker:down`
+- Local services include the app, PostgreSQL, Redis, MinIO, and Mailpit.
+- Production example stack: `docker-compose.prod.example.yml`
+
 ## Demo credentials
 
 - `owner@nizamkitchen.dev` / `Password123!`
@@ -67,6 +88,19 @@ Initial enterprise-grade SaaS foundation for NizamKitchen. This phase intentiona
 - [Database Migrations](docs/database-migrations.md)
 - [Backup And Restore](docs/backup-restore.md)
 - [Security Notes](docs/security.md)
+
+## Security notes
+
+- Tenant isolation is enforced server-side.
+- Platform admin access is separated from organization access.
+- Sensitive denied-access events are audit logged.
+- Session cookies are HTTP-only and secure in production.
+
+## Deployment notes
+
+- The current deployment target is flexible enough for a single VPS now and AWS ECS/Fargate later.
+- Production database migrations must use `prisma migrate deploy`.
+- Do not commit secrets; keep production credentials in environment-specific secret stores.
 
 ## Architecture notes
 
