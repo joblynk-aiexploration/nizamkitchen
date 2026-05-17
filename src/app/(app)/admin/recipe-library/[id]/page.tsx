@@ -208,9 +208,6 @@ export default async function AdminRecipeDetailPage({
                         <Badge tone="neutral">{analysis.confidence}</Badge>
                         {analysis.aiProvider && <Badge tone="neutral">source: {analysis.aiProvider}</Badge>}
                         {analysis.rawTranscriptProvided && <Badge tone="info">transcript provided</Badge>}
-                        {analysis.trainingExamples.length > 0 && (
-                          <Badge tone="success">training example ready</Badge>
-                        )}
                         <span className="text-xs text-[var(--color-muted)]">
                           {analysis.createdAt.toLocaleDateString()}
                         </span>
@@ -244,7 +241,6 @@ export default async function AdminRecipeDetailPage({
                       <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
                         Only verified corrected analyses should become training data.
                         {analysis.aiProvider === "mock" ? " Mock output should not be used unless an admin has manually corrected it first." : ""}
-                        {analysis.trainingExamples.length > 0 ? ` Training example: ${analysis.trainingExamples[0].status}.` : " No training example has been created yet."}
                       </div>
                       <VideoAnalysisDisplay analysis={analysis} />
                     </div>

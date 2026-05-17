@@ -35,7 +35,6 @@ const ANALYSIS_INCLUDE = {
   ingredients: { orderBy: { displayOrder: "asc" as const } },
   steps: { orderBy: { displayOrder: "asc" as const } },
   differences: true,
-  trainingExamples: { select: { id: true, status: true } },
   analyzedBy: { select: { fullName: true } },
   verifiedBy: { select: { fullName: true } },
 } as const;
