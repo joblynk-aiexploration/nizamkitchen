@@ -1725,13 +1725,14 @@ async function main() {
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
 
-  // Remove previously seeded video references that used unverified/unavailable IDs.
-  // Admins should discover and import videos via /admin/youtube-discovery after
-  // configuring YOUTUBE_DATA_API_KEY — do not seed live YouTube references.
+  // Remove all YouTube video references on global (platform) recipes.
+  // availabilityStatus cannot be used here until the video-availability migration is applied.
+  // This gives a clean slate — admins discover and import verified videos via
+  // /admin/youtube-discovery once YOUTUBE_DATA_API_KEY is configured.
   await prisma.recipeMediaReference.deleteMany({
     where: {
-      provider: "manual",
-      externalId: { in: ["BnYSKZPZBwA", "QJKrGKDMDa8", "5LGSqq-MXrU", "7r_Kk79qHas"] },
+      type: "youtube",
+      recipe: { organizationId: null },
     },
   });
 
