@@ -72,6 +72,7 @@ export async function runTranscriptAnalysis(params: {
     data: { status: "running", startedAt: new Date() },
   });
 
+  let providerName: string | null = null;
   try {
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
@@ -87,6 +88,7 @@ export async function runTranscriptAnalysis(params: {
 
     const mediaRef = recipe.mediaRefs[0];
     const provider = getProvider();
+    providerName = provider.name;
     if (provider.name === "local_rules" || provider.name === "local_http") {
       await createAuditEvent({
         actorUserId: requestedByUserId,
@@ -266,6 +268,17 @@ export async function runTranscriptAnalysis(params: {
       targetId: jobId,
       details: { error: msg } as Prisma.InputJsonValue,
     });
+    if (providerName === "local_rules" || providerName === "local_http") {
+      await createAuditEvent({
+        actorUserId: requestedByUserId,
+        organizationId,
+        countryCode,
+        action: "local_ai.analysis_failed",
+        targetType: "video_analysis_job",
+        targetId: jobId,
+        details: { provider: providerName, error: msg } as Prisma.InputJsonValue,
+      });
+    }
     return { success: false as const, error: msg };
   }
 }

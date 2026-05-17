@@ -17,7 +17,7 @@ export type VideoAnalysisConfig = {
 // Read AI config from env — all optional, never required for build/start
 export function getVideoAnalysisConfig(): VideoAnalysisConfig {
   const enabled = process.env.AI_VIDEO_ANALYSIS_ENABLED === "true";
-  const rawProvider = process.env.AI_PROVIDER ?? "disabled";
+  const rawProvider = process.env.AI_PROVIDER ?? process.env.LOCAL_AI_PROVIDER ?? "disabled";
 
   const provider: AIProviderName =
     rawProvider === "openai" ||

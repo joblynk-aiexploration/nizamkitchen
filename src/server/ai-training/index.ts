@@ -352,7 +352,7 @@ export async function createTrainingRun(params: {
       modelType: parsed.modelType,
       baseModel: parsed.baseModel,
       outputModelPath: parsed.outputModelPath,
-      trainingConfigJson: parsed.trainingConfigJson,
+      trainingConfigJson: parsed.trainingConfigJson as Prisma.InputJsonValue,
     },
   });
 

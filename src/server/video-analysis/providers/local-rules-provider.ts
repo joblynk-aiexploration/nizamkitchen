@@ -87,7 +87,7 @@ const TECHNIQUES: Array<{ label: string; patterns: string[] }> = [
 ];
 
 const QUANTITY_PATTERN =
-  /(?<quantity>\d+(?:\.\d+)?|\d+\s*\/\s*\d+|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?<unit>cups?|tsp|teaspoons?|tbsp|tablespoons?|g|grams?|kg|ml|liters?|litres?|pieces?|cloves?|pinch|handful)\b/i;
+  /(\d+(?:\.\d+)?|\d+\s*\/\s*\d+|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)\s*(cups?|tsp|teaspoons?|tbsp|tablespoons?|g|grams?|kg|ml|liters?|litres?|pieces?|cloves?|pinch|handful)\b/i;
 
 export class LocalRulesProvider implements VideoAnalysisProvider {
   readonly name = "local_rules";
@@ -172,9 +172,9 @@ function splitTranscriptLines(transcript: string): TranscriptLine[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((raw) => {
-      const timestampMatch = raw.match(/^\s*[\[(]?(?<timestamp>\d{1,2}:\d{2}(?::\d{2})?)[\])]?/);
-      const timestampSeconds = timestampMatch?.groups?.timestamp
-        ? parseTimestampToSeconds(timestampMatch.groups.timestamp)
+      const timestampMatch = raw.match(/^\s*[\[(]?(\d{1,2}:\d{2}(?::\d{2})?)[\])]?/);
+      const timestampSeconds = timestampMatch?.[1]
+        ? parseTimestampToSeconds(timestampMatch[1])
         : null;
       const text = timestampMatch ? raw.slice(timestampMatch[0].length).trim() : raw;
       return { raw, text: text || raw, timestampSeconds };
@@ -272,7 +272,7 @@ function parseQuantityNearAlias(text: string, alias: string) {
     ? text
     : text.slice(Math.max(0, aliasIndex - 36), aliasIndex + alias.length + 36);
   const match = searchText.match(QUANTITY_PATTERN);
-  if (!match?.groups) {
+  if (!match) {
     const lower = searchText.toLowerCase();
     if (/\bpinch\b/.test(lower)) return { quantity: 1, unitName: "pinch" };
     if (/\bhandful\b/.test(lower)) return { quantity: 1, unitName: "handful" };
@@ -280,8 +280,8 @@ function parseQuantityNearAlias(text: string, alias: string) {
   }
 
   return {
-    quantity: normalizeQuantity(match.groups.quantity),
-    unitName: normalizeUnit(match.groups.unit),
+    quantity: normalizeQuantity(match[1]),
+    unitName: normalizeUnit(match[2]),
   };
 }
 

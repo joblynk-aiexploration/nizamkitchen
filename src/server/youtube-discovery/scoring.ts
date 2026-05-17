@@ -210,7 +210,7 @@ export function scoreCandidate(params: {
 
   // ── Professional-looking summary ─────────────────────────────────────────
   if (professionalSignals.length === 0) {
-    professionalSignals.push("Needs admin review — no strong cooking-channel signals detected.");
+    professionalSignals.push("Needs review — no strong cooking-channel signals detected.");
   }
 
   return {

@@ -41,7 +41,7 @@ export class LocalHttpProvider implements VideoAnalysisProvider {
       });
 
       if (!response.ok) {
-        console.error("Local AI server returned an error", { status: response.status, statusText: response.statusText });
+        logLocalAIError("Local AI server returned an error", { status: response.status, statusText: response.statusText });
         return { success: false, error: "Local AI server returned an error.", provider: this.name };
       }
 
@@ -60,7 +60,7 @@ export class LocalHttpProvider implements VideoAnalysisProvider {
         : error instanceof Error && error.name === "AbortError"
           ? "Local AI server timed out."
           : "Local AI server is not running.";
-      console.error("Local AI analysis failed", error);
+      logLocalAIError("Local AI analysis failed", error);
       return { success: false, error: message, provider: this.name };
     } finally {
       clearTimeout(timeout);
@@ -69,5 +69,11 @@ export class LocalHttpProvider implements VideoAnalysisProvider {
 
   async analyzeFromFrames(input: AnalyzeVideoInput): Promise<AnalyzeVideoResult> {
     return this.analyzeFromTranscript(input);
+  }
+}
+
+function logLocalAIError(message: string, details: unknown) {
+  if (process.env.NODE_ENV !== "test") {
+    console.error(message, details);
   }
 }
