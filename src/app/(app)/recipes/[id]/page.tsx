@@ -8,6 +8,12 @@ import { requireMembership } from "@/lib/auth/session";
 import { formatTotalTime, formatQuantity, groupIngredientsBySection } from "@/lib/recipe-utils";
 import { getRecipeById } from "@/server/recipes";
 import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { isAIVideoAnalysisAvailable } from "@/lib/video-analysis-config";
+import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
+import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
+import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +44,34 @@ export default async function RecipeDetailPage({
     notFound();
   }
 
+  const orgId = session.activeOrganization.id;
   const canEdit = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES) ||
-    (recipe.organizationId === session.activeOrganization.id);
+    (recipe.organizationId === orgId);
+
+  const [youtubeEnabled, aiAnalysisEnabled] = await Promise.all([
+    isFeatureEnabled("youtube_references", orgId),
+    isFeatureEnabled("ai_video_analysis", orgId),
+  ]);
 
   const sections = groupIngredientsBySection(recipe.ingredients);
+
+  const youtubeRefs = recipe.mediaRefs
+    .filter((r) => r.type === "youtube")
+    .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
+
+  const otherRefs = recipe.mediaRefs.filter((r) => r.type !== "youtube");
+  const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
+
+  // Fetch analyses for the primary video only (avoid over-fetching)
+  const primaryAnalyses = primaryRef && aiAnalysisEnabled
+    ? await getVideoAnalysesForReference(primaryRef.id)
+    : [];
+
+  const latestAnalysis = primaryAnalyses.find(
+    (a) => a.verificationStatus === "verified",
+  ) ?? primaryAnalyses[0] ?? null;
+
+  const aiConfigured = isAIVideoAnalysisAvailable();
 
   return (
     <div className="space-y-8">
@@ -76,6 +106,54 @@ export default async function RecipeDetailPage({
           <p className="mt-3 text-sm text-[var(--color-muted)]">{recipe.story}</p>
         </Card>
       )}
+
+      {/* Video references section */}
+      {youtubeEnabled ? (
+        youtubeRefs.length > 0 ? (
+          <div className="space-y-4">
+            <h2 className="font-semibold text-[var(--color-ink)]">Video</h2>
+
+            {primaryRef && (
+              <VideoReferenceCard ref_={primaryRef} showEmbed />
+            )}
+
+            {youtubeRefs.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-[var(--color-muted)]">More videos</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {youtubeRefs.filter((r) => r.id !== primaryRef?.id).map((ref) => (
+                    <VideoReferenceCard key={ref.id} ref_={ref} showEmbed={false} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AI analysis section */}
+            {aiAnalysisEnabled && primaryRef && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="font-semibold text-[var(--color-ink)]">AI video analysis</h3>
+                  <AIAnalysisButton
+                    recipeId={recipe.id}
+                    recipeMediaReferenceId={primaryRef.id}
+                    aiConfigured={aiConfigured}
+                  />
+                </div>
+
+                {latestAnalysis ? (
+                  <VideoAnalysisDisplay analysis={latestAnalysis} />
+                ) : (
+                  <Card>
+                    <p className="text-sm text-[var(--color-muted)]">
+                      No AI analysis yet for this video. Click &ldquo;Analyze with AI&rdquo; to generate one.
+                    </p>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
+        ) : null
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
         <div className="space-y-6">
@@ -143,23 +221,20 @@ export default async function RecipeDetailPage({
         </div>
       </div>
 
-      {recipe.mediaRefs.length > 0 && (
+      {otherRefs.length > 0 && (
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">References</h2>
           <div className="mt-4 space-y-2">
-            {recipe.mediaRefs.map((ref) => (
+            {otherRefs.map((ref) => (
               <a
                 key={ref.id}
-                href={ref.url}
+                href={ref.normalizedUrl ?? ref.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] p-3 text-sm hover:bg-slate-50"
               >
                 <Badge tone="info">{ref.type}</Badge>
                 <span className="font-medium text-[var(--color-primary)]">{ref.title}</span>
-                {ref.provider && (
-                  <span className="text-[var(--color-muted)]">via {ref.provider}</span>
-                )}
               </a>
             ))}
           </div>

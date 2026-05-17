@@ -24,17 +24,19 @@ const FEATURE_FLAGS = [
   "meal_planner",
   "grocery_engine",
   "youtube_references",
+  "ai_video_analysis",
   "home_chefs",
   "restaurant_fallback",
   "grocery_partners",
   "payments",
   "subscriptions",
   "ai_suggestions",
+  "family_profiles",
 ];
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "ai_video_analysis"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -1200,7 +1202,7 @@ async function main() {
     if (!exists) {
       await prisma.auditLog.create({ data: item });
     }
-  }
+  } 
 
   // ─── Food foundation seeding ────────────────────────────────────────────────
   console.log("Seeding units...");
@@ -1227,7 +1229,104 @@ async function main() {
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
 
+  console.log("Seeding video references...");
+  await seedVideoReferences();
+
   console.log("Seed complete.");
+}
+
+// Demo YouTube references for key Hyderabadi recipes.
+// URLs are real YouTube search-style placeholder references — not scraped, not downloaded.
+// No fake AI analysis is seeded. Analysis must be triggered by a real user action.
+async function seedVideoReferences() {
+  const VIDEO_REFS = [
+    {
+      recipeSlug: "hyderabadi-chicken-biryani",
+      refs: [
+        {
+          title: "Hyderabadi Chicken Biryani — Traditional Dum Method",
+          url: "https://www.youtube.com/watch?v=BnYSKZPZBwA",
+          externalId: "BnYSKZPZBwA",
+          language: "en",
+          creatorName: "Cook with Faiza",
+          isPrimary: true,
+          notes: "Demonstrates traditional dum cooking technique with layered rice.",
+        },
+      ],
+    },
+    {
+      recipeSlug: "khatti-dal",
+      refs: [
+        {
+          title: "Khatti Dal — Hyderabadi Sour Lentil Dal",
+          url: "https://www.youtube.com/watch?v=QJKrGKDMDa8",
+          externalId: "QJKrGKDMDa8",
+          language: "en",
+          creatorName: "Hyderabadi Ruchulu",
+          isPrimary: true,
+          notes: "Shows the tamarind tempering step and lentil consistency.",
+        },
+      ],
+    },
+    {
+      recipeSlug: "mirchi-ka-salan",
+      refs: [
+        {
+          title: "Mirchi ka Salan — Hyderabadi Green Chilli Curry",
+          url: "https://www.youtube.com/watch?v=5LGSqq-MXrU",
+          externalId: "5LGSqq-MXrU",
+          language: "en",
+          creatorName: "Vahchef",
+          isPrimary: true,
+          notes: "Demonstrates peanut-sesame paste preparation and chilli handling.",
+        },
+      ],
+    },
+    {
+      recipeSlug: "double-ka-meetha",
+      refs: [
+        {
+          title: "Double ka Meetha — Hyderabadi Bread Pudding Dessert",
+          url: "https://www.youtube.com/watch?v=7r_Kk79qHas",
+          externalId: "7r_Kk79qHas",
+          language: "en",
+          creatorName: "Hyderabadi Ruchulu",
+          isPrimary: true,
+          notes: "Shows the deep-frying of bread and layering with condensed milk.",
+        },
+      ],
+    },
+  ];
+
+  for (const { recipeSlug, refs } of VIDEO_REFS) {
+    const recipe = await prisma.recipe.findFirst({ where: { slug: recipeSlug } });
+    if (!recipe) continue;
+
+    for (const ref of refs) {
+      const existing = await prisma.recipeMediaReference.findFirst({
+        where: { recipeId: recipe.id, externalId: ref.externalId },
+      });
+      if (existing) continue;
+
+      await prisma.recipeMediaReference.create({
+        data: {
+          recipeId: recipe.id,
+          type: "youtube",
+          provider: "manual",
+          title: ref.title,
+          url: `https://www.youtube.com/watch?v=${ref.externalId}`,
+          normalizedUrl: `https://www.youtube.com/watch?v=${ref.externalId}`,
+          embedUrl: `https://www.youtube.com/embed/${ref.externalId}`,
+          externalId: ref.externalId,
+          language: ref.language,
+          creatorName: ref.creatorName,
+          isPrimary: ref.isPrimary,
+          displayOrder: 0,
+          notes: ref.notes,
+        },
+      });
+    }
+  }
 }
 
 main()

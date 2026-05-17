@@ -163,6 +163,9 @@ export default async function GroceryListPage({
                           <input type="hidden" name="isChecked" value={String(item.isChecked)} />
                           <button
                             type="submit"
+                            aria-label={item.isChecked
+                              ? `Mark ${item.canonicalIngredientName} as pending`
+                              : `Mark ${item.canonicalIngredientName} as complete`}
                             className="mt-0.5 h-5 w-5 rounded-full border-2 border-[var(--color-border)] bg-white hover:border-[var(--color-primary)] flex items-center justify-center"
                           >
                             {item.isChecked && (

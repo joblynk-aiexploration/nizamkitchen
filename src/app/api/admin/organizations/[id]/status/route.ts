@@ -21,7 +21,7 @@ export async function POST(
     const formData = await request.formData();
     await updateOrganizationStatus(session, id, {
       status: formData.get("status"),
-      reason: formData.get("reason"),
+      reason: formData.get("reason") || undefined,
     });
     revalidatePath("/admin/organizations");
     revalidatePath(`/admin/organizations/${id}`);

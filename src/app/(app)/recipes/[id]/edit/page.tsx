@@ -7,16 +7,22 @@ import { getRecipeById } from "@/server/recipes";
 import { listIngredients } from "@/server/ingredients";
 import { listUnits } from "@/server/units";
 import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
+import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditRecipePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ message?: string }>;
 }) {
   const session = await requireMembership();
   const { id } = await params;
+  const { message } = await searchParams;
   const recipe = await getRecipeById(id);
 
   if (!recipe) notFound();
@@ -75,13 +81,19 @@ export default async function EditRecipePage({
     }
   }
 
+  const youtubeRefs = recipe.mediaRefs
+    .filter((r) => r.type === "youtube")
+    .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow={recipe.cuisine.name}
         title={`Edit: ${recipe.name}`}
-        description="Add ingredients and steps to this recipe."
+        description="Add ingredients, steps, and video references to this recipe."
       />
+
+      {message && <FormMessage message={message} />}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
@@ -221,6 +233,64 @@ export default async function EditRecipePage({
           </form>
         </Card>
       </div>
+
+      {/* Video references — org-owned recipes only */}
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-semibold text-[var(--color-ink)]">
+            Video references ({youtubeRefs.length})
+          </h2>
+          <Button asChild variant="secondary">
+            <a href="#add-video-ref">Add video</a>
+          </Button>
+        </div>
+
+        {youtubeRefs.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {youtubeRefs.map((ref) => (
+              <div key={ref.id} className="space-y-2">
+                <VideoReferenceCard ref_={ref} showEmbed={false} />
+                <form action={`/api/recipes/${recipe.id}/media-references/${ref.id}`} method="post" className="flex gap-2">
+                  <input type="hidden" name="_method" value="DELETE" />
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div id="add-video-ref" className="mt-6 border-t border-[var(--color-border)] pt-6">
+          <h3 className="mb-4 text-sm font-semibold text-[var(--color-ink)]">Add YouTube video</h3>
+          <form
+            action={`/api/recipes/${recipe.id}/media-references`}
+            method="post"
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <input type="hidden" name="type" value="youtube" />
+            <input type="hidden" name="provider" value="youtube" />
+            <div className="sm:col-span-2">
+              <input
+                name="url"
+                placeholder="YouTube URL"
+                required
+                className="w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
+              />
+            </div>
+            <input name="title" placeholder="Video title" required className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+            <input name="creatorName" placeholder="Creator / Channel" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+            <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
+              <input type="checkbox" name="isPrimary" />
+              <span>Set as primary</span>
+            </label>
+            <Button type="submit" variant="primary">Add video</Button>
+          </form>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminDangerZone } from "@/components/admin/admin-danger-zone";
@@ -8,13 +9,22 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
+import { isAIVideoAnalysisAvailable } from "@/lib/video-analysis-config";
+import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
+import { listAnalysisJobsForReference } from "@/server/video-analysis/video-analysis-jobs";
+import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
+import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
+import { FormMessage } from "@/components/ui/form-message";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminRecipeDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ message?: string }>;
 }) {
   const session = await requirePlatformRole([
     "platform_owner",
@@ -23,6 +33,7 @@ export default async function AdminRecipeDetailPage({
     "auditor",
   ]);
   const { id } = await params;
+  const { message } = await searchParams;
   const recipe = await getRecipeById(id);
 
   if (!recipe) notFound();
@@ -32,6 +43,22 @@ export default async function AdminRecipeDetailPage({
     session.user.platformRole === "platform_admin";
 
   const sections = groupIngredientsBySection(recipe.ingredients);
+  const aiConfigured = isAIVideoAnalysisAvailable();
+
+  const youtubeRefs = recipe.mediaRefs
+    .filter((r) => r.type === "youtube")
+    .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
+
+  // Fetch analyses and jobs for each YouTube ref (admin sees all)
+  const refAnalysisData = await Promise.all(
+    youtubeRefs.map(async (ref) => {
+      const [analyses, jobs] = await Promise.all([
+        getVideoAnalysesForReference(ref.id),
+        listAnalysisJobsForReference(ref.id),
+      ]);
+      return { ref, analyses, jobs };
+    }),
+  );
 
   async function togglePublished() {
     "use server";
@@ -41,9 +68,7 @@ export default async function AdminRecipeDetailPage({
       const { revalidatePath } = await import("next/cache");
       const sess = await getSession(["platform_owner", "platform_admin"]);
       const current = await (await import("@/server/recipes")).getRecipeById(id);
-      if (!current) {
-        redirect("/admin/recipe-library?message=Recipe not found.");
-      }
+      if (!current) redirect("/admin/recipe-library?message=Recipe not found.");
       await updateRecipe(sess, id, { isPublished: !current.isPublished });
       revalidatePath(`/admin/recipe-library/${id}`);
       revalidatePath("/admin/recipe-library");
@@ -59,6 +84,8 @@ export default async function AdminRecipeDetailPage({
       title={recipe.name}
       description={`${recipe.cuisine.name} · ${formatTotalTime(recipe)} · ${recipe.servings} servings`}
     >
+      {message && <FormMessage message={message} />}
+
       <div className="flex flex-wrap gap-2">
         <Badge tone="neutral">{recipe.difficulty}</Badge>
         <Badge tone="warning">{recipe.spiceLevel}</Badge>
@@ -84,6 +111,190 @@ export default async function AdminRecipeDetailPage({
         </Card>
       )}
 
+      {/* ── Video References Section ── */}
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-semibold text-[var(--color-ink)]">
+            Video references ({youtubeRefs.length})
+          </h2>
+          {canMutate && (
+            <Button asChild variant="secondary">
+              <a href="#add-video-ref">Add video</a>
+            </Button>
+          )}
+        </div>
+
+        {youtubeRefs.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--color-muted)]">No video references yet.</p>
+        ) : (
+          <div className="mt-4 space-y-6">
+            {refAnalysisData.map(({ ref, analyses, jobs }) => (
+              <div key={ref.id} className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
+                <VideoReferenceCard ref_={ref} showEmbed={false} />
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {ref.isPrimary && <Badge tone="success">Primary</Badge>}
+                  <Badge tone="neutral">{ref.language ?? "no language"}</Badge>
+                  {ref.creatorName && <span className="text-sm text-[var(--color-muted)]">{ref.creatorName}</span>}
+                </div>
+
+                {/* Analysis controls */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-[var(--color-ink)]">
+                      AI analysis ({analyses.length})
+                    </p>
+                    {canMutate && (
+                      <AIAnalysisButton
+                        recipeId={recipe.id}
+                        recipeMediaReferenceId={ref.id}
+                        aiConfigured={aiConfigured}
+                      />
+                    )}
+                  </div>
+
+                  {/* Job status */}
+                  {jobs.slice(0, 3).map((job) => (
+                    <div key={job.id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                      <span className={`inline-block h-2 w-2 rounded-full ${
+                        job.status === "completed" ? "bg-emerald-500"
+                        : job.status === "failed" ? "bg-red-500"
+                        : job.status === "running" ? "bg-amber-500"
+                        : "bg-slate-300"
+                      }`} />
+                      Job {job.status} · {job.sourceType} · {job.createdAt.toLocaleDateString()}
+                      {job.errorMessage && (
+                        <span className="text-red-600"> — {job.errorMessage}</span>
+                      )}
+                    </div>
+                  ))}
+
+                  {analyses.map((analysis) => (
+                    <div key={analysis.id} className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={
+                          analysis.verificationStatus === "verified" ? "success"
+                          : analysis.verificationStatus === "rejected" ? "neutral"
+                          : analysis.verificationStatus === "needs_review" ? "warning"
+                          : "info"
+                        }>
+                          {analysis.verificationStatus}
+                        </Badge>
+                        <Badge tone="neutral">{analysis.confidence}</Badge>
+                        <span className="text-xs text-[var(--color-muted)]">
+                          {analysis.createdAt.toLocaleDateString()}
+                        </span>
+
+                        {/* Verification controls */}
+                        {canMutate && analysis.verificationStatus !== "verified" && (
+                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
+                            <input type="hidden" name="verificationStatus" value="verified" />
+                            <button type="submit" className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                              Verify
+                            </button>
+                          </form>
+                        )}
+                        {canMutate && analysis.verificationStatus !== "rejected" && (
+                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
+                            <input type="hidden" name="verificationStatus" value="rejected" />
+                            <button type="submit" className="rounded-xl bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700">
+                              Reject
+                            </button>
+                          </form>
+                        )}
+                        {canMutate && analysis.verificationStatus !== "needs_review" && (
+                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
+                            <input type="hidden" name="verificationStatus" value="needs_review" />
+                            <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)] hover:bg-slate-50">
+                              Needs review
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                      <VideoAnalysisDisplay analysis={analysis} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Edit/delete controls */}
+                {canMutate && (
+                  <div className="flex gap-2 border-t border-[var(--color-border)] pt-3">
+                    <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
+                      <input type="hidden" name="_method" value="DELETE" />
+                      <button
+                        type="submit"
+                        className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        onClick={(e) => {
+                          if (!confirm("Remove this video reference?")) e.preventDefault();
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </form>
+                    {!ref.isPrimary && (
+                      <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
+                        <input type="hidden" name="isPrimary" value="on" />
+                        <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-slate-50">
+                          Set as primary
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add video reference form */}
+        {canMutate && (
+          <div id="add-video-ref" className="mt-6 border-t border-[var(--color-border)] pt-6">
+            <h3 className="mb-4 font-semibold text-[var(--color-ink)]">Add video reference</h3>
+            <form
+              action={`/api/admin/recipe-library/${recipe.id}/media-references`}
+              method="post"
+              className="grid gap-4 sm:grid-cols-2"
+            >
+              <input type="hidden" name="type" value="youtube" />
+              <input type="hidden" name="provider" value="youtube" />
+              <div className="sm:col-span-2">
+                <input
+                  name="url"
+                  placeholder="YouTube URL (e.g. https://www.youtube.com/watch?v=...)"
+                  required
+                  className="w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
+                />
+              </div>
+              <input name="title" placeholder="Video title" required className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+              <input name="creatorName" placeholder="Creator / Channel name" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+              <select name="language" defaultValue="" className="rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
+                <option value="">Language (optional)</option>
+                <option value="en">English</option>
+                <option value="ur">Urdu</option>
+                <option value="hi">Hindi</option>
+                <option value="ar">Arabic</option>
+                <option value="te">Telugu</option>
+                <option value="ta">Tamil</option>
+              </select>
+              <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
+                <input type="checkbox" name="isPrimary" />
+                <span>Set as primary video</span>
+              </label>
+              <textarea
+                name="notes"
+                placeholder="Notes (optional)"
+                rows={2}
+                className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm sm:col-span-2"
+              />
+              <div className="sm:col-span-2">
+                <Button type="submit" variant="primary">Add video reference</Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </Card>
+
+      {/* Ingredients & Steps */}
       <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">

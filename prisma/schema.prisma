@@ -72,14 +72,17 @@ model User {
   lastLoginAt        DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  sessions           Session[]
-  memberships        Membership[]
-  countryAssignments CountryAssignment[]
-  auditLogs          AuditLog[]
-  emailLogs          EmailLog[]
-  apiKeys            ApiKey[]
-  groceryLists       GroceryList[]
-  createdMealPlans   MealPlan[]          @relation("MealPlanCreatedBy")
+  sessions                 Session[]
+  memberships              Membership[]
+  countryAssignments       CountryAssignment[]
+  auditLogs                AuditLog[]
+  emailLogs                EmailLog[]
+  apiKeys                  ApiKey[]
+  groceryLists             GroceryList[]
+  createdMealPlans         MealPlan[]                @relation("MealPlanCreatedBy")
+  videoAnalysesAnalyzedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisAnalyzedBy")
+  videoAnalysesVerifiedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisVerifiedBy")
+  videoAnalysisJobsRequested VideoAnalysisJob[]      @relation("VideoAnalysisJobRequestedBy")
 }
 
 model Session {
@@ -388,6 +391,67 @@ enum MediaReferenceType {
   other
 }
 
+enum MediaProvider {
+  youtube
+  manual
+  other
+}
+
+enum VideoAnalysisSource {
+  manual
+  transcript_ai
+  frames_ai
+  transcript_and_frames_ai
+  imported
+}
+
+enum VideoAnalysisVerificationStatus {
+  ai_draft
+  needs_review
+  verified
+  rejected
+}
+
+enum VideoAnalysisConfidence {
+  exact
+  high
+  medium
+  low
+  unknown
+}
+
+enum VideoAnalysisJobStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
+
+enum VideoAnalysisSourceType {
+  youtube_reference
+  pasted_transcript
+  uploaded_video
+  uploaded_audio
+  manual
+}
+
+enum VideoRecipeDifferenceType {
+  ingredient_difference
+  quantity_difference
+  step_difference
+  timing_difference
+  technique_difference
+  spice_level_difference
+  other
+}
+
+enum DifferenceSeverity {
+  info
+  warning
+  important
+}
+
 model Cuisine {
   id          String   @id @default(cuid())
   name        String
@@ -421,6 +485,7 @@ model Unit {
   groceryListItems           GroceryListItem[]
   originalGroceryItemSources GroceryListItemSource[] @relation("SourceOriginalUnit")
   scaledGroceryItemSources   GroceryListItemSource[] @relation("SourceScaledUnit")
+  videoAnalysisIngredients   VideoAnalysisIngredient[]
 
   @@index([type])
   @@index([system])
@@ -447,6 +512,7 @@ model Ingredient {
   unitConversions         UnitConversion[]
   groceryListItems        GroceryListItem[]
   groceryWarnings         GroceryConversionWarning[]
+  videoAnalysisIngredients VideoAnalysisIngredient[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -523,6 +589,8 @@ model Recipe {
   groceryItemSources GroceryListItemSource[]
   groceryWarnings    GroceryConversionWarning[]
   mealPlanEntries    MealPlanEntry[]
+  videoAnalyses      RecipeVideoAnalysis[]
+  videoAnalysisJobs  VideoAnalysisJob[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -569,19 +637,30 @@ model RecipeStep {
 }
 
 model RecipeMediaReference {
-  id         String             @id @default(cuid())
-  recipeId   String
-  type       MediaReferenceType
-  title      String
-  url        String
-  provider   String
-  externalId String?
-  language   String?
-  isPrimary  Boolean            @default(false)
-  createdAt  DateTime           @default(now())
-  recipe     Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  id              String               @id @default(cuid())
+  recipeId        String
+  type            MediaReferenceType
+  provider        MediaProvider        @default(manual)
+  title           String
+  url             String
+  normalizedUrl   String?
+  embedUrl        String?
+  externalId      String?
+  thumbnailUrl    String?
+  language        String?
+  creatorName     String?
+  durationSeconds Int?
+  isPrimary       Boolean              @default(false)
+  displayOrder    Int                  @default(0)
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  recipe          Recipe               @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  videoAnalyses   RecipeVideoAnalysis[]
+  analysisJobs    VideoAnalysisJob[]
 
   @@index([recipeId])
+  @@index([isPrimary])
 }
 
 model DietaryTag {
@@ -864,4 +943,133 @@ model GroceryConversionWarning {
 
   @@index([groceryListId])
   @@index([ingredientId])
+}
+
+// ─── Video Analysis ───────────────────────────────────────────────────────────
+
+model RecipeVideoAnalysis {
+  id                     String                          @id @default(cuid())
+  recipeMediaReferenceId String
+  recipeId               String
+  organizationId         String?
+  countryCode            String?
+  title                  String
+  summary                String?
+  analysisSource         VideoAnalysisSource
+  aiProvider             String?
+  aiModel                String?
+  promptVersion          String                          @default("v1")
+  verificationStatus     VideoAnalysisVerificationStatus @default(ai_draft)
+  confidence             VideoAnalysisConfidence         @default(unknown)
+  analyzedByUserId       String?
+  verifiedByUserId       String?
+  verifiedAt             DateTime?
+  rawTranscriptProvided  Boolean                         @default(false)
+  framesAnalyzedCount    Int?
+  analysisCostCents      Int?
+  errorMessage           String?
+  notes                  String?
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  mediaReference         RecipeMediaReference            @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
+  recipe                 Recipe                          @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  analyzedBy             User?                           @relation("VideoAnalysisAnalyzedBy", fields: [analyzedByUserId], references: [id], onDelete: SetNull)
+  verifiedBy             User?                           @relation("VideoAnalysisVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+  ingredients            VideoAnalysisIngredient[]
+  steps                  VideoAnalysisStep[]
+  differences            VideoRecipeDifference[]
+
+  @@index([recipeMediaReferenceId])
+  @@index([recipeId])
+  @@index([organizationId])
+  @@index([verificationStatus])
+}
+
+model VideoAnalysisIngredient {
+  id                       String                  @id @default(cuid())
+  videoAnalysisId          String
+  ingredientId             String?
+  ingredientName           String
+  normalizedIngredientName String?
+  quantity                 Float?
+  unitId                   String?
+  unitName                 String?
+  preparationNote          String?
+  timestampStartSeconds    Int?
+  timestampEndSeconds      Int?
+  confidence               VideoAnalysisConfidence @default(unknown)
+  evidenceText             String?
+  evidenceFrameTimestamp   Int?
+  notes                    String?
+  displayOrder             Int                     @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  videoAnalysis            RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
+  ingredient               Ingredient?             @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+  unit                     Unit?                   @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([videoAnalysisId])
+  @@index([ingredientId])
+}
+
+model VideoAnalysisStep {
+  id                    String                  @id @default(cuid())
+  videoAnalysisId       String
+  stepNumber            Int
+  title                 String?
+  description           String
+  timestampStartSeconds Int?
+  timestampEndSeconds   Int?
+  durationSeconds       Int?
+  temperature           String?
+  technique             String?
+  confidence            VideoAnalysisConfidence @default(unknown)
+  evidenceText          String?
+  evidenceFrameTimestamp Int?
+  notes                 String?
+  displayOrder          Int                     @default(0)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  videoAnalysis         RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
+
+  @@index([videoAnalysisId])
+}
+
+model VideoRecipeDifference {
+  id              String                    @id @default(cuid())
+  videoAnalysisId String
+  differenceType  VideoRecipeDifferenceType
+  title           String
+  description     String
+  severity        DifferenceSeverity        @default(info)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  videoAnalysis   RecipeVideoAnalysis       @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
+
+  @@index([videoAnalysisId])
+}
+
+model VideoAnalysisJob {
+  id                     String                  @id @default(cuid())
+  recipeMediaReferenceId String
+  recipeId               String
+  organizationId         String?
+  requestedByUserId      String
+  status                 VideoAnalysisJobStatus  @default(queued)
+  sourceType             VideoAnalysisSourceType
+  transcriptText         String?
+  uploadedFileId         String?
+  errorMessage           String?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  mediaReference         RecipeMediaReference    @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
+  recipe                 Recipe                  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  requestedBy            User                    @relation("VideoAnalysisJobRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([recipeMediaReferenceId])
+  @@index([recipeId])
+  @@index([organizationId])
+  @@index([status])
 }
