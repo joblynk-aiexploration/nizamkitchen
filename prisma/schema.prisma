@@ -54,11 +54,18 @@ enum MeasurementSystem {
   mixed
 }
 
+enum UserStatus {
+  active
+  suspended
+  disabled
+}
+
 model User {
   id                 String               @id @default(cuid())
   email              String               @unique
   passwordHash       String
   fullName           String
+  status             UserStatus           @default(active)
   platformRole       PlatformRole?
   preferredLocale    String?              @default("en-US")
   preferredTimezone  String?              @default("UTC")
@@ -75,7 +82,7 @@ model User {
 
 model Session {
   id                   String        @id @default(cuid())
-  token                String        @unique
+  tokenHash            String        @unique
   userId               String
   activeOrganizationId String?
   expiresAt            DateTime

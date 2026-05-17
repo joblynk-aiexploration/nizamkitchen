@@ -1,11 +1,24 @@
 import { NextResponse } from "next/server";
 import { MembershipStatus } from "@prisma/client";
 import { createAuditLog } from "@/lib/audit";
-import { getCurrentSession, getRequestMetadata } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
+import { getCurrentSession, getRequestMetadata } from "@/lib/session";
 import { switchOrganizationSchema } from "@/lib/validation/auth";
 
 export async function POST(request: Request) {
+  const clientIp = getClientIpFromHeaders(request.headers);
+
+  try {
+    enforceRateLimit({
+      key: `organization-switch:${clientIp}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
+  } catch {
+    return NextResponse.redirect(new URL("/organizations?message=Too many requests.", request.url));
+  }
+
   const session = await getCurrentSession();
 
   if (!session) {
@@ -29,9 +42,15 @@ export async function POST(request: Request) {
       organizationId: parsed.data.organizationId,
       status: MembershipStatus.active,
     },
+    include: {
+      organization: true,
+    },
   });
 
-  if (!membership) {
+  if (
+    !membership ||
+    !["active", "paused"].includes(membership.organization.status)
+  ) {
     await createAuditLog({
       actorUserId: session.user.id,
       organizationId: session.activeOrganization?.id,

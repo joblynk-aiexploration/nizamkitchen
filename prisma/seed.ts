@@ -6,6 +6,7 @@ import {
   OrganizationType,
   PlatformRole,
   PrismaClient,
+  UserStatus,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -35,23 +36,30 @@ const COUNTRY_SEEDS = [
 ];
 
 const USER_SEEDS = [
-  { email: "owner@nizamkitchen.dev", fullName: "Platform Owner", platformRole: PlatformRole.platform_owner },
-  { email: "admin@nizamkitchen.dev", fullName: "Platform Admin", platformRole: PlatformRole.platform_admin },
-  { email: "country@nizamkitchen.dev", fullName: "Country Manager", platformRole: PlatformRole.country_manager },
-  { email: "household@nizamkitchen.dev", fullName: "Household Owner", platformRole: null },
-  { email: "chef@nizamkitchen.dev", fullName: "Chef Owner", platformRole: null },
-  { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null },
+  { email: "owner@nizamkitchen.dev", fullName: "Platform Owner", platformRole: PlatformRole.platform_owner, status: UserStatus.active },
+  { email: "admin@nizamkitchen.dev", fullName: "Platform Admin", platformRole: PlatformRole.platform_admin, status: UserStatus.active },
+  { email: "country@nizamkitchen.dev", fullName: "Country Manager", platformRole: PlatformRole.country_manager, status: UserStatus.active },
+  { email: "household@nizamkitchen.dev", fullName: "Household Owner", platformRole: null, status: UserStatus.active },
+  { email: "chef@nizamkitchen.dev", fullName: "Chef Owner", platformRole: null, status: UserStatus.active },
+  { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null, status: UserStatus.active },
+  { email: "disabled@nizamkitchen.dev", fullName: "Disabled User", platformRole: null, status: UserStatus.disabled },
 ];
 
 function slugify(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-async function upsertUser(email: string, fullName: string, platformRole: PlatformRole | null, passwordHash: string) {
+async function upsertUser(
+  email: string,
+  fullName: string,
+  platformRole: PlatformRole | null,
+  status: UserStatus,
+  passwordHash: string,
+) {
   return prisma.user.upsert({
     where: { email },
-    update: { fullName, platformRole, passwordHash },
-    create: { email, fullName, platformRole, passwordHash },
+    update: { fullName, platformRole, status, passwordHash },
+    create: { email, fullName, platformRole, status, passwordHash },
   });
 }
 
@@ -105,7 +113,13 @@ async function main() {
 
   const users = new Map<string, Awaited<ReturnType<typeof upsertUser>>>();
   for (const user of USER_SEEDS) {
-    const record = await upsertUser(user.email, user.fullName, user.platformRole, passwordHash);
+    const record = await upsertUser(
+      user.email,
+      user.fullName,
+      user.platformRole,
+      user.status,
+      passwordHash,
+    );
     users.set(user.email, record);
   }
 

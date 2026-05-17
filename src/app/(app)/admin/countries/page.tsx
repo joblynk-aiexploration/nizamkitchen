@@ -1,6 +1,5 @@
-import { requirePlatformRole } from "@/lib/auth/session";
-import { canManageCountry } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { requirePlatformRole } from "@/lib/session";
+import { listManageableCountries } from "@/server/countries";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
@@ -13,24 +12,7 @@ export default async function AdminCountriesPage() {
     "platform_admin",
     "country_manager",
   ]);
-  const assignments = await prisma.countryAssignment.findMany({
-    where: { userId: session.user.id },
-  });
-  const countries = await prisma.country.findMany({
-    orderBy: { countryName: "asc" },
-  });
-
-  const allowedCountryCodes = assignments.map((assignment) => assignment.countryCode);
-  const visibleCountries =
-    session.user.platformRole === "country_manager"
-      ? countries.filter((country) =>
-          canManageCountry({
-            platformRole: session.user.platformRole,
-            assignedCountries: allowedCountryCodes,
-            countryCode: country.countryCode,
-          }),
-        )
-      : countries;
+  const visibleCountries = await listManageableCountries(session);
 
   return (
     <div className="space-y-8">

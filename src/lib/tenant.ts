@@ -1,6 +1,8 @@
 import { MembershipStatus } from "@prisma/client";
-import { requireMembership, requireUser } from "@/lib/auth/session";
+import { AccessDeniedError, assertMembershipAccess } from "@/lib/auth";
+import { requireMembership, requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { auditAccessDenied } from "@/server/audit";
 
 export async function getActiveOrganizationContext() {
   const session = await requireMembership();
@@ -15,6 +17,18 @@ export async function getActiveOrganizationContext() {
 export async function assertOrganizationAccess(organizationId: string) {
   const session = await requireUser();
 
+  try {
+    assertMembershipAccess(session, organizationId);
+  } catch (error) {
+    await auditAccessDenied({
+      session,
+      targetType: "organization",
+      targetId: organizationId,
+      details: { reason: error instanceof AccessDeniedError ? error.code : "UNKNOWN" },
+    });
+    throw error;
+  }
+
   const membership = await prisma.membership.findFirst({
     where: {
       userId: session.user.id,
@@ -24,7 +38,7 @@ export async function assertOrganizationAccess(organizationId: string) {
   });
 
   if (!membership) {
-    throw new Error("Cross-tenant access denied.");
+    throw new AccessDeniedError("Cross-tenant access denied.", "MEMBERSHIP_REQUIRED");
   }
 
   return membership;

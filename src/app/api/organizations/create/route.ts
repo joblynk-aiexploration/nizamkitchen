@@ -1,16 +1,47 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
+import { AccessDeniedError, assertMembershipAccess } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
-import { getCurrentSession, getRequestMetadata } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
+import { getCurrentSession, getRequestMetadata } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { createOrganizationSchema } from "@/lib/validation/auth";
 
 export async function POST(request: Request) {
+  const clientIp = getClientIpFromHeaders(request.headers);
+
+  try {
+    enforceRateLimit({
+      key: `organization-create:${clientIp}`,
+      limit: 20,
+      windowMs: 60_000,
+    });
+  } catch {
+    return NextResponse.redirect(new URL("/organizations?message=Too many requests.", request.url));
+  }
+
   const session = await getCurrentSession();
 
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  try {
+    assertMembershipAccess(session);
+  } catch (error) {
+    await createAuditLog({
+      actorUserId: session.user.id,
+      organizationId: session.activeOrganization?.id,
+      countryCode: session.activeOrganization?.countryCode,
+      action: "access.denied",
+      targetType: "organization.create",
+      details: {
+        reason: error instanceof AccessDeniedError ? error.code : "UNKNOWN",
+      },
+      ...(await getRequestMetadata()),
+    });
+    return NextResponse.redirect(new URL("/dashboard?message=Access denied.", request.url));
   }
 
   const formData = await request.formData();
@@ -30,7 +61,7 @@ export async function POST(request: Request) {
     where: { countryCode: parsed.data.countryCode },
   });
 
-  if (!country) {
+  if (!country || !country.isActive) {
     return NextResponse.redirect(new URL("/organizations?message=Country not found.", request.url));
   }
 

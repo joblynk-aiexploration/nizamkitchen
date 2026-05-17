@@ -1,4 +1,5 @@
 import type { Membership, PlatformRole } from "@prisma/client";
+import { PLATFORM_ADMIN_ROLES } from "@/lib/auth";
 
 type Permission =
   | "organization:view"
@@ -116,4 +117,10 @@ export function canManageCountry(params: {
   }
 
   return params.assignedCountries.includes(params.countryCode);
+}
+
+export function canAccessPlatformAdmin(params: {
+  platformRole?: PlatformRole | null;
+}) {
+  return !!params.platformRole && PLATFORM_ADMIN_ROLES.includes(params.platformRole);
 }

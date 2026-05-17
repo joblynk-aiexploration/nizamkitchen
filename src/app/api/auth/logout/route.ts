@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
-import { destroySession, getCurrentSession, getRequestMetadata } from "@/lib/auth/session";
+import { destroySession, getCurrentSession, getRequestMetadata } from "@/lib/session";
 
 export async function POST(request: Request) {
   const session = await getCurrentSession();
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     });
   }
 
-  await destroySession(session?.token);
+  await destroySession(session?.sessionToken);
 
   return NextResponse.redirect(new URL("/login?message=Signed out successfully.", request.url));
 }

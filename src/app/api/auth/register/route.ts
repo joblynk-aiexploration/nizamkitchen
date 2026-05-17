@@ -1,14 +1,27 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { OrganizationType } from "@prisma/client";
-import { createAuditLog } from "@/lib/audit";
 import { hashPassword } from "@/lib/auth/password";
-import { createSession, getRequestMetadata } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
+import { createSession, getRequestMetadata } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { registerSchema } from "@/lib/validation/auth";
+import { createAuditLog } from "@/lib/audit";
 
 export async function POST(request: Request) {
+  const clientIp = getClientIpFromHeaders(request.headers);
+
+  try {
+    enforceRateLimit({
+      key: `register:${clientIp}`,
+      limit: 5,
+      windowMs: 60_000,
+    });
+  } catch {
+    return NextResponse.redirect(new URL("/register?message=Too many requests.", request.url));
+  }
+
   const formData = await request.formData();
   const parsed = registerSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -36,7 +49,7 @@ export async function POST(request: Request) {
     where: { countryCode: parsed.data.countryCode },
   });
 
-  if (!country) {
+  if (!country || !country.isActive) {
     return NextResponse.redirect(new URL("/register?message=Invalid country selected.", request.url));
   }
 

@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
-import { requireUser } from "@/lib/auth/session";
+import { requireMembership } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,11 +13,7 @@ import { TextInput } from "@/components/ui/text-input";
 export const dynamic = "force-dynamic";
 
 export default async function OrganizationsPage() {
-  const session = await requireUser();
-
-  if (!session.memberships.length) {
-    redirect("/register?message=Create your first organization.");
-  }
+  const session = await requireMembership();
 
   const countries = await prisma.country.findMany({
     where: { isActive: true },
