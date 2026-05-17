@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, Heart, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users } from "lucide-react";
 import { hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const appLinks = [
   { href: "/ingredients", label: "Ingredients", icon: ChefHat },
   { href: "/meal-plans", label: "Meal Plans", icon: CalendarDays },
   { href: "/grocery-lists", label: "Grocery Lists", icon: ShoppingCart },
+  { href: "/household", label: "Household", icon: Heart },
   { href: "/organizations", label: "Organizations", icon: Building2 },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings2 },

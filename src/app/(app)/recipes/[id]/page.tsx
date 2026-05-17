@@ -14,6 +14,13 @@ import { getVideoAnalysesForReference } from "@/server/video-analysis/video-anal
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
 import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
 import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
+import { favoriteRecipeAction } from "@/app/(app)/household/actions";
+import {
+  canAccessFamilyProfiles,
+  findAvoidedIngredientMatches,
+  isFavoriteRecipe,
+  listAvoidedIngredients,
+} from "@/server/household";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +59,10 @@ export default async function RecipeDetailPage({
     isFeatureEnabled("youtube_references", orgId),
     isFeatureEnabled("ai_video_analysis", orgId),
   ]);
+  const familyProfilesEnabled = await canAccessFamilyProfiles({
+    organizationId: orgId,
+    platformRole: session.user.platformRole,
+  });
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
@@ -72,6 +83,14 @@ export default async function RecipeDetailPage({
   ) ?? primaryAnalyses[0] ?? null;
 
   const aiConfigured = isAIVideoAnalysisAvailable();
+  const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
+  const [favorite, avoidedIngredients] = showHouseholdTools
+    ? await Promise.all([
+        isFavoriteRecipe(orgId, recipe.id),
+        listAvoidedIngredients(orgId),
+      ])
+    : [false, []];
+  const avoidedMatches = findAvoidedIngredientMatches(recipe.ingredients, avoidedIngredients);
 
   return (
     <div className="space-y-8">
@@ -98,7 +117,26 @@ export default async function RecipeDetailPage({
             <Link href={`/recipes/${recipe.id}/edit`}>Edit recipe</Link>
           </Button>
         )}
+        {showHouseholdTools && (
+          <form action={favoriteRecipeAction} className={canEdit ? "" : "ml-auto"}>
+            <input type="hidden" name="recipeId" value={recipe.id} />
+            <input type="hidden" name="favoriteAction" value={favorite ? "remove" : "add"} />
+            <Button type="submit" variant={favorite ? "secondary" : "primary"}>
+              {favorite ? "Favorited" : "Favorite"}
+            </Button>
+          </form>
+        )}
       </div>
+
+      {avoidedMatches.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">Household ingredient warning</p>
+          <p className="mt-1 text-sm text-amber-800">
+            This recipe includes an ingredient your household avoids:{" "}
+            {[...new Set(avoidedMatches.map((item) => item.ingredientName))].join(", ")}.
+          </p>
+        </Card>
+      )}
 
       {recipe.story && (
         <Card>

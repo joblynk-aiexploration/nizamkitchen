@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMealPlanner, getMealPlanPreference } from "@/server/meal-plans";
 import { createMealPlanAction } from "../actions";
+import { canAccessFamilyProfiles, getHouseholdProfile } from "@/server/household";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,14 @@ export default async function NewMealPlanPage() {
     );
   }
 
-  const preference = await getMealPlanPreference(organizationId);
+  const [preference, familyProfilesEnabled] = await Promise.all([
+    getMealPlanPreference(organizationId),
+    canAccessFamilyProfiles({ organizationId, platformRole: session.user.platformRole }),
+  ]);
+  const householdProfile =
+    familyProfilesEnabled && session.activeOrganization.organizationType === "household"
+      ? await getHouseholdProfile(organizationId)
+      : null;
   const today = new Date();
   const startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const endDate = addDays(startDate, 6);
@@ -107,7 +115,7 @@ export default async function NewMealPlanPage() {
                   min="1"
                   max="100"
                   required
-                  defaultValue={preference?.defaultHouseholdSize ?? 4}
+                  defaultValue={householdProfile?.defaultHouseholdSize ?? preference?.defaultHouseholdSize ?? 4}
                   className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
                 />
               </div>
@@ -120,7 +128,7 @@ export default async function NewMealPlanPage() {
                   id="notes"
                   name="notes"
                   rows={4}
-                  defaultValue={preference?.dietaryNotes ?? ""}
+                  defaultValue={householdProfile?.notes ?? preference?.dietaryNotes ?? ""}
                   className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
                   placeholder="Weeknight shortcuts, dietary notes, or prep reminders..."
                 />
@@ -157,11 +165,11 @@ export default async function NewMealPlanPage() {
           </div>
 
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
-            Your saved preferences will prefill household size and planning notes here. You can update them anytime from meal preference settings.
+            Your saved household profile and meal preferences prefill household size and planning notes here.
           </div>
 
-          <Link href="/settings/meal-preferences" className="text-sm font-semibold text-[var(--color-primary)]">
-            Open meal preferences
+          <Link href={householdProfile ? "/household/preferences" : "/settings/meal-preferences"} className="text-sm font-semibold text-[var(--color-primary)]">
+            {householdProfile ? "Open household preferences" : "Open meal preferences"}
           </Link>
         </Card>
       </div>

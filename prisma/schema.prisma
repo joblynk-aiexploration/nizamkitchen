@@ -61,30 +61,31 @@ enum UserStatus {
 }
 
 model User {
-  id                 String              @id @default(cuid())
-  email              String              @unique
-  passwordHash       String
-  fullName           String
-  status             UserStatus          @default(active)
-  platformRole       PlatformRole?
-  preferredLocale    String?             @default("en-US")
-  preferredTimezone  String?             @default("UTC")
-  lastLoginAt        DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  sessions                 Session[]
-  memberships              Membership[]
-  countryAssignments       CountryAssignment[]
-  auditLogs                AuditLog[]
-  emailLogs                EmailLog[]
-  apiKeys                  ApiKey[]
-  groceryLists             GroceryList[]
-  createdMealPlans         MealPlan[]                @relation("MealPlanCreatedBy")
-  videoAnalysesAnalyzedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisAnalyzedBy")
-  videoAnalysesVerifiedBy  RecipeVideoAnalysis[]     @relation("VideoAnalysisVerifiedBy")
+  id                         String                  @id @default(cuid())
+  email                      String                  @unique
+  passwordHash               String
+  fullName                   String
+  status                     UserStatus              @default(active)
+  platformRole               PlatformRole?
+  preferredLocale            String?                 @default("en-US")
+  preferredTimezone          String?                 @default("UTC")
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  sessions                   Session[]
+  memberships                Membership[]
+  countryAssignments         CountryAssignment[]
+  auditLogs                  AuditLog[]
+  emailLogs                  EmailLog[]
+  apiKeys                    ApiKey[]
+  groceryLists               GroceryList[]
+  createdMealPlans           MealPlan[]              @relation("MealPlanCreatedBy")
+  videoAnalysesAnalyzedBy    RecipeVideoAnalysis[]   @relation("VideoAnalysisAnalyzedBy")
+  videoAnalysesVerifiedBy    RecipeVideoAnalysis[]   @relation("VideoAnalysisVerifiedBy")
   videoAnalysisJobsRequested VideoAnalysisJob[]      @relation("VideoAnalysisJobRequestedBy")
-  discoveryRuns            YouTubeDiscoveryRun[]     @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates       YouTubeVideoCandidate[]   @relation("CandidateReviewedBy")
+  discoveryRuns              YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates         YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
+  favoriteRecipesCreated     FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
 }
 
 model Session {
@@ -132,6 +133,11 @@ model Organization {
   groceryLists         GroceryList[]
   mealPlans            MealPlan[]
   mealPlanPreference   MealPlanPreference?
+  householdProfile     HouseholdProfile?
+  householdPreferences HouseholdPreference[]
+  avoidedIngredients   AvoidedIngredient[]
+  favoriteRecipes      FavoriteRecipe[]
+  pantryItems          HouseholdPantryItem[]
 
   @@index([countryCode])
   @@index([status])
@@ -468,6 +474,19 @@ enum YouTubeVideoCandidateStatus {
   imported
 }
 
+enum CookingSkillLevel {
+  beginner
+  intermediate
+  advanced
+  expert
+}
+
+enum AvoidedIngredientSeverity {
+  preference
+  avoid
+  strict
+}
+
 model Cuisine {
   id          String   @id @default(cuid())
   name        String
@@ -483,52 +502,55 @@ model Cuisine {
 }
 
 model Unit {
-  id                         String                  @id @default(cuid())
-  code                       String                  @unique
+  id                         String                    @id @default(cuid())
+  code                       String                    @unique
   name                       String
   pluralName                 String
   type                       UnitType
   system                     UnitSystem
   symbol                     String?
-  isBaseUnit                 Boolean                 @default(false)
-  isGlobal                   Boolean                 @default(true)
-  createdAt                  DateTime                @default(now())
-  updatedAt                  DateTime                @updatedAt
-  ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
+  isBaseUnit                 Boolean                   @default(false)
+  isGlobal                   Boolean                   @default(true)
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  ingredients                Ingredient[]              @relation("IngredientDefaultUnit")
   recipeIngredients          RecipeIngredient[]
-  conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
-  conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
+  conversionsFrom            UnitConversion[]          @relation("ConversionFromUnit")
+  conversionsTo              UnitConversion[]          @relation("ConversionToUnit")
   groceryListItems           GroceryListItem[]
-  originalGroceryItemSources GroceryListItemSource[] @relation("SourceOriginalUnit")
-  scaledGroceryItemSources   GroceryListItemSource[] @relation("SourceScaledUnit")
+  originalGroceryItemSources GroceryListItemSource[]   @relation("SourceOriginalUnit")
+  scaledGroceryItemSources   GroceryListItemSource[]   @relation("SourceScaledUnit")
   videoAnalysisIngredients   VideoAnalysisIngredient[]
+  householdPantryItems       HouseholdPantryItem[]
 
   @@index([type])
   @@index([system])
 }
 
 model Ingredient {
-  id                      String                     @id @default(cuid())
-  organizationId          String?
-  countryCode             String?
-  name                    String
-  canonicalName           String
-  slug                    String
-  category                IngredientCategory
-  defaultUnitId           String?
-  densityGramPerMl        Float?
-  averagePieceWeightGrams Float?
-  isGlobal                Boolean                    @default(true)
-  isActive                Boolean                    @default(true)
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime                   @updatedAt
-  defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
-  aliases                 IngredientAlias[]
-  recipeIngredients       RecipeIngredient[]
-  unitConversions         UnitConversion[]
-  groceryListItems        GroceryListItem[]
-  groceryWarnings         GroceryConversionWarning[]
+  id                       String                     @id @default(cuid())
+  organizationId           String?
+  countryCode              String?
+  name                     String
+  canonicalName            String
+  slug                     String
+  category                 IngredientCategory
+  defaultUnitId            String?
+  densityGramPerMl         Float?
+  averagePieceWeightGrams  Float?
+  isGlobal                 Boolean                    @default(true)
+  isActive                 Boolean                    @default(true)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  defaultUnit              Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
+  aliases                  IngredientAlias[]
+  recipeIngredients        RecipeIngredient[]
+  unitConversions          UnitConversion[]
+  groceryListItems         GroceryListItem[]
+  groceryWarnings          GroceryConversionWarning[]
   videoAnalysisIngredients VideoAnalysisIngredient[]
+  avoidedIngredients       AvoidedIngredient[]
+  householdPantryItems     HouseholdPantryItem[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -609,6 +631,7 @@ model Recipe {
   videoAnalysisJobs  VideoAnalysisJob[]
   discoveryRuns      YouTubeDiscoveryRun[]
   youtubeCandidates  YouTubeVideoCandidate[]
+  favoriteRecipes    FavoriteRecipe[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -655,10 +678,10 @@ model RecipeStep {
 }
 
 model RecipeMediaReference {
-  id              String               @id @default(cuid())
+  id              String                @id @default(cuid())
   recipeId        String
   type            MediaReferenceType
-  provider        MediaProvider        @default(manual)
+  provider        MediaProvider         @default(manual)
   title           String
   url             String
   normalizedUrl   String?
@@ -668,12 +691,12 @@ model RecipeMediaReference {
   language        String?
   creatorName     String?
   durationSeconds Int?
-  isPrimary       Boolean              @default(false)
-  displayOrder    Int                  @default(0)
+  isPrimary       Boolean               @default(false)
+  displayOrder    Int                   @default(0)
   notes           String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  recipe          Recipe               @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  recipe          Recipe                @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   videoAnalyses   RecipeVideoAnalysis[]
   analysisJobs    VideoAnalysisJob[]
 
@@ -874,6 +897,94 @@ model MealPlanPreference {
   @@index([defaultCountryCode])
 }
 
+model HouseholdProfile {
+  id                         String            @id @default(cuid())
+  organizationId             String            @unique
+  countryCode                String
+  displayName                String
+  defaultHouseholdSize       Int
+  adultsCount                Int?
+  childrenCount              Int?
+  defaultServings            Int
+  defaultSpiceLevel          SpiceLevel
+  preferredMeasurementSystem MeasurementSystem
+  preferredCuisineIds        String[]
+  cookingSkillLevel          CookingSkillLevel
+  weeklyCookingDays          String[]
+  groceryBudgetAmount        Float?
+  groceryBudgetCurrency      String?
+  notes                      String?
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  organization               Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([countryCode])
+}
+
+model HouseholdPreference {
+  id             String       @id @default(cuid())
+  organizationId String
+  key            String
+  valueJson      Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+}
+
+model AvoidedIngredient {
+  id             String                    @id @default(cuid())
+  organizationId String
+  ingredientId   String?
+  ingredientName String
+  reason         String?
+  severity       AvoidedIngredientSeverity @default(avoid)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ingredient     Ingredient?               @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([ingredientId])
+}
+
+model FavoriteRecipe {
+  id             String       @id @default(cuid())
+  organizationId String
+  recipeId       String
+  createdById    String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipe         Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("FavoriteRecipeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, recipeId])
+  @@index([organizationId])
+  @@index([recipeId])
+}
+
+model HouseholdPantryItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  ingredientId   String
+  quantity       Float?
+  unitId         String?
+  notes          String?
+  expiresAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ingredient     Ingredient   @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  unit           Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([ingredientId])
+  @@index([expiresAt])
+}
+
 model GroceryListRecipe {
   id                 String      @id @default(cuid())
   groceryListId      String
@@ -1031,24 +1142,24 @@ model VideoAnalysisIngredient {
 }
 
 model VideoAnalysisStep {
-  id                    String                  @id @default(cuid())
-  videoAnalysisId       String
-  stepNumber            Int
-  title                 String?
-  description           String
-  timestampStartSeconds Int?
-  timestampEndSeconds   Int?
-  durationSeconds       Int?
-  temperature           String?
-  technique             String?
-  confidence            VideoAnalysisConfidence @default(unknown)
-  evidenceText          String?
+  id                     String                  @id @default(cuid())
+  videoAnalysisId        String
+  stepNumber             Int
+  title                  String?
+  description            String
+  timestampStartSeconds  Int?
+  timestampEndSeconds    Int?
+  durationSeconds        Int?
+  temperature            String?
+  technique              String?
+  confidence             VideoAnalysisConfidence @default(unknown)
+  evidenceText           String?
   evidenceFrameTimestamp Int?
-  notes                 String?
-  displayOrder          Int                     @default(0)
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  videoAnalysis         RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
+  notes                  String?
+  displayOrder           Int                     @default(0)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  videoAnalysis          RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
 
   @@index([videoAnalysisId])
 }
@@ -1095,21 +1206,21 @@ model VideoAnalysisJob {
 // ─── YouTube Discovery ────────────────────────────────────────────────────────
 
 model YouTubeDiscoveryRun {
-  id                String                      @id @default(cuid())
+  id                String                    @id @default(cuid())
   recipeId          String?
   organizationId    String?
   countryCode       String?
   requestedByUserId String
-  status            YouTubeDiscoveryRunStatus   @default(queued)
-  queryCount        Int                         @default(0)
-  candidatesFound   Int                         @default(0)
+  status            YouTubeDiscoveryRunStatus @default(queued)
+  queryCount        Int                       @default(0)
+  candidatesFound   Int                       @default(0)
   errorMessage      String?
   startedAt         DateTime?
   completedAt       DateTime?
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  recipe            Recipe?                     @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  requestedBy       User                        @relation("DiscoveryRunRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  recipe            Recipe?                   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  requestedBy       User                      @relation("DiscoveryRunRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
   candidates        YouTubeVideoCandidate[]
 
   @@index([recipeId])
@@ -1118,7 +1229,7 @@ model YouTubeDiscoveryRun {
 }
 
 model YouTubeVideoCandidate {
-  id                      String                       @id @default(cuid())
+  id                      String                      @id @default(cuid())
   discoveryRunId          String
   recipeId                String
   providerVideoId         String
@@ -1133,18 +1244,18 @@ model YouTubeVideoCandidate {
   likeCount               BigInt?
   commentCount            BigInt?
   searchQuery             String
-  score                   Float                        @default(0)
-  scoreReasonsJson        Json                         @default("[]")
-  professionalSignalsJson Json                         @default("[]")
+  score                   Float                       @default(0)
+  scoreReasonsJson        Json                        @default("[]")
+  professionalSignalsJson Json                        @default("[]")
   rejectionReasonsJson    Json?
-  status                  YouTubeVideoCandidateStatus  @default(pending)
+  status                  YouTubeVideoCandidateStatus @default(pending)
   reviewedByUserId        String?
   reviewedAt              DateTime?
-  createdAt               DateTime                     @default(now())
-  updatedAt               DateTime                     @updatedAt
-  discoveryRun            YouTubeDiscoveryRun          @relation(fields: [discoveryRunId], references: [id], onDelete: Cascade)
-  recipe                  Recipe                       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  reviewedBy              User?                        @relation("CandidateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  discoveryRun            YouTubeDiscoveryRun         @relation(fields: [discoveryRunId], references: [id], onDelete: Cascade)
+  recipe                  Recipe                      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  reviewedBy              User?                       @relation("CandidateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([recipeId, providerVideoId])
   @@index([discoveryRunId])

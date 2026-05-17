@@ -4,6 +4,9 @@ import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { canAccessMealPlanner, getMealPlanPreference } from "@/server/meal-plans";
 import { updateMealPlanPreferencesAction } from "../../meal-plans/actions";
+import { canAccessFamilyProfiles, getHouseholdProfile } from "@/server/household";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +39,19 @@ export default async function MealPreferencesPage() {
     );
   }
 
-  const [preference, countries, cuisines] = await Promise.all([
+  const [preference, countries, cuisines, familyProfilesEnabled] = await Promise.all([
     getMealPlanPreference(session.activeOrganization.id),
     prisma.country.findMany({ where: { isActive: true }, orderBy: { countryName: "asc" } }),
     prisma.cuisine.findMany({ orderBy: { name: "asc" }, take: 40 }),
+    canAccessFamilyProfiles({
+      organizationId: session.activeOrganization.id,
+      platformRole: session.user.platformRole,
+    }),
   ]);
+  const householdProfile =
+    familyProfilesEnabled && session.activeOrganization.organizationType === "household"
+      ? await getHouseholdProfile(session.activeOrganization.id)
+      : null;
 
   return (
     <div className="space-y-8">
@@ -49,6 +60,18 @@ export default async function MealPreferencesPage() {
         title="Meal preferences"
         description="Save the planning defaults your household uses most often so each new meal plan starts closer to real life."
       />
+
+      {householdProfile && (
+        <Card className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-ink)]">Using household profile defaults</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              {householdProfile.displayName}: {householdProfile.defaultHouseholdSize} people, {householdProfile.defaultServings} servings, {householdProfile.defaultSpiceLevel} spice.
+            </p>
+          </div>
+          <Button asChild variant="secondary"><Link href="/household/preferences">Edit household profile</Link></Button>
+        </Card>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_360px]">
         <Card>
