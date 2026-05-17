@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { AccessDeniedError, assertUserCanAuthenticate } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma";
@@ -30,51 +31,71 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-    include: {
-      memberships: {
-        where: { status: "active" },
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  });
-
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
-    return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
-  }
-
   try {
-    assertUserCanAuthenticate(user);
-  } catch (error) {
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      include: {
+        memberships: {
+          where: { status: "active" },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+      return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+    }
+
+    try {
+      assertUserCanAuthenticate(user);
+    } catch (error) {
+      await createAuditLog({
+        actorUserId: user.id,
+        action: "access.denied",
+        targetType: "auth.login",
+        targetId: user.id,
+        details: {
+          reason: error instanceof AccessDeniedError ? error.code : "UNKNOWN",
+        },
+        ...(await getRequestMetadata()),
+      });
+      return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+    }
+
+    const activeMembership = user.memberships[0];
+    await createSession(user.id, activeMembership?.organizationId);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
     await createAuditLog({
       actorUserId: user.id,
-      action: "access.denied",
-      targetType: "auth.login",
+      organizationId: activeMembership?.organizationId,
+      countryCode: null,
+      action: "user.login",
+      targetType: "session",
       targetId: user.id,
-      details: {
-        reason: error instanceof AccessDeniedError ? error.code : "UNKNOWN",
-      },
       ...(await getRequestMetadata()),
     });
-    return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return NextResponse.redirect(
+        new URL(
+          "/login?message=Database unavailable. Start PostgreSQL to sign in.",
+          request.url,
+        ),
+      );
+    }
+
+    throw error;
   }
+}
 
-  const activeMembership = user.memberships[0];
-  await createSession(user.id, activeMembership?.organizationId);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-  await createAuditLog({
-    actorUserId: user.id,
-    organizationId: activeMembership?.organizationId,
-    countryCode: null,
-    action: "user.login",
-    targetType: "session",
-    targetId: user.id,
-    ...(await getRequestMetadata()),
-  });
-
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+function isDatabaseUnavailableError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P1001")
+  );
 }

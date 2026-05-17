@@ -78,6 +78,7 @@ model User {
   auditLogs          AuditLog[]
   emailLogs          EmailLog[]
   apiKeys            ApiKey[]
+  groceryLists       GroceryList[]
 }
 
 model Session {
@@ -122,6 +123,7 @@ model Organization {
   storageFiles         StorageFile[]
   emailLogs            EmailLog[]
   countryConfigs       CountryConfig[]
+  groceryLists         GroceryList[]
 
   @@index([countryCode])
   @@index([status])
@@ -408,10 +410,13 @@ model Unit {
   isGlobal          Boolean          @default(true)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
-  ingredients       Ingredient[]     @relation("IngredientDefaultUnit")
-  recipeIngredients RecipeIngredient[]
-  conversionsFrom   UnitConversion[] @relation("ConversionFromUnit")
-  conversionsTo     UnitConversion[] @relation("ConversionToUnit")
+  ingredients                   Ingredient[]            @relation("IngredientDefaultUnit")
+  recipeIngredients             RecipeIngredient[]
+  conversionsFrom               UnitConversion[]        @relation("ConversionFromUnit")
+  conversionsTo                 UnitConversion[]        @relation("ConversionToUnit")
+  groceryListItems              GroceryListItem[]
+  originalGroceryItemSources    GroceryListItemSource[] @relation("SourceOriginalUnit")
+  scaledGroceryItemSources      GroceryListItemSource[] @relation("SourceScaledUnit")
 
   @@index([type])
   @@index([system])
@@ -436,6 +441,8 @@ model Ingredient {
   aliases                 IngredientAlias[]
   recipeIngredients       RecipeIngredient[]
   unitConversions         UnitConversion[]
+  groceryListItems        GroceryListItem[]
+  groceryWarnings         GroceryConversionWarning[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -503,11 +510,14 @@ model Recipe {
   isPublished    Boolean              @default(false)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
-  cuisine        Cuisine              @relation(fields: [cuisineId], references: [id])
-  ingredients    RecipeIngredient[]
-  steps          RecipeStep[]
-  mediaRefs      RecipeMediaReference[]
-  dietaryTags    RecipeDietaryTag[]
+  cuisine              Cuisine                    @relation(fields: [cuisineId], references: [id])
+  ingredients          RecipeIngredient[]
+  steps                RecipeStep[]
+  mediaRefs            RecipeMediaReference[]
+  dietaryTags          RecipeDietaryTag[]
+  groceryListRecipes   GroceryListRecipe[]
+  groceryItemSources   GroceryListItemSource[]
+  groceryWarnings      GroceryConversionWarning[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -590,4 +600,155 @@ model MealType {
   name         String @unique
   slug         String @unique
   displayOrder Int    @default(0)
+}
+
+// ─── Grocery Engine ───────────────────────────────────────────────────────────
+
+enum GroceryListStatus {
+  draft
+  active
+  completed
+  archived
+}
+
+enum GroceryListSourceType {
+  manual
+  recipes
+  meal_plan
+}
+
+enum GroceryMergeStatus {
+  merged
+  separate
+  needs_review
+  conversion_failed
+}
+
+enum GroceryConfidence {
+  exact
+  high
+  medium
+  low
+  unknown
+}
+
+enum WarningSeverity {
+  info
+  warning
+  error
+}
+
+model GroceryList {
+  id                 String                    @id @default(cuid())
+  organizationId     String
+  countryCode        String?
+  createdById        String
+  name               String
+  status             GroceryListStatus         @default(draft)
+  sourceType         GroceryListSourceType     @default(recipes)
+  plannedStartDate   DateTime?
+  plannedEndDate     DateTime?
+  householdSize      Int?
+  notes              String?
+  calculationVersion Int                       @default(1)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  organization       Organization              @relation(fields: [organizationId], references: [id])
+  createdBy          User                      @relation(fields: [createdById], references: [id])
+  recipes            GroceryListRecipe[]
+  items              GroceryListItem[]
+  warnings           GroceryConversionWarning[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+}
+
+model GroceryListRecipe {
+  id                 String      @id @default(cuid())
+  groceryListId      String
+  recipeId           String
+  recipeNameSnapshot String
+  originalServings   Int
+  targetServings     Int
+  scaleFactor        Float
+  mealSlot           String?
+  plannedDate        DateTime?
+  createdAt          DateTime    @default(now())
+  groceryList        GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  recipe             Recipe      @relation(fields: [recipeId], references: [id])
+
+  @@index([groceryListId])
+  @@index([recipeId])
+}
+
+model GroceryListItem {
+  id                      String             @id @default(cuid())
+  groceryListId           String
+  ingredientId            String
+  ingredientNameSnapshot  String
+  canonicalIngredientName String
+  category                String
+  totalQuantity           Float
+  unitId                  String
+  unitNameSnapshot        String
+  displayQuantity         Float
+  displayUnit             String
+  confidence              GroceryConfidence  @default(unknown)
+  mergeStatus             GroceryMergeStatus @default(separate)
+  notes                   String?
+  isChecked               Boolean            @default(false)
+  sortOrder               Int                @default(0)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  groceryList             GroceryList        @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  ingredient              Ingredient         @relation(fields: [ingredientId], references: [id])
+  unit                    Unit               @relation(fields: [unitId], references: [id])
+  sources                 GroceryListItemSource[]
+
+  @@index([groceryListId])
+  @@index([ingredientId])
+  @@index([isChecked])
+}
+
+model GroceryListItemSource {
+  id                       String          @id @default(cuid())
+  groceryListItemId        String
+  recipeId                 String
+  recipeNameSnapshot       String
+  recipeIngredientId       String?
+  originalQuantity         Float
+  originalUnitId           String
+  originalUnitNameSnapshot String
+  scaledQuantity           Float
+  scaledUnitId             String
+  scaledUnitNameSnapshot   String
+  conversionApplied        Boolean         @default(false)
+  conversionConfidence     Float           @default(1.0)
+  warning                  String?
+  createdAt                DateTime        @default(now())
+  groceryListItem          GroceryListItem @relation(fields: [groceryListItemId], references: [id], onDelete: Cascade)
+  recipe                   Recipe          @relation(fields: [recipeId], references: [id])
+  originalUnit             Unit            @relation("SourceOriginalUnit", fields: [originalUnitId], references: [id])
+  scaledUnit               Unit            @relation("SourceScaledUnit", fields: [scaledUnitId], references: [id])
+
+  @@index([groceryListItemId])
+  @@index([recipeId])
+}
+
+model GroceryConversionWarning {
+  id               String          @id @default(cuid())
+  groceryListId    String
+  ingredientId     String?
+  message          String
+  severity         WarningSeverity @default(warning)
+  sourceRecipeId   String?
+  sourceRecipeName String?
+  createdAt        DateTime        @default(now())
+  groceryList      GroceryList     @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  ingredient       Ingredient?     @relation(fields: [ingredientId], references: [id])
+  sourceRecipe     Recipe?         @relation(fields: [sourceRecipeId], references: [id])
+
+  @@index([groceryListId])
+  @@index([ingredientId])
 }

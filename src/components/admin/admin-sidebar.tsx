@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  AlertTriangle,
   BookOpen,
   Building2,
   ChefHat,
@@ -12,8 +13,10 @@ import {
   LayoutDashboard,
   Logs,
   Ruler,
+  Scale,
   Settings,
   Shield,
+  ShoppingCart,
   UtensilsCrossed,
   UserRoundSearch,
   Users,
@@ -45,6 +48,14 @@ const adminNavGroups = [
       { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
       { href: "/admin/units", label: "Units", icon: Ruler },
       { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
+    ],
+  },
+  {
+    title: "Grocery Engine",
+    items: [
+      { href: "/admin/grocery-engine", label: "Overview", icon: ShoppingCart },
+      { href: "/admin/grocery-engine/conversions", label: "Conversions", icon: Scale },
+      { href: "/admin/grocery-engine/warnings", label: "Warnings", icon: AlertTriangle },
     ],
   },
   {
