@@ -94,16 +94,44 @@ function canSeeLink(session: Session, href: string) {
     return role === "country_manager" || role === "platform_owner" || role === "platform_admin";
   }
 
+  if (role === "country_manager") {
+    return [
+      "/admin",
+      "/admin/my-countries",
+      "/admin/countries",
+      "/admin/organizations",
+      "/admin/users",
+      "/admin/audit-logs",
+      "/admin/home-chef-requests",
+      "/admin/chefs",
+      "/admin/restaurant-fallback",
+      "/admin/grocery-partners",
+    ].includes(href);
+  }
+
+  if (role === "support_admin") {
+    return [
+      "/admin",
+      "/admin/organizations",
+      "/admin/users",
+      "/admin/audit-logs",
+      "/admin/home-chef-requests",
+      "/admin/chefs",
+      "/admin/support",
+    ].includes(href);
+  }
+
+  if (role === "auditor") {
+    return [
+      "/admin",
+      "/admin/organizations",
+      "/admin/users",
+      "/admin/audit-logs",
+    ].includes(href);
+  }
+
   if (href === "/admin/system-settings") {
     return role === "platform_owner" || role === "platform_admin";
-  }
-
-  if (href === "/admin/billing") {
-    return role !== "country_manager" && role !== "auditor";
-  }
-
-  if (href === "/admin/support") {
-    return role !== "country_manager" && role !== "auditor";
   }
 
   // Food library is visible to all platform roles

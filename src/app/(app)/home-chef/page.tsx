@@ -71,7 +71,7 @@ export default async function HomeChefPage() {
       <PageHeader
         eyebrow="Plan → chef request"
         title="Home chef requests"
-        description="Manual MVP requests for recipe, meal-plan, occasion, daily, weekly, or custom cooking support. No marketplace or payments yet."
+        description="Manual MVP requests for recipe, meal-plan, occasion, daily, weekly, or custom cooking support. Marketplace browsing is available, while scheduling and payments remain manual."
         actions={
           <>
             <Button asChild>
@@ -165,7 +165,7 @@ export default async function HomeChefPage() {
           </div>
           <div className="mt-5 space-y-3 text-sm text-[var(--color-muted)]">
             <p>No automated booking yet.</p>
-            <p>No chef marketplace yet.</p>
+            <p>Chef marketplace profiles are available after admin approval.</p>
             <p>No payments yet.</p>
           </div>
         </Card>
