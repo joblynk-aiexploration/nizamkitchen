@@ -55,7 +55,10 @@ const adminNavGroups = [
   },
   {
     title: "Planning",
-    items: [{ href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays }],
+    items: [
+      { href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays },
+      { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
+    ],
   },
   {
     title: "Grocery Engine",

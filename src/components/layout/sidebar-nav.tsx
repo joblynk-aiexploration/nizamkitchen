@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, Heart, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, Heart, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users, UtensilsCrossed } from "lucide-react";
 import { hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,8 @@ const appLinks = [
   { href: "/meal-plans", label: "Meal Plans", icon: CalendarDays },
   { href: "/grocery-lists", label: "Grocery Lists", icon: ShoppingCart },
   { href: "/household", label: "Household", icon: Heart },
+  { href: "/home-chef", label: "Home Chef", icon: UtensilsCrossed },
+  { href: "/chef/requests", label: "Chef Requests", icon: ChefHat },
   { href: "/organizations", label: "Organizations", icon: Building2 },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings2 },
@@ -29,6 +31,7 @@ const adminLinks = [
   { href: "/admin/audit-logs", label: "Audit Trail", icon: Logs },
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/meal-planner", label: "Meal Planner", icon: CalendarDays },
+  { href: "/admin/home-chef-requests", label: "Home Chef Requests", icon: UtensilsCrossed },
   { href: "/admin/system-settings", label: "System Settings", icon: Cog },
 ];
 

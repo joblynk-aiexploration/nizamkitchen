@@ -61,28 +61,31 @@ enum UserStatus {
 }
 
 model User {
-  id                     String                  @id @default(cuid())
-  email                  String                  @unique
-  passwordHash           String
-  fullName               String
-  status                 UserStatus              @default(active)
-  platformRole           PlatformRole?
-  preferredLocale        String?                 @default("en-US")
-  preferredTimezone      String?                 @default("UTC")
-  lastLoginAt            DateTime?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  sessions               Session[]
-  memberships            Membership[]
-  countryAssignments     CountryAssignment[]
-  auditLogs              AuditLog[]
-  emailLogs              EmailLog[]
-  apiKeys                ApiKey[]
-  groceryLists           GroceryList[]
-  createdMealPlans       MealPlan[]              @relation("MealPlanCreatedBy")
-  discoveryRuns          YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates     YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
-  favoriteRecipesCreated FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
+  id                      String                         @id @default(cuid())
+  email                   String                         @unique
+  passwordHash            String
+  fullName                String
+  status                  UserStatus                     @default(active)
+  platformRole            PlatformRole?
+  preferredLocale         String?                        @default("en-US")
+  preferredTimezone       String?                        @default("UTC")
+  lastLoginAt             DateTime?
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  sessions                Session[]
+  memberships             Membership[]
+  countryAssignments      CountryAssignment[]
+  auditLogs               AuditLog[]
+  emailLogs               EmailLog[]
+  apiKeys                 ApiKey[]
+  groceryLists            GroceryList[]
+  createdMealPlans        MealPlan[]                     @relation("MealPlanCreatedBy")
+  discoveryRuns           YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates      YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
+  favoriteRecipesCreated  FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
+  homeChefRequestsCreated HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent    HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges   HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
 }
 
 model Session {
@@ -137,6 +140,8 @@ model Organization {
   favoriteRecipes      FavoriteRecipe[]
   pantryItems          HouseholdPantryItem[]
   shoppingPreference   HouseholdShoppingPreference?
+  homeChefRequests     HomeChefRequest[]            @relation("HomeChefRequestOrganization")
+  assignedChefRequests HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
 
   @@index([countryCode])
   @@index([status])
@@ -446,6 +451,40 @@ enum PreferredDeliveryMethod {
   no_preference
 }
 
+enum HomeChefRequestStatus {
+  draft
+  submitted
+  reviewing
+  matched
+  quoted
+  accepted
+  declined
+  cancelled
+  completed
+}
+
+enum HomeChefRequestType {
+  recipe
+  meal_plan
+  occasion
+  weekly_cooking
+  daily_cooking
+  custom
+}
+
+enum GenderPreference {
+  no_preference
+  female_preferred
+  male_preferred
+}
+
+enum HomeChefMessageSenderRole {
+  household
+  admin
+  chef
+  support
+}
+
 model Cuisine {
   id                         String                      @id @default(cuid())
   name                       String
@@ -588,6 +627,7 @@ model Recipe {
   discoveryRuns      YouTubeDiscoveryRun[]
   youtubeCandidates  YouTubeVideoCandidate[]
   favoriteRecipes    FavoriteRecipe[]
+  homeChefRequests   HomeChefRequest[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -780,23 +820,24 @@ model GroceryList {
 }
 
 model MealPlan {
-  id             String         @id @default(cuid())
-  organizationId String
-  countryCode    String
-  createdById    String
-  name           String
-  status         MealPlanStatus @default(draft)
-  startDate      DateTime
-  endDate        DateTime
-  householdSize  Int
-  notes          String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  country        Country        @relation(fields: [countryCode], references: [countryCode], onDelete: Restrict)
-  createdBy      User           @relation("MealPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  days           MealPlanDay[]
-  groceryLists   GroceryList[]
+  id               String            @id @default(cuid())
+  organizationId   String
+  countryCode      String
+  createdById      String
+  name             String
+  status           MealPlanStatus    @default(draft)
+  startDate        DateTime
+  endDate          DateTime
+  householdSize    Int
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  country          Country           @relation(fields: [countryCode], references: [countryCode], onDelete: Restrict)
+  createdBy        User              @relation("MealPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  days             MealPlanDay[]
+  groceryLists     GroceryList[]
+  homeChefRequests HomeChefRequest[]
 
   @@index([organizationId])
   @@index([countryCode])
@@ -972,6 +1013,87 @@ model HouseholdShoppingPreference {
   organization            Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+model HomeChefRequest {
+  id                         String                         @id @default(cuid())
+  organizationId             String
+  countryCode                String
+  createdById                String
+  status                     HomeChefRequestStatus          @default(draft)
+  requestType                HomeChefRequestType
+  title                      String
+  description                String?
+  mealPlanId                 String?
+  recipeId                   String?
+  requestedDate              DateTime
+  requestedTimeWindow        String?
+  guestCount                 Int
+  householdSize              Int?
+  serviceAddressLine1        String?
+  serviceAddressLine2        String?
+  city                       String?
+  region                     String?
+  postalCode                 String?
+  phone                      String?
+  preferredLanguage          String?
+  genderPreference           GenderPreference               @default(no_preference)
+  budgetAmount               Float?
+  budgetCurrency             String?
+  notes                      String?
+  adminNotes                 String?
+  assignedChefOrganizationId String?
+  createdAt                  DateTime                       @default(now())
+  updatedAt                  DateTime                       @updatedAt
+  organization               Organization                   @relation("HomeChefRequestOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                  User                           @relation("HomeChefRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  mealPlan                   MealPlan?                      @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
+  recipe                     Recipe?                        @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  assignedChefOrganization   Organization?                  @relation("HomeChefRequestAssignedChefOrganization", fields: [assignedChefOrganizationId], references: [id], onDelete: SetNull)
+  messages                   HomeChefRequestMessage[]
+  statusHistory              HomeChefRequestStatusHistory[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([createdById])
+  @@index([status])
+  @@index([requestType])
+  @@index([requestedDate])
+  @@index([mealPlanId])
+  @@index([recipeId])
+  @@index([assignedChefOrganizationId])
+}
+
+model HomeChefRequestMessage {
+  id           String                    @id @default(cuid())
+  requestId    String
+  senderUserId String
+  senderRole   HomeChefMessageSenderRole
+  message      String
+  isInternal   Boolean                   @default(false)
+  createdAt    DateTime                  @default(now())
+  request      HomeChefRequest           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  senderUser   User                      @relation("HomeChefRequestMessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId])
+  @@index([senderUserId])
+  @@index([isInternal])
+}
+
+model HomeChefRequestStatusHistory {
+  id          String                 @id @default(cuid())
+  requestId   String
+  oldStatus   HomeChefRequestStatus?
+  newStatus   HomeChefRequestStatus
+  changedById String
+  note        String?
+  createdAt   DateTime               @default(now())
+  request     HomeChefRequest        @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  changedBy   User                   @relation("HomeChefRequestStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([requestId])
+  @@index([changedById])
+  @@index([newStatus])
 }
 
 model GroceryListRecipe {

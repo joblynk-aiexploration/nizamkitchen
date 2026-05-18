@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMealPlanner, getMealPlan, toMealPlanDateRange } from "@/server/meal-plans";
+import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
 import { duplicateMealPlanAction, generateMealPlanGroceryListAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,12 @@ export default async function MealPlanDetailPage({
   if (!plan) {
     notFound();
   }
+  const homeChefsEnabled = await canAccessHomeChefs({
+    organizationId: session.activeOrganization.id,
+    platformRole: session.user.platformRole,
+  });
+  const showHomeChefRequest =
+    homeChefsEnabled && isHouseholdRequestOrganization(session.activeOrganization.organizationType);
 
   const totalMeals = plan.days.reduce((sum, day) => sum + day.entries.length, 0);
   const recipeMeals = plan.days.reduce(
@@ -74,6 +81,13 @@ export default async function MealPlanDetailPage({
           <Button asChild variant="ghost">
             <Link href={`/meal-plans/${plan.id}/grocery-list`}>Grocery handoff</Link>
           </Button>
+          {showHomeChefRequest ? (
+            <Button asChild variant="secondary">
+              <Link href={`/home-chef/request?type=meal_plan&mealPlanId=${plan.id}`}>
+                Request a chef for this meal plan
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 

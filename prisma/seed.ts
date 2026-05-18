@@ -36,7 +36,7 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -1789,7 +1789,207 @@ async function main() {
   console.log("Seeding curated YouTube videos...");
   await seedRecipeVideos();
 
+  console.log("Seeding sample home chef requests...");
+  await seedHomeChefRequests({
+    householdOrgId: householdOrg.id,
+    chefOrgId: chefOrg.id,
+    householdUserId: users.get(USER_SEEDS[3].email)!.id,
+    adminUserId: users.get(USER_SEEDS[1].email)!.id,
+    countryCode: householdOrg.countryCode,
+    currencyCode: householdOrg.currencyCode,
+  });
+
   console.log("Seed complete.");
+}
+
+async function seedHomeChefRequests(params: {
+  householdOrgId: string;
+  chefOrgId: string;
+  householdUserId: string;
+  adminUserId: string;
+  countryCode: string;
+  currencyCode: string;
+}) {
+  const chickenBiryani = await prisma.recipe.findFirst({
+    where: { slug: "hyderabadi-chicken-biryani", organizationId: null },
+    select: { id: true },
+  });
+  const khattiDal = await prisma.recipe.findFirst({
+    where: { slug: "khatti-dal", organizationId: null },
+    select: { id: true },
+  });
+
+  let mealPlan = await prisma.mealPlan.findFirst({
+    where: { organizationId: params.householdOrgId, name: "Sample Family Weekend Plan" },
+  });
+
+  if (!mealPlan) {
+    mealPlan = await prisma.mealPlan.create({
+      data: {
+        organizationId: params.householdOrgId,
+        countryCode: params.countryCode,
+        createdById: params.householdUserId,
+        name: "Sample Family Weekend Plan",
+        status: "active",
+        startDate: new Date("2026-05-23T00:00:00.000Z"),
+        endDate: new Date("2026-05-24T00:00:00.000Z"),
+        householdSize: 4,
+        notes: "Demo meal plan used for the home-chef request MVP.",
+        days: {
+          create: [
+            {
+              date: new Date("2026-05-23T00:00:00.000Z"),
+              dayLabel: "Saturday",
+              entries: chickenBiryani
+                ? {
+                    create: [
+                      {
+                        recipeId: chickenBiryani.id,
+                        mealType: "dinner",
+                        targetServings: 6,
+                        displayOrder: 1,
+                      },
+                    ],
+                  }
+                : undefined,
+            },
+            {
+              date: new Date("2026-05-24T00:00:00.000Z"),
+              dayLabel: "Sunday",
+              entries: khattiDal
+                ? {
+                    create: [
+                      {
+                        recipeId: khattiDal.id,
+                        mealType: "lunch",
+                        targetServings: 4,
+                        displayOrder: 1,
+                      },
+                    ],
+                  }
+                : undefined,
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  const requestSeeds = [
+    {
+      title: "Chef for Hyderabadi Chicken Biryani",
+      requestType: "recipe",
+      status: "submitted",
+      recipeId: chickenBiryani?.id ?? null,
+      mealPlanId: null,
+      requestedDate: new Date("2026-05-23T00:00:00.000Z"),
+      requestedTimeWindow: "4 PM - 8 PM",
+      guestCount: 6,
+      notes: "Local demo request for a recipe-backed chef request.",
+      assignedChefOrganizationId: null,
+    },
+    {
+      title: "Weekly cooking support for Nizam Family Kitchen",
+      requestType: "weekly_cooking",
+      status: "reviewing",
+      recipeId: null,
+      mealPlanId: mealPlan.id,
+      requestedDate: new Date("2026-05-24T00:00:00.000Z"),
+      requestedTimeWindow: "Morning prep preferred",
+      guestCount: 4,
+      notes: "Local demo request for weekly cooking support.",
+      assignedChefOrganizationId: params.chefOrgId,
+    },
+    {
+      title: "Small Eid-style dinner occasion",
+      requestType: "occasion",
+      status: "matched",
+      recipeId: null,
+      mealPlanId: null,
+      requestedDate: new Date("2026-05-30T00:00:00.000Z"),
+      requestedTimeWindow: "3 PM - 9 PM",
+      guestCount: 10,
+      notes: "Local demo request for an occasion.",
+      assignedChefOrganizationId: params.chefOrgId,
+    },
+  ] as const;
+
+  for (const item of requestSeeds) {
+    const existing = await prisma.homeChefRequest.findFirst({
+      where: { organizationId: params.householdOrgId, title: item.title },
+    });
+
+    const request = existing
+      ? await prisma.homeChefRequest.update({
+          where: { id: existing.id },
+          data: {
+            status: item.status,
+            requestType: item.requestType,
+            recipeId: item.recipeId,
+            mealPlanId: item.mealPlanId,
+            requestedDate: item.requestedDate,
+            requestedTimeWindow: item.requestedTimeWindow,
+            guestCount: item.guestCount,
+            notes: item.notes,
+            assignedChefOrganizationId: item.assignedChefOrganizationId,
+            budgetCurrency: params.currencyCode,
+          },
+        })
+      : await prisma.homeChefRequest.create({
+          data: {
+            organizationId: params.householdOrgId,
+            countryCode: params.countryCode,
+            createdById: params.householdUserId,
+            status: item.status,
+            requestType: item.requestType,
+            title: item.title,
+            recipeId: item.recipeId,
+            mealPlanId: item.mealPlanId,
+            requestedDate: item.requestedDate,
+            requestedTimeWindow: item.requestedTimeWindow,
+            guestCount: item.guestCount,
+            householdSize: 4,
+            city: "Chicago",
+            region: "IL",
+            preferredLanguage: "English",
+            genderPreference: "no_preference",
+            budgetCurrency: params.currencyCode,
+            notes: item.notes,
+            assignedChefOrganizationId: item.assignedChefOrganizationId,
+            statusHistory: {
+              create: {
+                newStatus: item.status,
+                changedById: params.adminUserId,
+                note: "Local demo request seeded for manual QA.",
+              },
+            },
+            messages: {
+              create: {
+                senderUserId: params.householdUserId,
+                senderRole: "household",
+                message: "Please review this demo home chef request.",
+                isInternal: false,
+              },
+            },
+          },
+        });
+
+    const auditExists = await prisma.auditLog.findFirst({
+      where: { action: "home_chef_request.created", targetId: request.id },
+    });
+    if (!auditExists) {
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: params.householdUserId,
+          organizationId: params.householdOrgId,
+          countryCode: params.countryCode,
+          action: "home_chef_request.created",
+          targetType: "home_chef_request",
+          targetId: request.id,
+        },
+      });
+    }
+  }
 }
 
 

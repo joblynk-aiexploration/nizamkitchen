@@ -17,6 +17,7 @@ import {
   isFavoriteRecipe,
   listAvoidedIngredients,
 } from "@/server/household";
+import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,10 @@ export default async function RecipeDetailPage({
     organizationId: orgId,
     platformRole: session.user.platformRole,
   });
+  const homeChefsEnabled = await canAccessHomeChefs({
+    organizationId: orgId,
+    platformRole: session.user.platformRole,
+  });
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
@@ -74,6 +79,8 @@ export default async function RecipeDetailPage({
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
 
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
+  const showHomeChefRequest =
+    homeChefsEnabled && isHouseholdRequestOrganization(session.activeOrganization.organizationType);
   const [favorite, avoidedIngredients] = showHouseholdTools
     ? await Promise.all([
         isFavoriteRecipe(orgId, recipe.id),
@@ -115,6 +122,11 @@ export default async function RecipeDetailPage({
               {favorite ? "Favorited" : "Favorite"}
             </Button>
           </form>
+        )}
+        {showHomeChefRequest && (
+          <Button asChild variant="secondary">
+            <Link href={`/home-chef/request?type=recipe&recipeId=${recipe.id}`}>Request a chef for this recipe</Link>
+          </Button>
         )}
       </div>
 

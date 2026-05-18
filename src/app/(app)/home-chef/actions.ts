@@ -1,0 +1,145 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
+import {
+  canAccessHomeChefs,
+  cancelHomeChefRequest,
+  createHomeChefRequest,
+  createHomeChefRequestMessage,
+  isHouseholdRequestOrganization,
+  updateHomeChefRequestDraft,
+} from "@/server/home-chef";
+
+async function requireHomeChefHouseholdAccess() {
+  const session = await requireMembership();
+  const enabled = await canAccessHomeChefs({
+    organizationId: session.activeOrganization.id,
+    platformRole: session.user.platformRole,
+  });
+
+  if (!enabled) {
+    redirect("/home-chef?message=Home chef requests are not enabled for this organization.");
+  }
+
+  if (!isHouseholdRequestOrganization(session.activeOrganization.organizationType)) {
+    redirect("/dashboard?message=Home chef requests are available only for household organizations.");
+  }
+
+  return session;
+}
+
+function requestInputFromForm(formData: FormData) {
+  return {
+    requestType: formData.get("requestType"),
+    title: formData.get("title"),
+    description: formData.get("description"),
+    mealPlanId: formData.get("mealPlanId"),
+    recipeId: formData.get("recipeId"),
+    requestedDate: formData.get("requestedDate"),
+    requestedTimeWindow: formData.get("requestedTimeWindow"),
+    guestCount: formData.get("guestCount"),
+    householdSize: formData.get("householdSize"),
+    serviceAddressLine1: formData.get("serviceAddressLine1"),
+    serviceAddressLine2: formData.get("serviceAddressLine2"),
+    city: formData.get("city"),
+    region: formData.get("region"),
+    postalCode: formData.get("postalCode"),
+    phone: formData.get("phone"),
+    preferredLanguage: formData.get("preferredLanguage"),
+    genderPreference: formData.get("genderPreference") || "no_preference",
+    budgetAmount: formData.get("budgetAmount"),
+    budgetCurrency: formData.get("budgetCurrency"),
+    notes: formData.get("notes"),
+    submit: formData.get("intent") === "submit",
+  };
+}
+
+export async function createHomeChefRequestAction(formData: FormData) {
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    const request = await createHomeChefRequest({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      createdById: session.user.id,
+      defaultCurrencyCode: session.activeOrganization.currencyCode,
+      input: requestInputFromForm(formData),
+    });
+
+    revalidatePath("/home-chef");
+    revalidatePath("/home-chef/requests");
+    redirect(`/home-chef/requests/${request.id}?message=Home chef request saved.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/request?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save request."))}`);
+  }
+}
+
+export async function updateHomeChefRequestAction(formData: FormData) {
+  const requestId = String(formData.get("requestId"));
+
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    await updateHomeChefRequestDraft({
+      requestId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      defaultCurrencyCode: session.activeOrganization.currencyCode,
+      input: requestInputFromForm(formData),
+    });
+
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    revalidatePath("/home-chef/requests");
+    redirect(`/home-chef/requests/${requestId}?message=Home chef request updated.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update request."))}`);
+  }
+}
+
+export async function cancelHomeChefRequestAction(formData: FormData) {
+  const requestId = String(formData.get("requestId"));
+
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    await cancelHomeChefRequest({
+      requestId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      note: String(formData.get("note") || "Cancelled by household."),
+    });
+
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    revalidatePath("/home-chef/requests");
+    redirect(`/home-chef/requests/${requestId}?message=Request cancelled.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to cancel request."))}`);
+  }
+}
+
+export async function createHomeChefMessageAction(formData: FormData) {
+  const requestId = String(formData.get("requestId"));
+
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    await createHomeChefRequestMessage({
+      requestId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      senderRole: "household",
+      input: {
+        message: formData.get("message"),
+        isInternal: false,
+      },
+    });
+
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/home-chef/requests/${requestId}?message=Message sent.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to send message."))}`);
+  }
+}
