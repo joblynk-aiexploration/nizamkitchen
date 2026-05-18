@@ -17,6 +17,7 @@ import {
   homeChefRequestUpdateSchema,
 } from "@/lib/validation/home-chef";
 import { createAuditEvent } from "@/server/audit";
+import { createNotification } from "@/server/notifications/notification-service";
 
 const ADMIN_HOME_CHEF_ROLES: PlatformRole[] = [
   "platform_owner",
@@ -236,6 +237,18 @@ export async function createHomeChefRequest(params: {
       targetId: request.id,
       details: { requestType: request.requestType, title: request.title },
     });
+    await createNotification({
+      organizationId: params.organizationId,
+      userId: params.createdById,
+      countryCode: params.countryCode,
+      type: "home_chef_request_submitted",
+      title: "Home chef request submitted",
+      body: `Your request "${request.title}" was submitted for support review.`,
+      actionUrl: `/home-chef/requests/${request.id}`,
+      priority: "normal",
+      emailTemplateKey: "home_chef_request_submitted",
+      preferenceKey: "homeChefUpdates",
+    });
   }
 
   return request;
@@ -316,6 +329,20 @@ export async function updateHomeChefRequestDraft(params: {
     targetId: request.id,
     details: { status: request.status, title: request.title },
   });
+  if (nextStatus !== existing.status) {
+    await createNotification({
+      organizationId: existing.organizationId,
+      userId: existing.createdById,
+      countryCode: existing.countryCode,
+      type: "home_chef_request_status_changed",
+      title: "Home chef request submitted",
+      body: `Your request "${existing.title}" changed from ${existing.status} to ${nextStatus}.`,
+      actionUrl: `/home-chef/requests/${existing.id}`,
+      priority: "high",
+      emailTemplateKey: "home_chef_request_status_updated",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
 
   return request;
 }
@@ -357,7 +384,6 @@ export async function cancelHomeChefRequest(params: {
     targetId: request.id,
     details: { previousStatus: existing.status },
   });
-
   return request;
 }
 
@@ -393,6 +419,20 @@ export async function createHomeChefRequestMessage(params: {
     targetId: request.id,
     details: { senderRole: params.senderRole, isInternal: parsed.isInternal },
   });
+  if (!parsed.isInternal) {
+    await createNotification({
+      organizationId: request.organizationId,
+      userId: request.createdById === params.actorUserId ? null : request.createdById,
+      countryCode: request.countryCode,
+      type: "home_chef_request_message",
+      title: "New home chef request message",
+      body: `A new ${params.senderRole} message was added to "${request.title}".`,
+      actionUrl: `/home-chef/requests/${request.id}`,
+      priority: "normal",
+      emailTemplateKey: "home_chef_new_message",
+      preferenceKey: "chefRequestMessages",
+    });
+  }
 
   return message;
 }
@@ -480,6 +520,19 @@ export async function updateAdminHomeChefRequestStatus(params: {
     details: { oldStatus: existing.status, newStatus: parsed.status },
   });
 
+  await createNotification({
+    organizationId: existing.organizationId,
+    userId: existing.createdById,
+    countryCode: existing.countryCode,
+    type: "home_chef_request_status_changed",
+    title: "Home chef request status updated",
+    body: `Your request "${existing.title}" changed from ${existing.status} to ${parsed.status}.`,
+    actionUrl: `/home-chef/requests/${existing.id}`,
+    priority: parsed.status === "completed" ? "normal" : "high",
+    emailTemplateKey: "home_chef_request_status_updated",
+    preferenceKey: "homeChefUpdates",
+  });
+
   return request;
 }
 
@@ -542,6 +595,21 @@ export async function assignHomeChefRequest(params: {
     targetId: existing.id,
     details: { assignedChefOrganizationId: parsed.assignedChefOrganizationId },
   });
+
+  if (parsed.assignedChefOrganizationId) {
+    await createNotification({
+      organizationId: existing.organizationId,
+      userId: existing.createdById,
+      countryCode: existing.countryCode,
+      type: "home_chef_request_assigned",
+      title: "Chef assigned to your request",
+      body: `A chef organization was assigned to "${existing.title}".`,
+      actionUrl: `/home-chef/requests/${existing.id}`,
+      priority: "high",
+      emailTemplateKey: "home_chef_request_status_updated",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
 
   return request;
 }

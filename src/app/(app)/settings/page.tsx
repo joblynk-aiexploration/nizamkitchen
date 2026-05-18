@@ -68,6 +68,22 @@ export default async function SettingsPage() {
           Open meal preferences
         </Link>
       </Card>
+
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Notifications</p>
+          <p className="mt-2 text-lg font-semibold">In-app and email preferences</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Control operational updates for chef requests, grocery lists, meal planning, and admin alerts.
+          </p>
+        </div>
+        <Link
+          href="/settings/notifications"
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] hover:bg-slate-50"
+        >
+          Open notification settings
+        </Link>
+      </Card>
     </div>
   );
 }

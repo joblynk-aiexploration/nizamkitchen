@@ -21,6 +21,7 @@ import {
   chefSpecialtySchema,
 } from "@/lib/validation/chefs";
 import { createAuditEvent } from "@/server/audit";
+import { createNotification } from "@/server/notifications/notification-service";
 import { createHomeChefRequest } from "@/server/home-chef";
 
 const CHEF_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
@@ -189,7 +190,6 @@ export async function upsertChefProfile(params: {
     targetId: profile.id,
     details: { displayName: profile.displayName, verificationStatus: profile.verificationStatus },
   });
-
   return profile;
 }
 
@@ -517,6 +517,23 @@ export async function updateAdminChefProfileStatus(params: {
       newVerificationStatus: profile.verificationStatus,
     },
   });
+
+  if (action === "chef_profile.verified" || action === "chef_profile.approved" || action === "chef_profile.suspended") {
+    await createNotification({
+      organizationId: existing.organizationId,
+      countryCode: existing.countryCode,
+      type: action,
+      title: action === "chef_profile.suspended" ? "Chef profile needs attention" : "Chef profile approved",
+      body:
+        action === "chef_profile.suspended"
+          ? "Your chef profile was suspended by platform support."
+          : "Your chef profile is approved for marketplace visibility when public listing is enabled.",
+      actionUrl: "/chef/profile",
+      priority: action === "chef_profile.suspended" ? "urgent" : "high",
+      emailTemplateKey: action === "chef_profile.suspended" ? "chef_profile_suspended" : "chef_profile_approved",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
 
   return profile;
 }

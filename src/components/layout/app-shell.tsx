@@ -4,7 +4,9 @@ import { ChevronLeft, Sparkles } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { LogoutForm } from "@/components/layout/logout-form";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { getUnreadNotificationCount } from "@/server/notifications/notification-service";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await getCurrentSession();
@@ -12,6 +14,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   if (!session) {
     redirect("/login");
   }
+  const unreadNotifications = await getUnreadNotificationCount(session);
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -31,6 +34,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Scrollable nav */}
         <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+          <div className="mb-2">
+            <NotificationBell unreadCount={unreadNotifications} />
+          </div>
           <SidebarNav session={session} />
         </div>
 

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { createAdminNotification } from "@/server/notifications/notification-service";
 import { isRestaurantDiscoveryAvailable } from "@/lib/restaurant-config";
 import {
   buildRestaurantQueriesForRecipe,
@@ -58,6 +59,15 @@ export async function runRestaurantSearch(params: {
       targetType: "restaurant_fallback_search",
       targetId: search.id,
       details: { reason: "MapTiler not configured" } as Prisma.InputJsonValue,
+    });
+    await createAdminNotification({
+      organizationId,
+      countryCode,
+      type: "restaurant_search_failed",
+      title: "Restaurant search failed",
+      body: `Restaurant fallback search for "${input.query}" failed because MapTiler is not configured.`,
+      actionUrl: "/admin/restaurant-fallback",
+      priority: "high",
     });
     return { searchId: search.id };
   }
@@ -135,6 +145,15 @@ export async function runRestaurantSearch(params: {
       targetType: "restaurant_fallback_search",
       targetId: search.id,
       details: { error: msg } as Prisma.InputJsonValue,
+    });
+    await createAdminNotification({
+      organizationId,
+      countryCode,
+      type: "restaurant_search_failed",
+      title: "Restaurant search failed",
+      body: `Restaurant fallback search for "${input.query}" failed. Check provider configuration and server logs.`,
+      actionUrl: "/admin/restaurant-fallback",
+      priority: "high",
     });
   }
 

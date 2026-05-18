@@ -60,6 +60,19 @@ enum UserStatus {
   disabled
 }
 
+enum NotificationStatus {
+  unread
+  read
+  archived
+}
+
+enum NotificationPriority {
+  low
+  normal
+  high
+  urgent
+}
+
 model User {
   id                         String                         @id @default(cuid())
   email                      String                         @unique
@@ -90,6 +103,8 @@ model User {
   homeChefStatusChanges      HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
   chefReviews                ChefReview[]
   restaurantFallbackSearches RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
+  notifications              Notification[]
+  notificationPreference     NotificationPreference?
 }
 
 model Session {
@@ -152,6 +167,7 @@ model Organization {
   chefReviews                ChefReview[]
   restaurantFallbackSearches RestaurantFallbackSearch[]
   savedRestaurants           SavedRestaurant[]
+  notifications              Notification[]
 
   @@index([countryCode])
   @@index([status])
@@ -192,6 +208,49 @@ model Country {
   auditLogs          AuditLog[]
   mealPlans          MealPlan[]
   groceryPartners    GroceryPartner[]
+  notifications      Notification[]
+}
+
+model Notification {
+  id             String               @id @default(cuid())
+  organizationId String?
+  userId         String?
+  countryCode    String?
+  type           String
+  title          String
+  body           String
+  actionUrl      String?
+  status         NotificationStatus   @default(unread)
+  priority       NotificationPriority @default(normal)
+  readAt         DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country        Country?             @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  emailEnabled        Boolean  @default(true)
+  inAppEnabled        Boolean  @default(true)
+  homeChefUpdates     Boolean  @default(true)
+  chefRequestMessages Boolean  @default(true)
+  groceryReminders    Boolean  @default(true)
+  mealPlanReminders   Boolean  @default(true)
+  adminAlerts         Boolean  @default(true)
+  marketingEmails     Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CountryAssignment {

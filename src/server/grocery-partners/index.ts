@@ -11,6 +11,7 @@ import {
 } from "@/lib/validation/grocery";
 import { createAuditEvent } from "@/server/audit";
 import { getGroceryList } from "@/server/grocery";
+import { createNotification } from "@/server/notifications/notification-service";
 import type { getCurrentSession } from "@/lib/session";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
@@ -194,6 +195,18 @@ export async function createGroceryListShare(
     targetType: "grocery_list_share",
     targetId: share.id,
     details: { groceryListId, expiresAt: expiresAt?.toISOString() ?? null },
+  });
+  await createNotification({
+    organizationId,
+    userId: actorUserId,
+    countryCode: list.countryCode,
+    type: "grocery_list_share_created",
+    title: "Grocery list share link created",
+    body: `A read-only share link was created for "${list.name}".`,
+    actionUrl: `/grocery-lists/${groceryListId}/share`,
+    priority: "normal",
+    emailTemplateKey: "grocery_list_shared",
+    preferenceKey: "groceryReminders",
   });
 
   return { share, token };
