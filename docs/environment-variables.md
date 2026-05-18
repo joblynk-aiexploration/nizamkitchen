@@ -3,10 +3,11 @@
 ## Required core variables
 
 - `DATABASE_URL`: PostgreSQL connection string.
+- `SESSION_SECRET`: required in production; at least 32 random characters.
 - `SESSION_COOKIE_NAME`: HTTP-only session cookie name.
 - `SESSION_DURATION_DAYS`: session lifetime.
-- `APP_URL`: canonical app URL.
-- `NODE_ENV`: `development`, `test`, or `production`.
+- `APP_URL`: canonical app URL; required in production.
+- `NODE_ENV`: `development`, `test`, or `production`; production performs stricter validation at runtime.
 
 ## Infrastructure variables
 
@@ -21,9 +22,17 @@
 
 - `SMTP_HOST`: SMTP server hostname.
 - `SMTP_PORT`: SMTP server port.
-- `SMTP_USERNAME`: SMTP username.
-- `SMTP_PASSWORD`: SMTP password.
-- `SMTP_FROM_EMAIL`: default sender.
+- `SMTP_USER`: SMTP username.
+- `SMTP_PASS`: SMTP password.
+- `EMAIL_FROM`: default sender.
+
+## Optional provider variables
+
+- `MAPTILER_API_KEY`: server-only MapTiler key for restaurant fallback.
+- `NEXT_PUBLIC_MAPTILER_API_KEY`: browser-safe MapTiler key for map display.
+- `MAPTILER_RESTAURANT_DISCOVERY_ENABLED`: enables restaurant search when a server key is present.
+- `YOUTUBE_DATA_API_KEY`: server-only YouTube Data API key for discovery and availability checks.
+- `YOUTUBE_DISCOVERY_ENABLED`: enables YouTube discovery when a server key is present.
 
 ## Observability variables
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { enforceRateLimit, rateLimitKey, rateLimitPolicies } from "@/lib/security";
 import { bulkAutoImportForMissingRecipes, importBestCandidateIfStrictlyQualified } from "@/server/youtube-discovery/video-coverage";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,15 @@ export async function POST(request: Request) {
     const userId = session.user.id;
     const organizationId = session.activeOrganization?.id ?? null;
     const countryCode = session.activeOrganization?.countryCode ?? null;
+
+    try {
+      enforceRateLimit({
+        key: rateLimitKey("youtube-auto-import", request, userId),
+        ...rateLimitPolicies.adminBulkAction,
+      });
+    } catch {
+      return respond(request, { error: "Too many admin bulk actions. Please wait and try again." }, 429, "Too many admin bulk actions. Please wait and try again.");
+    }
 
     const body = await readBody(request);
     const { recipeId } = body;

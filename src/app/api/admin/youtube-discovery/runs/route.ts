@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { enforceRateLimit, rateLimitKey, rateLimitPolicies } from "@/lib/security";
 import { runDiscoveryForRecipe, runDiscoveryForAllRecipes } from "@/server/youtube-discovery/discovery-service";
 import { isYouTubeDiscoveryAvailable, getYouTubeDiscoveryConfig } from "@/lib/youtube-discovery-config";
 import { youtubeDiscoveryRunSchema } from "@/lib/validation/video";
@@ -12,6 +13,15 @@ export async function POST(request: Request) {
     const userId = session.user.id;
     const organizationId = session.activeOrganization?.id ?? null;
     const countryCode = session.activeOrganization?.countryCode ?? null;
+
+    try {
+      enforceRateLimit({
+        key: rateLimitKey("youtube-discovery", request, userId),
+        ...rateLimitPolicies.youtubeDiscovery,
+      });
+    } catch {
+      return respond(request, { error: "Too many YouTube discovery requests. Please wait and try again." }, 429, "Too many YouTube discovery requests. Please wait and try again.");
+    }
 
     if (!isYouTubeDiscoveryAvailable()) {
       const cfg = getYouTubeDiscoveryConfig();

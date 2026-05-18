@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { AccessDeniedError, assertUserCanAuthenticate } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma";
-import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
+import { enforceRateLimit, getClientIpFromHeaders, rateLimitPolicies } from "@/lib/security";
 import { createSession, getRequestMetadata } from "@/lib/session";
 import { loginSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
@@ -14,8 +14,7 @@ export async function POST(request: Request) {
   try {
     enforceRateLimit({
       key: `login:${clientIp}`,
-      limit: 10,
-      windowMs: 60_000,
+      ...rateLimitPolicies.login,
     });
   } catch {
     return NextResponse.redirect(new URL("/login?message=Too many requests.", request.url));

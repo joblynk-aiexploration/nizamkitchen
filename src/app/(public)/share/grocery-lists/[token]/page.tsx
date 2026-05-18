@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/security";
 import { getSharedGroceryList } from "@/server/grocery-partners";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,14 @@ export default async function SharedGroceryListPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  try {
+    enforceRateLimit({
+      key: `public-share:${token.slice(0, 16)}`,
+      ...rateLimitPolicies.publicShare,
+    });
+  } catch {
+    notFound();
+  }
   const share = await getSharedGroceryList(token);
   if (!share) notFound();
 

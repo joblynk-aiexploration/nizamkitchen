@@ -7,6 +7,8 @@ services:
     environment:
       NODE_ENV: production
       DEPLOYMENT_ENVIRONMENT: production
+      APP_URL: https://nizamkitchen.example.com
+      SESSION_SECRET: ${SESSION_SECRET}
       DATABASE_URL: postgresql://nizamkitchen:${POSTGRES_PASSWORD}@postgres:5432/nizamkitchen?schema=public
       REDIS_URL: redis://redis:6379
       OBJECT_STORAGE_ENDPOINT: https://object-storage.example.com
@@ -14,6 +16,7 @@ services:
       OBJECT_STORAGE_REGION: us-east-1
       SMTP_HOST: smtp.example.com
       SMTP_PORT: 587
+      EMAIL_FROM: noreply@nizamkitchen.example.com
     ports:
       - "3000:3000"
     depends_on:
@@ -26,6 +29,21 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  migrate:
+    image: ghcr.io/example/nizamkitchen:latest
+    restart: "no"
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      APP_URL: https://nizamkitchen.example.com
+      SESSION_SECRET: ${SESSION_SECRET}
+      DATABASE_URL: postgresql://nizamkitchen:${POSTGRES_PASSWORD}@postgres:5432/nizamkitchen?schema=public
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine

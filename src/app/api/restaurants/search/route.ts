@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { enforceRateLimit, rateLimitKey, rateLimitPolicies } from "@/lib/security";
 import { restaurantSearchSchema } from "@/lib/validation/restaurants";
 import { runRestaurantSearch } from "@/server/restaurants/restaurant-fallback-service";
 
@@ -17,6 +18,15 @@ export async function POST(request: Request) {
   const flagEnabled = await isFeatureEnabled("restaurant_fallback", orgId);
   if (!flagEnabled) {
     return NextResponse.json({ error: "Feature not enabled." }, { status: 403 });
+  }
+
+  try {
+    enforceRateLimit({
+      key: rateLimitKey("restaurant-search", request, session.user.id),
+      ...rateLimitPolicies.restaurantSearch,
+    });
+  } catch {
+    return NextResponse.json({ error: "Too many restaurant searches. Please wait and try again." }, { status: 429 });
   }
 
   let body: unknown;
