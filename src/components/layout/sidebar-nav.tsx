@@ -14,6 +14,7 @@ const appLinks = [
   { href: "/grocery-lists", label: "Grocery Lists", icon: ShoppingCart },
   { href: "/household", label: "Household", icon: Heart },
   { href: "/home-chef", label: "Home Chef", icon: UtensilsCrossed },
+  { href: "/chefs", label: "Browse Chefs", icon: Users },
   { href: "/chef/requests", label: "Chef Requests", icon: ChefHat },
   { href: "/organizations", label: "Organizations", icon: Building2 },
   { href: "/team", label: "Team", icon: Users },
@@ -32,6 +33,7 @@ const adminLinks = [
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/meal-planner", label: "Meal Planner", icon: CalendarDays },
   { href: "/admin/home-chef-requests", label: "Home Chef Requests", icon: UtensilsCrossed },
+  { href: "/admin/chefs", label: "Chef Marketplace", icon: ChefHat },
   { href: "/admin/system-settings", label: "System Settings", icon: Cog },
 ];
 

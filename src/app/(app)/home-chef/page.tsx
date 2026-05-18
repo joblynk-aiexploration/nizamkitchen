@@ -78,6 +78,9 @@ export default async function HomeChefPage() {
               <Link href="/home-chef/request">New request</Link>
             </Button>
             <Button asChild variant="secondary">
+              <Link href="/chefs">Browse chefs</Link>
+            </Button>
+            <Button asChild variant="secondary">
               <Link href="/home-chef/requests">View requests</Link>
             </Button>
           </>

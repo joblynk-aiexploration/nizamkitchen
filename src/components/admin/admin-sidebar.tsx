@@ -58,6 +58,8 @@ const adminNavGroups = [
     items: [
       { href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays },
       { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
+      { href: "/admin/chefs", label: "Chef marketplace", icon: ChefHat },
+      { href: "/admin/chef-verifications", label: "Chef verifications", icon: Shield },
     ],
   },
   {

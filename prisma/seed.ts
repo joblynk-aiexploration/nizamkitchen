@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import {
   CookingSkillLevel,
+  ChefPriceUnit,
+  ChefProfileStatus,
+  ChefServiceType,
+  ChefVerificationStatus,
   IngredientCategory,
   MeasurementSystem,
   MembershipStatus,
@@ -32,11 +36,12 @@ const FEATURE_FLAGS = [
   "payments",
   "subscriptions",
   "family_profiles",
+  "chef_verification",
 ];
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -1702,6 +1707,13 @@ async function main() {
     }
   } 
 
+  const chefOwner = await prisma.membership.findFirstOrThrow({
+    where: { organizationId: chefOrg.id, role: "chef_owner" },
+    select: { userId: true },
+  });
+  const biryaniChefOrg = await createOrganization({ name: "Dum Biryani Specialist", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: chefOwner.userId });
+  const tiffinChefOrg = await createOrganization({ name: "Weekly Tiffin Chef", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: chefOwner.userId });
+
   // ─── Food foundation seeding ────────────────────────────────────────────────
   console.log("Seeding units...");
   const unitMap = await seedUnits();
@@ -1788,6 +1800,65 @@ async function main() {
 
   console.log("Seeding curated YouTube videos...");
   await seedRecipeVideos();
+
+  console.log("Seeding demo chef marketplace profiles...");
+  await seedChefMarketplaceProfiles([
+    {
+      organizationId: chefOrg.id,
+      countryCode: chefOrg.countryCode,
+      currencyCode: chefOrg.currencyCode,
+      displayName: "Hyderabad Home Kitchen",
+      slug: "hyderabad-home-kitchen",
+      bio: "A demo chef business focused on homestyle Hyderabadi family meals, gentle spice customization, and weekend occasion cooking.",
+      status: ChefProfileStatus.active,
+      verificationStatus: ChefVerificationStatus.verified,
+      isPublic: true,
+      baseCity: "Chicago",
+      baseRegion: "IL",
+      languages: ["English", "Urdu", "Hindi"],
+      specialties: ["Khatti Dal", "Bagara Khana", "Family dinners"],
+      services: [
+        { name: "Family dinner visit", serviceType: ChefServiceType.occasion, priceUnit: ChefPriceUnit.per_event, amount: 180 },
+        { name: "Weekly cooking support", serviceType: ChefServiceType.weekly_cooking, priceUnit: ChefPriceUnit.per_week, amount: 420 },
+      ],
+    },
+    {
+      organizationId: biryaniChefOrg.id,
+      countryCode: biryaniChefOrg.countryCode,
+      currencyCode: biryaniChefOrg.currencyCode,
+      displayName: "Dum Biryani Specialist",
+      slug: "dum-biryani-specialist",
+      bio: "A demo profile for a chef business specializing in Hyderabadi chicken and mutton dum biryani for small family occasions.",
+      status: ChefProfileStatus.draft,
+      verificationStatus: ChefVerificationStatus.pending,
+      isPublic: false,
+      baseCity: "Irving",
+      baseRegion: "TX",
+      languages: ["English", "Urdu"],
+      specialties: ["Chicken Dum Biryani", "Mutton Biryani", "Mirchi ka Salan"],
+      services: [
+        { name: "Biryani occasion package", serviceType: ChefServiceType.occasion, priceUnit: ChefPriceUnit.per_event, amount: 260 },
+      ],
+    },
+    {
+      organizationId: tiffinChefOrg.id,
+      countryCode: tiffinChefOrg.countryCode,
+      currencyCode: tiffinChefOrg.currencyCode,
+      displayName: "Weekly Tiffin Chef",
+      slug: "weekly-tiffin-chef",
+      bio: "A paused demo chef profile for weekly home-style meals, dal, rice, chutneys, and simple Hyderabadi staples.",
+      status: ChefProfileStatus.paused,
+      verificationStatus: ChefVerificationStatus.verified,
+      isPublic: false,
+      baseCity: "Houston",
+      baseRegion: "TX",
+      languages: ["English", "Hindi"],
+      specialties: ["Weekly tiffin", "Vegetarian meals", "Khatti Dal"],
+      services: [
+        { name: "Weekly tiffin prep", serviceType: ChefServiceType.weekly_cooking, priceUnit: ChefPriceUnit.per_week, amount: 300 },
+      ],
+    },
+  ]);
 
   console.log("Seeding sample home chef requests...");
   await seedHomeChefRequests({
@@ -1986,6 +2057,138 @@ async function seedHomeChefRequests(params: {
           action: "home_chef_request.created",
           targetType: "home_chef_request",
           targetId: request.id,
+        },
+      });
+    }
+  }
+}
+
+async function seedChefMarketplaceProfiles(
+  profiles: Array<{
+    organizationId: string;
+    countryCode: string;
+    currencyCode: string;
+    displayName: string;
+    slug: string;
+    bio: string;
+    status: ChefProfileStatus;
+    verificationStatus: ChefVerificationStatus;
+    isPublic: boolean;
+    baseCity: string;
+    baseRegion: string;
+    languages: string[];
+    specialties: string[];
+    services: Array<{
+      name: string;
+      serviceType: ChefServiceType;
+      priceUnit: ChefPriceUnit;
+      amount: number;
+    }>;
+  }>,
+) {
+  for (const item of profiles) {
+    const profile = await prisma.chefProfile.upsert({
+      where: { organizationId: item.organizationId },
+      update: {
+        countryCode: item.countryCode,
+        displayName: item.displayName,
+        slug: item.slug,
+        bio: item.bio,
+        status: item.status,
+        verificationStatus: item.verificationStatus,
+        isPublic: item.isPublic,
+        baseCity: item.baseCity,
+        baseRegion: item.baseRegion,
+        languages: item.languages,
+        specialties: item.specialties,
+        yearsExperience: item.displayName.includes("Biryani") ? 8 : 5,
+        serviceRadiusKm: 30,
+        email: "chef-demo@example.test",
+      },
+      create: {
+        organizationId: item.organizationId,
+        countryCode: item.countryCode,
+        displayName: item.displayName,
+        slug: item.slug,
+        bio: item.bio,
+        status: item.status,
+        verificationStatus: item.verificationStatus,
+        isPublic: item.isPublic,
+        baseCity: item.baseCity,
+        baseRegion: item.baseRegion,
+        languages: item.languages,
+        specialties: item.specialties,
+        yearsExperience: item.displayName.includes("Biryani") ? 8 : 5,
+        serviceRadiusKm: 30,
+        email: "chef-demo@example.test",
+      },
+    });
+
+    for (const service of item.services) {
+      const existingService = await prisma.chefService.findFirst({
+        where: { chefProfileId: profile.id, name: service.name },
+      });
+      if (existingService) {
+        await prisma.chefService.update({
+          where: { id: existingService.id },
+          data: {
+            serviceType: service.serviceType,
+            basePriceAmount: service.amount,
+            currencyCode: item.currencyCode,
+            priceUnit: service.priceUnit,
+            isActive: true,
+          },
+        });
+      } else {
+        await prisma.chefService.create({
+          data: {
+            chefProfileId: profile.id,
+            name: service.name,
+            description: "Demo marketplace service. Pricing is placeholder-only.",
+            serviceType: service.serviceType,
+            basePriceAmount: service.amount,
+            currencyCode: item.currencyCode,
+            priceUnit: service.priceUnit,
+            minGuests: 2,
+            maxGuests: service.serviceType === ChefServiceType.occasion ? 30 : 8,
+            isActive: true,
+          },
+        });
+      }
+    }
+
+    for (const dayOfWeek of [5, 6, 0]) {
+      const existingAvailability = await prisma.chefAvailability.findFirst({
+        where: { chefProfileId: profile.id, dayOfWeek },
+      });
+      if (existingAvailability) {
+        await prisma.chefAvailability.update({
+          where: { id: existingAvailability.id },
+          data: { startTime: "10:00", endTime: "18:00", isAvailable: item.status !== ChefProfileStatus.paused },
+        });
+      } else {
+        await prisma.chefAvailability.create({
+          data: {
+            chefProfileId: profile.id,
+            dayOfWeek,
+            startTime: "10:00",
+            endTime: "18:00",
+            isAvailable: item.status !== ChefProfileStatus.paused,
+          },
+        });
+      }
+    }
+
+    const firstSpecialty = item.specialties[0];
+    const existingSpecialty = await prisma.chefSpecialtyRecipe.findFirst({
+      where: { chefProfileId: profile.id, dishName: firstSpecialty },
+    });
+    if (!existingSpecialty) {
+      await prisma.chefSpecialtyRecipe.create({
+        data: {
+          chefProfileId: profile.id,
+          dishName: firstSpecialty,
+          notes: "Demo specialty for marketplace browsing.",
         },
       });
     }

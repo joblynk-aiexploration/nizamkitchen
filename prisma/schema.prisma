@@ -86,6 +86,7 @@ model User {
   homeChefRequestsCreated HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
   homeChefMessagesSent    HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
   homeChefStatusChanges   HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews             ChefReview[]
 }
 
 model Session {
@@ -140,8 +141,10 @@ model Organization {
   favoriteRecipes      FavoriteRecipe[]
   pantryItems          HouseholdPantryItem[]
   shoppingPreference   HouseholdShoppingPreference?
+  chefProfile          ChefProfile?
   homeChefRequests     HomeChefRequest[]            @relation("HomeChefRequestOrganization")
   assignedChefRequests HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
+  chefReviews          ChefReview[]
 
   @@index([countryCode])
   @@index([status])
@@ -485,6 +488,45 @@ enum HomeChefMessageSenderRole {
   support
 }
 
+enum ChefProfileStatus {
+  draft
+  active
+  paused
+  suspended
+  disabled
+}
+
+enum ChefVerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum ChefServiceType {
+  daily_cooking
+  weekly_cooking
+  occasion
+  meal_prep
+  recipe_specific
+  custom
+}
+
+enum ChefPriceUnit {
+  per_visit
+  per_day
+  per_week
+  per_event
+  per_guest
+  custom
+}
+
+enum ReviewStatus {
+  pending
+  published
+  hidden
+}
+
 model Cuisine {
   id                         String                      @id @default(cuid())
   name                       String
@@ -628,6 +670,7 @@ model Recipe {
   youtubeCandidates  YouTubeVideoCandidate[]
   favoriteRecipes    FavoriteRecipe[]
   homeChefRequests   HomeChefRequest[]
+  chefSpecialties    ChefSpecialtyRecipe[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -1015,6 +1058,133 @@ model HouseholdShoppingPreference {
   @@index([organizationId])
 }
 
+model ChefProfile {
+  id                    String                     @id @default(cuid())
+  organizationId        String                     @unique
+  countryCode           String
+  displayName           String
+  slug                  String                     @unique
+  bio                   String
+  status                ChefProfileStatus          @default(draft)
+  verificationStatus    ChefVerificationStatus     @default(unverified)
+  profilePhotoUrl       String?
+  languages             Json
+  specialties           Json
+  yearsExperience       Int?
+  serviceRadiusKm       Int?
+  baseCity              String?
+  baseRegion            String?
+  postalCode            String?
+  phone                 String?
+  email                 String?
+  averageRating         Float?
+  ratingCount           Int                        @default(0)
+  isPublic              Boolean                    @default(false)
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  services              ChefService[]
+  specialtyRecipes      ChefSpecialtyRecipe[]
+  availability          ChefAvailability[]
+  reviews               ChefReview[]
+  verificationDocuments ChefVerificationDocument[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([isPublic])
+  @@index([baseCity])
+  @@index([baseRegion])
+}
+
+model ChefService {
+  id              String          @id @default(cuid())
+  chefProfileId   String
+  name            String
+  description     String?
+  serviceType     ChefServiceType
+  basePriceAmount Float?
+  currencyCode    String
+  priceUnit       ChefPriceUnit
+  minGuests       Int?
+  maxGuests       Int?
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  chefProfile     ChefProfile     @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+
+  @@index([chefProfileId])
+  @@index([serviceType])
+  @@index([isActive])
+}
+
+model ChefSpecialtyRecipe {
+  id            String      @id @default(cuid())
+  chefProfileId String
+  recipeId      String?
+  dishName      String
+  notes         String?
+  createdAt     DateTime    @default(now())
+  chefProfile   ChefProfile @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+  recipe        Recipe?     @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([chefProfileId])
+  @@index([recipeId])
+}
+
+model ChefAvailability {
+  id            String      @id @default(cuid())
+  chefProfileId String
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  isAvailable   Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  chefProfile   ChefProfile @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+
+  @@index([chefProfileId])
+  @@index([dayOfWeek])
+}
+
+model ChefReview {
+  id                String           @id @default(cuid())
+  chefProfileId     String
+  organizationId    String
+  homeChefRequestId String?
+  rating            Int
+  comment           String?
+  status            ReviewStatus     @default(pending)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  chefProfile       ChefProfile      @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  homeChefRequest   HomeChefRequest? @relation(fields: [homeChefRequestId], references: [id], onDelete: SetNull)
+  User              User?            @relation(fields: [userId], references: [id])
+  userId            String?
+
+  @@index([chefProfileId])
+  @@index([organizationId])
+  @@index([homeChefRequestId])
+  @@index([status])
+}
+
+model ChefVerificationDocument {
+  id            String                 @id @default(cuid())
+  chefProfileId String
+  documentType  String
+  fileId        String?
+  status        ChefVerificationStatus @default(pending)
+  adminNotes    String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  chefProfile   ChefProfile            @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+
+  @@index([chefProfileId])
+  @@index([status])
+}
+
 model HomeChefRequest {
   id                         String                         @id @default(cuid())
   organizationId             String
@@ -1052,6 +1222,7 @@ model HomeChefRequest {
   assignedChefOrganization   Organization?                  @relation("HomeChefRequestAssignedChefOrganization", fields: [assignedChefOrganizationId], references: [id], onDelete: SetNull)
   messages                   HomeChefRequestMessage[]
   statusHistory              HomeChefRequestStatusHistory[]
+  chefReviews                ChefReview[]
 
   @@index([organizationId])
   @@index([countryCode])
