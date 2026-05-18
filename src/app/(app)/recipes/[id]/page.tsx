@@ -52,7 +52,10 @@ export default async function RecipeDetailPage({
   const canEdit = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES) ||
     (recipe.organizationId === orgId);
 
-  const youtubeEnabled = await isFeatureEnabled("youtube_references", orgId);
+  const [youtubeEnabled, restaurantFallbackEnabled] = await Promise.all([
+    isFeatureEnabled("youtube_references", orgId),
+    isFeatureEnabled("restaurant_fallback", orgId),
+  ]);
   const familyProfilesEnabled = await canAccessFamilyProfiles({
     organizationId: orgId,
     platformRole: session.user.platformRole,
@@ -126,6 +129,13 @@ export default async function RecipeDetailPage({
         {showHomeChefRequest && (
           <Button asChild variant="secondary">
             <Link href={`/home-chef/request?type=recipe&recipeId=${recipe.id}`}>Request a chef for this recipe</Link>
+          </Button>
+        )}
+        {restaurantFallbackEnabled && (
+          <Button asChild variant="secondary">
+            <Link href={`/order-instead/search?q=${encodeURIComponent(recipe.name)}&recipeId=${recipe.id}`}>
+              Order Instead
+            </Link>
           </Button>
         )}
       </div>

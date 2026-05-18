@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { canAccessMealPlanner, getMealPlan, toMealPlanDateRange } from "@/server/meal-plans";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
 import { duplicateMealPlanAction, generateMealPlanGroceryListAction } from "../actions";
@@ -47,10 +48,13 @@ export default async function MealPlanDetailPage({
   if (!plan) {
     notFound();
   }
-  const homeChefsEnabled = await canAccessHomeChefs({
-    organizationId: session.activeOrganization.id,
-    platformRole: session.user.platformRole,
-  });
+  const [homeChefsEnabled, restaurantFallbackEnabled] = await Promise.all([
+    canAccessHomeChefs({
+      organizationId: session.activeOrganization.id,
+      platformRole: session.user.platformRole,
+    }),
+    isFeatureEnabled("restaurant_fallback", session.activeOrganization.id),
+  ]);
   const showHomeChefRequest =
     homeChefsEnabled && isHouseholdRequestOrganization(session.activeOrganization.organizationType);
 
@@ -86,6 +90,11 @@ export default async function MealPlanDetailPage({
               <Link href={`/home-chef/request?type=meal_plan&mealPlanId=${plan.id}`}>
                 Request a chef for this meal plan
               </Link>
+            </Button>
+          ) : null}
+          {restaurantFallbackEnabled ? (
+            <Button asChild variant="secondary">
+              <Link href="/order-instead/search">Order Instead</Link>
             </Button>
           ) : null}
         </div>

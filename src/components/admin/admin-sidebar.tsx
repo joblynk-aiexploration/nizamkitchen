@@ -60,6 +60,7 @@ const adminNavGroups = [
       { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
       { href: "/admin/chefs", label: "Chef marketplace", icon: ChefHat },
       { href: "/admin/chef-verifications", label: "Chef verifications", icon: Shield },
+      { href: "/admin/restaurant-fallback", label: "Restaurant fallback", icon: ShoppingCart },
     ],
   },
   {

@@ -83,10 +83,11 @@ model User {
   discoveryRuns           YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
   reviewedCandidates      YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
   favoriteRecipesCreated  FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent    HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges   HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews             ChefReview[]
+  homeChefRequestsCreated      HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent         HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges        HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews                  ChefReview[]
+  restaurantFallbackSearches   RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
 }
 
 model Session {
@@ -141,10 +142,12 @@ model Organization {
   favoriteRecipes      FavoriteRecipe[]
   pantryItems          HouseholdPantryItem[]
   shoppingPreference   HouseholdShoppingPreference?
-  chefProfile          ChefProfile?
-  homeChefRequests     HomeChefRequest[]            @relation("HomeChefRequestOrganization")
-  assignedChefRequests HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
-  chefReviews          ChefReview[]
+  chefProfile                    ChefProfile?
+  homeChefRequests               HomeChefRequest[]            @relation("HomeChefRequestOrganization")
+  assignedChefRequests           HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
+  chefReviews                    ChefReview[]
+  restaurantFallbackSearches     RestaurantFallbackSearch[]
+  savedRestaurants               SavedRestaurant[]
 
   @@index([countryCode])
   @@index([status])
@@ -668,9 +671,10 @@ model Recipe {
   mealPlanEntries    MealPlanEntry[]
   discoveryRuns      YouTubeDiscoveryRun[]
   youtubeCandidates  YouTubeVideoCandidate[]
-  favoriteRecipes    FavoriteRecipe[]
-  homeChefRequests   HomeChefRequest[]
-  chefSpecialties    ChefSpecialtyRecipe[]
+  favoriteRecipes              FavoriteRecipe[]
+  homeChefRequests             HomeChefRequest[]
+  chefSpecialties              ChefSpecialtyRecipe[]
+  restaurantFallbackSearches   RestaurantFallbackSearch[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -1422,4 +1426,87 @@ model YouTubeVideoCandidate {
   @@index([discoveryRunId])
   @@index([recipeId])
   @@index([status])
+}
+
+// ─── Restaurant Fallback ──────────────────────────────────────────────────────
+
+enum RestaurantFallbackSearchStatus {
+  pending
+  completed
+  failed
+}
+
+enum RestaurantProvider {
+  maptiler
+  manual
+}
+
+model RestaurantFallbackSearch {
+  id               String                        @id @default(cuid())
+  organizationId   String
+  countryCode      String
+  createdById      String
+  recipeId         String?
+  mealPlanEntryId  String?
+  query            String
+  latitude         Float?
+  longitude        Float?
+  city             String?
+  region           String?
+  status           RestaurantFallbackSearchStatus @default(pending)
+  resultCount      Int                           @default(0)
+  errorMessage     String?
+  createdAt        DateTime                      @default(now())
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        User                          @relation("RestaurantSearchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recipe           Recipe?                       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  results          RestaurantFallbackResult[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([recipeId])
+  @@index([status])
+}
+
+model RestaurantFallbackResult {
+  id              String                   @id @default(cuid())
+  searchId        String
+  organizationId  String
+  countryCode     String
+  provider        RestaurantProvider       @default(maptiler)
+  providerPlaceId String?
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  category        String?
+  distanceMeters  Float?
+  mapUrl          String?
+  rawJson         Json?
+  createdAt       DateTime                 @default(now())
+  search          RestaurantFallbackSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+
+  @@index([searchId])
+  @@index([organizationId])
+}
+
+model SavedRestaurant {
+  id              String             @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  provider        RestaurantProvider @default(manual)
+  providerPlaceId String?
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  category        String?
+  mapUrl          String?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([countryCode])
 }
