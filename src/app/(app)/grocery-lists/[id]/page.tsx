@@ -1,11 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { CopyGroceryListButton } from "@/components/grocery/copy-grocery-list-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getGroceryList } from "@/server/grocery";
+import { groceryListToClipboardText, listActiveGroceryPartners } from "@/server/grocery-partners";
 import { confidenceBadgeProps, mergeBadgeProps } from "@/lib/grocery-display";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +36,10 @@ export default async function GroceryListPage({
 
   const list = await getGroceryList(id, orgId);
   if (!list) notFound();
+  const partners = await listActiveGroceryPartners(
+    list.countryCode ?? session.activeOrganization.countryCode,
+    orgId,
+  );
 
   // Group items by category
   const itemsByCategory = new Map<string, typeof list.items>();
@@ -86,6 +92,30 @@ export default async function GroceryListPage({
         >
           Print
         </Link>
+        <a
+          href={`/api/grocery-lists/${list.id}/export/pdf`}
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+        >
+          Export PDF
+        </a>
+        <a
+          href={`/api/grocery-lists/${list.id}/export/csv`}
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+        >
+          Export CSV
+        </a>
+        <Link
+          href={`/grocery-lists/${list.id}/share`}
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+        >
+          Share link
+        </Link>
+        <Link
+          href={`/grocery-lists/${list.id}/export`}
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+        >
+          Partner options
+        </Link>
         <Link
           href="/grocery-lists"
           className="ml-auto text-sm text-[var(--color-muted)] hover:text-[var(--color-ink)]"
@@ -93,6 +123,23 @@ export default async function GroceryListPage({
           Back to lists
         </Link>
       </div>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-ink)]">Shopping handoff</h2>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              Copy this list, export it, or use partner placeholders when available. No checkout or payment is connected.
+            </p>
+          </div>
+          <CopyGroceryListButton listId={list.id} text={groceryListToClipboardText(list)} />
+        </div>
+        <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+          {partners.length > 0
+            ? `${partners.length} active grocery partner option${partners.length === 1 ? "" : "s"} available for ${list.countryCode ?? session.activeOrganization.countryCode}.`
+            : "Grocery partner options are not enabled or configured for this country yet."}
+        </div>
+      </Card>
 
       {/* Recipes used */}
       {list.recipes.length > 0 && (

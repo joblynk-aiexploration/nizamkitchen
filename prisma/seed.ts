@@ -5,6 +5,8 @@ import {
   ChefProfileStatus,
   ChefServiceType,
   ChefVerificationStatus,
+  GroceryIntegrationType,
+  GroceryPartnerStatus,
   IngredientCategory,
   MeasurementSystem,
   MembershipStatus,
@@ -41,7 +43,7 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification", "grocery_partners"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -1801,6 +1803,9 @@ async function main() {
   console.log("Seeding curated YouTube videos...");
   await seedRecipeVideos();
 
+  console.log("Seeding grocery partner placeholders...");
+  await seedGroceryPartners();
+
   console.log("Seeding demo chef marketplace profiles...");
   await seedChefMarketplaceProfiles([
     {
@@ -2243,6 +2248,39 @@ async function seedRecipeVideos() {
       },
     });
     console.log(`  [ok] ${ref.slug} → ${ref.videoId}`);
+  }
+}
+
+async function seedGroceryPartners() {
+  const partners = [
+    {
+      countryCode: "US",
+      name: "Local Grocery Website Placeholder",
+      slug: "local-grocery-website-placeholder",
+      websiteUrl: "https://example.com/grocery",
+      integrationType: GroceryIntegrationType.manual_link,
+      status: GroceryPartnerStatus.active,
+      supportedRegions: ["Chicago", "Dallas", "Houston"],
+      notes: "Demo placeholder for manual grocery partner handoff. No checkout or personal data transfer is enabled.",
+    },
+    {
+      countryCode: "IN",
+      name: "India Grocery Export Placeholder",
+      slug: "india-grocery-export-placeholder",
+      websiteUrl: "https://example.com/india-grocery",
+      integrationType: GroceryIntegrationType.export_only,
+      status: GroceryPartnerStatus.draft,
+      supportedRegions: ["Hyderabad"],
+      notes: "Draft placeholder for future India grocery partner exploration.",
+    },
+  ];
+
+  for (const partner of partners) {
+    await prisma.groceryPartner.upsert({
+      where: { slug: partner.slug },
+      update: partner,
+      create: partner,
+    });
   }
 }
 

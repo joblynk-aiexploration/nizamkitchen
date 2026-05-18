@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { getGroceryList } from "@/server/grocery";
+import { recordGroceryListExport } from "@/server/grocery-partners";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,12 @@ export default async function PrintGroceryListPage({
   const { id } = await params;
   const list = await getGroceryList(id, session.activeOrganization.id);
   if (!list) notFound();
+  await recordGroceryListExport({
+    groceryListId: list.id,
+    organizationId: session.activeOrganization.id,
+    createdById: session.user.id,
+    exportType: "print",
+  });
 
   const itemsByCategory = new Map<string, typeof list.items>();
   for (const item of list.items) {
@@ -30,8 +37,10 @@ export default async function PrintGroceryListPage({
           .no-print { display: none !important; }
           .page-break { page-break-before: always; }
         }
-        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+        body { font-family: ui-serif, Georgia, serif; max-width: 880px; margin: 0 auto; padding: 28px; color: #0f172a; background: #f8fafc; }
+        .sheet { background: white; border: 1px solid #dbe5ea; border-radius: 24px; padding: 32px; box-shadow: 0 24px 80px rgba(15, 23, 42, 0.08); }
+        .brand { color: #0f766e; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.22em; }
+        h1 { font-size: 2rem; font-weight: 800; margin-bottom: 4px; }
         .meta { color: #64748b; font-size: 0.875rem; margin-bottom: 24px; }
         .category { margin-bottom: 20px; }
         .category-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
@@ -53,58 +62,61 @@ export default async function PrintGroceryListPage({
         <a className="btn" href={`/grocery-lists/${id}`}>Back to list</a>
       </div>
 
-      <h1>{list.name}</h1>
-      <p className="meta">
-        {list.recipes.length} recipe{list.recipes.length !== 1 ? "s" : ""}
-        {" · "}
-        {list.items.length} ingredient{list.items.length !== 1 ? "s" : ""}
-        {" · "}
-        Generated {list.createdAt.toLocaleDateString()}
-      </p>
+      <section className="sheet">
+        <p className="brand">NizamKitchen</p>
+        <h1>{list.name}</h1>
+        <p className="meta">
+          {list.recipes.length} recipe{list.recipes.length !== 1 ? "s" : ""}
+          {" · "}
+          {list.items.length} ingredient{list.items.length !== 1 ? "s" : ""}
+          {" · "}
+          Generated {new Date().toLocaleDateString()}
+        </p>
 
-      {list.recipes.length > 0 && (
-        <div className="recipes">
-          {list.recipes.map((r) => (
-            <span key={r.id} className="recipe-tag">
-              {r.recipeNameSnapshot} ({r.targetServings} servings)
-            </span>
-          ))}
-        </div>
-      )}
-
-      {list.warnings.length > 0 && (
-        <div className="warn">
-          <strong>Warnings ({list.warnings.length}):</strong>
-          <ul style={{ margin: "8px 0 0 16px", padding: 0 }}>
-            {list.warnings.map((w) => (
-              <li key={w.id}>{w.message}</li>
+        {list.recipes.length > 0 && (
+          <div className="recipes">
+            {list.recipes.map((r) => (
+              <span key={r.id} className="recipe-tag">
+                {r.recipeNameSnapshot} ({r.targetServings} servings)
+              </span>
             ))}
-          </ul>
-        </div>
-      )}
+          </div>
+        )}
 
-      {Array.from(itemsByCategory.entries()).map(([category, items]) => (
-        <div key={category} className="category">
-          <p className="category-title">{category}</p>
-          {items.map((item) => (
-            <div key={item.id} className="item">
-              <div className="checkbox" />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span className="item-name">{item.canonicalIngredientName}</span>
-                  <span className="item-qty">{item.displayQuantity} {item.displayUnit}</span>
+        {list.warnings.length > 0 && (
+          <div className="warn">
+            <strong>Warnings ({list.warnings.length}):</strong>
+            <ul style={{ margin: "8px 0 0 16px", padding: 0 }}>
+              {list.warnings.map((w) => (
+                <li key={w.id}>{w.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {Array.from(itemsByCategory.entries()).map(([category, items]) => (
+          <div key={category} className="category">
+            <p className="category-title">{category}</p>
+            {items.map((item) => (
+              <div key={item.id} className="item">
+                <div className="checkbox" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span className="item-name">{item.canonicalIngredientName}</span>
+                    <span className="item-qty">{item.displayQuantity} {item.displayUnit}</span>
+                  </div>
+                  {item.sources.length > 1 && (
+                    <p className="item-note">
+                      From: {item.sources.map((s) => s.recipeNameSnapshot).join(", ")}
+                    </p>
+                  )}
+                  {item.notes && <p className="item-note">{item.notes}</p>}
                 </div>
-                {item.sources.length > 1 && (
-                  <p className="item-note">
-                    From: {item.sources.map((s) => s.recipeNameSnapshot).join(", ")}
-                  </p>
-                )}
-                {item.notes && <p className="item-note">{item.notes}</p>}
               </div>
-            </div>
-          ))}
-        </div>
-      ))}
+            ))}
+          </div>
+        ))}
+      </section>
     </>
   );
 }

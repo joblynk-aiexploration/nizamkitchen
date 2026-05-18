@@ -67,6 +67,7 @@ const adminNavGroups = [
     title: "Grocery Engine",
     items: [
       { href: "/admin/grocery-engine", label: "Overview", icon: ShoppingCart },
+      { href: "/admin/grocery-partners", label: "Partners", icon: Building2 },
       { href: "/admin/grocery-engine/conversions", label: "Conversions", icon: Scale },
       { href: "/admin/grocery-engine/warnings", label: "Warnings", icon: AlertTriangle },
     ],

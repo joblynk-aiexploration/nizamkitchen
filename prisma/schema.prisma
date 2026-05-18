@@ -61,33 +61,35 @@ enum UserStatus {
 }
 
 model User {
-  id                      String                         @id @default(cuid())
-  email                   String                         @unique
-  passwordHash            String
-  fullName                String
-  status                  UserStatus                     @default(active)
-  platformRole            PlatformRole?
-  preferredLocale         String?                        @default("en-US")
-  preferredTimezone       String?                        @default("UTC")
-  lastLoginAt             DateTime?
-  createdAt               DateTime                       @default(now())
-  updatedAt               DateTime                       @updatedAt
-  sessions                Session[]
-  memberships             Membership[]
-  countryAssignments      CountryAssignment[]
-  auditLogs               AuditLog[]
-  emailLogs               EmailLog[]
-  apiKeys                 ApiKey[]
-  groceryLists            GroceryList[]
-  createdMealPlans        MealPlan[]                     @relation("MealPlanCreatedBy")
-  discoveryRuns           YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates      YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
-  favoriteRecipesCreated  FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated      HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent         HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges        HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews                  ChefReview[]
-  restaurantFallbackSearches   RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
+  id                         String                         @id @default(cuid())
+  email                      String                         @unique
+  passwordHash               String
+  fullName                   String
+  status                     UserStatus                     @default(active)
+  platformRole               PlatformRole?
+  preferredLocale            String?                        @default("en-US")
+  preferredTimezone          String?                        @default("UTC")
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                       @default(now())
+  updatedAt                  DateTime                       @updatedAt
+  sessions                   Session[]
+  memberships                Membership[]
+  countryAssignments         CountryAssignment[]
+  auditLogs                  AuditLog[]
+  emailLogs                  EmailLog[]
+  apiKeys                    ApiKey[]
+  groceryLists               GroceryList[]
+  groceryListShares          GroceryListShare[]             @relation("GroceryListShareCreatedBy")
+  groceryListExports         GroceryListExport[]            @relation("GroceryListExportCreatedBy")
+  createdMealPlans           MealPlan[]                     @relation("MealPlanCreatedBy")
+  discoveryRuns              YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates         YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
+  favoriteRecipesCreated     FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
+  homeChefRequestsCreated    HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent       HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges      HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews                ChefReview[]
+  restaurantFallbackSearches RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
 }
 
 model Session {
@@ -109,45 +111,47 @@ model Session {
 }
 
 model Organization {
-  id                   String                       @id @default(cuid())
-  name                 String
-  slug                 String                       @unique
-  organizationType     OrganizationType
-  status               OrganizationStatus           @default(active)
-  organizationId       String                       @unique
-  countryCode          String
-  currencyCode         String
-  defaultTimezone      String
-  defaultLocale        String
-  measurementSystem    MeasurementSystem
-  createdAt            DateTime                     @default(now())
-  updatedAt            DateTime                     @updatedAt
-  memberships          Membership[]
-  country              Country                      @relation(fields: [countryCode], references: [countryCode])
-  sessions             Session[]
-  auditLogs            AuditLog[]
-  featureFlags         FeatureFlag[]
-  billingSubscriptions BillingSubscription[]
-  apiKeys              ApiKey[]
-  storageFiles         StorageFile[]
-  emailLogs            EmailLog[]
-  countryConfigs       CountryConfig[]
-  groceryLists         GroceryList[]
-  mealPlans            MealPlan[]
-  mealPlanPreference   MealPlanPreference?
-  householdProfile     HouseholdProfile?
-  householdPreferences HouseholdPreference[]
-  preferredCuisines    HouseholdPreferredCuisine[]
-  avoidedIngredients   AvoidedIngredient[]
-  favoriteRecipes      FavoriteRecipe[]
-  pantryItems          HouseholdPantryItem[]
-  shoppingPreference   HouseholdShoppingPreference?
-  chefProfile                    ChefProfile?
-  homeChefRequests               HomeChefRequest[]            @relation("HomeChefRequestOrganization")
-  assignedChefRequests           HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
-  chefReviews                    ChefReview[]
-  restaurantFallbackSearches     RestaurantFallbackSearch[]
-  savedRestaurants               SavedRestaurant[]
+  id                         String                       @id @default(cuid())
+  name                       String
+  slug                       String                       @unique
+  organizationType           OrganizationType
+  status                     OrganizationStatus           @default(active)
+  organizationId             String                       @unique
+  countryCode                String
+  currencyCode               String
+  defaultTimezone            String
+  defaultLocale              String
+  measurementSystem          MeasurementSystem
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  memberships                Membership[]
+  country                    Country                      @relation(fields: [countryCode], references: [countryCode])
+  sessions                   Session[]
+  auditLogs                  AuditLog[]
+  featureFlags               FeatureFlag[]
+  billingSubscriptions       BillingSubscription[]
+  apiKeys                    ApiKey[]
+  storageFiles               StorageFile[]
+  emailLogs                  EmailLog[]
+  countryConfigs             CountryConfig[]
+  groceryLists               GroceryList[]
+  groceryListShares          GroceryListShare[]
+  groceryListExports         GroceryListExport[]
+  mealPlans                  MealPlan[]
+  mealPlanPreference         MealPlanPreference?
+  householdProfile           HouseholdProfile?
+  householdPreferences       HouseholdPreference[]
+  preferredCuisines          HouseholdPreferredCuisine[]
+  avoidedIngredients         AvoidedIngredient[]
+  favoriteRecipes            FavoriteRecipe[]
+  pantryItems                HouseholdPantryItem[]
+  shoppingPreference         HouseholdShoppingPreference?
+  chefProfile                ChefProfile?
+  homeChefRequests           HomeChefRequest[]            @relation("HomeChefRequestOrganization")
+  assignedChefRequests       HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
+  chefReviews                ChefReview[]
+  restaurantFallbackSearches RestaurantFallbackSearch[]
+  savedRestaurants           SavedRestaurant[]
 
   @@index([countryCode])
   @@index([status])
@@ -187,6 +191,7 @@ model Country {
   countryConfigs     CountryConfig[]
   auditLogs          AuditLog[]
   mealPlans          MealPlan[]
+  groceryPartners    GroceryPartner[]
 }
 
 model CountryAssignment {
@@ -638,43 +643,43 @@ model UnitConversion {
 }
 
 model Recipe {
-  id                 String                     @id @default(cuid())
-  organizationId     String?
-  countryCode        String?
-  cuisineId          String
-  name               String
-  slug               String
-  description        String?
-  story              String?
-  difficulty         RecipeDifficulty
-  spiceLevel         SpiceLevel
-  prepMinutes        Int
-  cookMinutes        Int
-  restMinutes        Int?
-  servings           Int
-  servingUnit        String                     @default("serving")
-  visibility         RecipeVisibility           @default(global)
-  sourceType         RecipeSourceType
-  createdById        String?
-  isGlobal           Boolean                    @default(false)
-  isPublished        Boolean                    @default(false)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
-  cuisine            Cuisine                    @relation(fields: [cuisineId], references: [id])
-  ingredients        RecipeIngredient[]
-  steps              RecipeStep[]
-  mediaRefs          RecipeMediaReference[]
-  dietaryTags        RecipeDietaryTag[]
-  groceryListRecipes GroceryListRecipe[]
-  groceryItemSources GroceryListItemSource[]
-  groceryWarnings    GroceryConversionWarning[]
-  mealPlanEntries    MealPlanEntry[]
-  discoveryRuns      YouTubeDiscoveryRun[]
-  youtubeCandidates  YouTubeVideoCandidate[]
-  favoriteRecipes              FavoriteRecipe[]
-  homeChefRequests             HomeChefRequest[]
-  chefSpecialties              ChefSpecialtyRecipe[]
-  restaurantFallbackSearches   RestaurantFallbackSearch[]
+  id                         String                     @id @default(cuid())
+  organizationId             String?
+  countryCode                String?
+  cuisineId                  String
+  name                       String
+  slug                       String
+  description                String?
+  story                      String?
+  difficulty                 RecipeDifficulty
+  spiceLevel                 SpiceLevel
+  prepMinutes                Int
+  cookMinutes                Int
+  restMinutes                Int?
+  servings                   Int
+  servingUnit                String                     @default("serving")
+  visibility                 RecipeVisibility           @default(global)
+  sourceType                 RecipeSourceType
+  createdById                String?
+  isGlobal                   Boolean                    @default(false)
+  isPublished                Boolean                    @default(false)
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  cuisine                    Cuisine                    @relation(fields: [cuisineId], references: [id])
+  ingredients                RecipeIngredient[]
+  steps                      RecipeStep[]
+  mediaRefs                  RecipeMediaReference[]
+  dietaryTags                RecipeDietaryTag[]
+  groceryListRecipes         GroceryListRecipe[]
+  groceryItemSources         GroceryListItemSource[]
+  groceryWarnings            GroceryConversionWarning[]
+  mealPlanEntries            MealPlanEntry[]
+  discoveryRuns              YouTubeDiscoveryRun[]
+  youtubeCandidates          YouTubeVideoCandidate[]
+  favoriteRecipes            FavoriteRecipe[]
+  homeChefRequests           HomeChefRequest[]
+  chefSpecialties            ChefSpecialtyRecipe[]
+  restaurantFallbackSearches RestaurantFallbackSearch[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -837,6 +842,28 @@ enum WarningSeverity {
   error
 }
 
+enum GroceryPartnerStatus {
+  draft
+  active
+  paused
+  disabled
+}
+
+enum GroceryIntegrationType {
+  manual_link
+  affiliate_link
+  api_placeholder
+  export_only
+}
+
+enum GroceryListExportType {
+  pdf
+  csv
+  print
+  copy
+  share_link
+}
+
 model GroceryList {
   id                 String                     @id @default(cuid())
   organizationId     String
@@ -859,11 +886,67 @@ model GroceryList {
   recipes            GroceryListRecipe[]
   items              GroceryListItem[]
   warnings           GroceryConversionWarning[]
+  shares             GroceryListShare[]
+  exports            GroceryListExport[]
 
   @@index([organizationId])
   @@index([createdById])
   @@index([mealPlanId])
   @@index([status])
+}
+
+model GroceryPartner {
+  id               String                 @id @default(cuid())
+  countryCode      String
+  name             String
+  slug             String                 @unique
+  status           GroceryPartnerStatus   @default(draft)
+  websiteUrl       String?
+  logoUrl          String?
+  supportedRegions Json?
+  integrationType  GroceryIntegrationType @default(export_only)
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  country          Country                @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([countryCode])
+  @@index([status])
+}
+
+model GroceryListShare {
+  id             String       @id @default(cuid())
+  groceryListId  String
+  organizationId String
+  tokenHash      String       @unique
+  expiresAt      DateTime?
+  createdById    String
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  groceryList    GroceryList  @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("GroceryListShareCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([groceryListId])
+  @@index([organizationId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+}
+
+model GroceryListExport {
+  id             String                @id @default(cuid())
+  groceryListId  String
+  organizationId String
+  exportType     GroceryListExportType
+  createdById    String
+  createdAt      DateTime              @default(now())
+  groceryList    GroceryList           @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("GroceryListExportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([groceryListId])
+  @@index([organizationId])
+  @@index([exportType])
 }
 
 model MealPlan {
@@ -1442,25 +1525,25 @@ enum RestaurantProvider {
 }
 
 model RestaurantFallbackSearch {
-  id               String                        @id @default(cuid())
-  organizationId   String
-  countryCode      String
-  createdById      String
-  recipeId         String?
-  mealPlanEntryId  String?
-  query            String
-  latitude         Float?
-  longitude        Float?
-  city             String?
-  region           String?
-  status           RestaurantFallbackSearchStatus @default(pending)
-  resultCount      Int                           @default(0)
-  errorMessage     String?
-  createdAt        DateTime                      @default(now())
-  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy        User                          @relation("RestaurantSearchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  recipe           Recipe?                       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  results          RestaurantFallbackResult[]
+  id              String                         @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  createdById     String
+  recipeId        String?
+  mealPlanEntryId String?
+  query           String
+  latitude        Float?
+  longitude       Float?
+  city            String?
+  region          String?
+  status          RestaurantFallbackSearchStatus @default(pending)
+  resultCount     Int                            @default(0)
+  errorMessage    String?
+  createdAt       DateTime                       @default(now())
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User                           @relation("RestaurantSearchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recipe          Recipe?                        @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  results         RestaurantFallbackResult[]
 
   @@index([organizationId])
   @@index([countryCode])

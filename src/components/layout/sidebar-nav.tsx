@@ -32,6 +32,7 @@ const adminLinks = [
   { href: "/admin/audit-logs", label: "Audit Trail", icon: Logs },
   { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
   { href: "/admin/meal-planner", label: "Meal Planner", icon: CalendarDays },
+  { href: "/admin/grocery-partners", label: "Grocery Partners", icon: ShoppingCart },
   { href: "/admin/home-chef-requests", label: "Home Chef Requests", icon: UtensilsCrossed },
   { href: "/admin/chefs", label: "Chef Marketplace", icon: ChefHat },
   { href: "/admin/system-settings", label: "System Settings", icon: Cog },

@@ -25,6 +25,29 @@ export const groceryItemUpdateSchema = z.object({
   displayUnit: z.string().max(20).optional(),
 });
 
+export const groceryListShareCreateSchema = z.object({
+  expiresInDays: z.coerce.number().int().min(1).max(90).optional(),
+});
+
+export const groceryListEmailPlaceholderSchema = z.object({
+  recipientEmail: z.string().email().max(255),
+  note: z.string().max(500).optional(),
+});
+
+export const groceryPartnerSchema = z.object({
+  countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
+  name: z.string().trim().min(2).max(120),
+  websiteUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
+  logoUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
+  supportedRegions: z.string().max(2000).optional(),
+  integrationType: z.enum(["manual_link", "affiliate_link", "api_placeholder", "export_only"]),
+  status: z.enum(["draft", "active", "paused", "disabled"]),
+  notes: z.string().max(2000).optional(),
+});
+
 export type GroceryListCreateInput = z.infer<typeof groceryListCreateSchema>;
 export type GroceryListUpdateInput = z.infer<typeof groceryListUpdateSchema>;
 export type GroceryItemUpdateInput = z.infer<typeof groceryItemUpdateSchema>;
+export type GroceryListShareCreateInput = z.infer<typeof groceryListShareCreateSchema>;
+export type GroceryListEmailPlaceholderInput = z.infer<typeof groceryListEmailPlaceholderSchema>;
+export type GroceryPartnerInput = z.infer<typeof groceryPartnerSchema>;
