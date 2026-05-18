@@ -9,15 +9,10 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getRecipeById } from "@/server/recipes";
 import { formatTotalTime, groupIngredientsBySection } from "@/lib/recipe-utils";
-import { isAIVideoAnalysisAvailable, getVideoAnalysisConfig } from "@/lib/video-analysis-config";
 import { isYouTubeDiscoveryAvailable } from "@/lib/youtube-discovery-config";
-import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
-import { listAnalysisJobsForReference } from "@/server/video-analysis/video-analysis-jobs";
 import { listCandidatesForRecipe } from "@/server/youtube-discovery/candidate-service";
 import { getDiscoveryRunsForRecipe } from "@/server/youtube-discovery/discovery-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
-import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
-import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
 import { FormMessage } from "@/components/ui/form-message";
 import { formatYouTubeDuration } from "@/lib/youtube";
 
@@ -47,25 +42,13 @@ export default async function AdminRecipeDetailPage({
     session.user.platformRole === "platform_admin";
 
   const sections = groupIngredientsBySection(recipe.ingredients);
-  const aiConfigured = isAIVideoAnalysisAvailable();
-  const aiProviderName = getVideoAnalysisConfig().provider;
   const discoveryAvailable = isYouTubeDiscoveryAvailable();
 
   const youtubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")
     .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0) || a.displayOrder - b.displayOrder);
 
-  // Fetch analyses, jobs, and candidates in parallel
-  const [refAnalysisData, candidates, discoveryRuns] = await Promise.all([
-    Promise.all(
-      youtubeRefs.map(async (ref) => {
-        const [analyses, jobs] = await Promise.all([
-          getVideoAnalysesForReference(ref.id),
-          listAnalysisJobsForReference(ref.id),
-        ]);
-        return { ref, analyses, jobs };
-      }),
-    ),
+  const [candidates, discoveryRuns] = await Promise.all([
     listCandidatesForRecipe(id),
     getDiscoveryRunsForRecipe(id),
   ]);
@@ -142,12 +125,13 @@ export default async function AdminRecipeDetailPage({
           <p className="mt-3 text-sm text-[var(--color-muted)]">No video references yet.</p>
         ) : (
           <div className="mt-4 space-y-6">
-            {refAnalysisData.map(({ ref, analyses, jobs }) => (
+            {youtubeRefs.map((ref) => (
               <div key={ref.id} className="space-y-4 rounded-2xl border border-[var(--color-border)] p-4">
                 <VideoReferenceCard ref_={ref} showEmbed={false} isAdmin />
 
                 <div className="flex flex-wrap items-center gap-2">
                   {ref.isPrimary && <Badge tone="success">Primary</Badge>}
+                  <Badge tone="neutral">{ref.availabilityStatus}</Badge>
                   <Badge tone="neutral">{ref.language ?? "no language"}</Badge>
                   {ref.creatorName && <span className="text-sm text-[var(--color-muted)]">{ref.creatorName}</span>}
                   {canMutate && (
@@ -161,93 +145,6 @@ export default async function AdminRecipeDetailPage({
                   )}
                 </div>
 
-                {/* Analysis controls */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-[var(--color-ink)]">
-                      AI analysis ({analyses.length})
-                    </p>
-                    {canMutate && (
-                      <AIAnalysisButton
-                        recipeId={recipe.id}
-                        recipeMediaReferenceId={ref.id}
-                        aiConfigured={aiConfigured}
-                        providerName={aiProviderName}
-                        videoAvailable={ref.availabilityStatus !== "unavailable" && ref.availabilityStatus !== "restricted"}
-                      />
-                    )}
-                  </div>
-
-                  {/* Job status */}
-                  {jobs.slice(0, 3).map((job) => (
-                    <div key={job.id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-                      <span className={`inline-block h-2 w-2 rounded-full ${
-                        job.status === "completed" ? "bg-emerald-500"
-                        : job.status === "failed" ? "bg-red-500"
-                        : job.status === "running" ? "bg-amber-500"
-                        : "bg-slate-300"
-                      }`} />
-                      Job {job.status} · {job.sourceType} · {job.createdAt.toLocaleDateString()}
-                      {job.errorMessage && (
-                        <span className="text-red-600"> — {job.errorMessage}</span>
-                      )}
-                    </div>
-                  ))}
-
-                  {analyses.map((analysis) => (
-                    <div key={analysis.id} className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={
-                          analysis.verificationStatus === "verified" ? "success"
-                          : analysis.verificationStatus === "rejected" ? "neutral"
-                          : analysis.verificationStatus === "needs_review" ? "warning"
-                          : "info"
-                        }>
-                          {analysis.verificationStatus}
-                        </Badge>
-                        <Badge tone="neutral">{analysis.confidence}</Badge>
-                        {analysis.aiProvider && <Badge tone="neutral">source: {analysis.aiProvider}</Badge>}
-                        {analysis.rawTranscriptProvided && <Badge tone="info">transcript provided</Badge>}
-                        <span className="text-xs text-[var(--color-muted)]">
-                          {analysis.createdAt.toLocaleDateString()}
-                        </span>
-
-                        {/* Verification controls */}
-                        {canMutate && analysis.verificationStatus !== "verified" && (
-                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
-                            <input type="hidden" name="verificationStatus" value="verified" />
-                            <button type="submit" className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
-                              Verify and add to training data
-                            </button>
-                          </form>
-                        )}
-                        {canMutate && analysis.verificationStatus !== "rejected" && (
-                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
-                            <input type="hidden" name="verificationStatus" value="rejected" />
-                            <button type="submit" className="rounded-xl bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700">
-                              Reject
-                            </button>
-                          </form>
-                        )}
-                        {canMutate && analysis.verificationStatus !== "needs_review" && (
-                          <form action={`/api/video-analysis/analyses/${analysis.id}/verify`} method="post" className="flex gap-2">
-                            <input type="hidden" name="verificationStatus" value="needs_review" />
-                            <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)] hover:bg-slate-50">
-                              Needs review
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-                        Only verified corrected analyses should become training data.
-                        {analysis.aiProvider === "mock" ? " Mock output should not be used unless an admin has manually corrected it first." : ""}
-                      </div>
-                      <VideoAnalysisDisplay analysis={analysis} />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Edit/delete controls */}
                 {canMutate && (
                   <div className="flex gap-2 border-t border-[var(--color-border)] pt-3">
                     <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">

@@ -24,20 +24,17 @@ const FEATURE_FLAGS = [
   "meal_planner",
   "grocery_engine",
   "youtube_references",
-  "ai_video_analysis",
-  "ai_training",
   "home_chefs",
   "restaurant_fallback",
   "grocery_partners",
   "payments",
   "subscriptions",
-  "ai_suggestions",
   "family_profiles",
 ];
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "ai_video_analysis", "family_profiles"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -1671,6 +1668,9 @@ async function main() {
     }
   }
 
+  // Remove discontinued AI flags from the database.
+  await prisma.featureFlag.deleteMany({ where: { key: { in: ["ai_video_analysis", "ai_training", "ai_suggestions"] } } });
+
   const existingSubscription = await prisma.billingSubscription.findFirst({ where: { organizationId: householdOrg.id, planCode: "foundation-trial" } });
   if (!existingSubscription) {
     await prisma.billingSubscription.create({
@@ -1725,10 +1725,7 @@ async function main() {
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
 
-  // Remove all YouTube video references on global (platform) recipes.
-  // availabilityStatus cannot be used here until the video-availability migration is applied.
-  // This gives a clean slate — admins discover and import verified videos via
-  // /admin/youtube-discovery once YOUTUBE_DATA_API_KEY is configured.
+  // Clear then re-seed curated YouTube videos for all platform recipes.
   await prisma.recipeMediaReference.deleteMany({
     where: {
       type: "youtube",
@@ -1736,9 +1733,62 @@ async function main() {
     },
   });
 
+  console.log("Seeding curated YouTube videos...");
+  await seedRecipeVideos();
+
   console.log("Seed complete.");
 }
 
+
+async function seedRecipeVideos() {
+  const VIDEO_REFS = [
+    { slug: "hyderabadi-chicken-biryani", videoId: "mFZkmjC2B3Y", title: "Authentic Hyderabadi Chicken Dum Biryani" },
+    { slug: "hyderabadi-mutton-biryani",  videoId: "HLaLwAeAxBw", title: "Hyderabadi Mutton Biryani – Masala Trails with Smita Deo" },
+    { slug: "khatti-dal",                  videoId: "Lj0ENznPLqg", title: "Hyderabadi Khatti Dal – Chef Sanjyot Keer" },
+    { slug: "bagara-khana",               videoId: "SDqohCr7rz0", title: "Bagara Khana – Nawab's Kitchen" },
+    { slug: "mirchi-ka-salan",            videoId: "3WD_YOaj4h4", title: "Mirchi Ka Salan – Authentic Hyderabadi Recipe" },
+    { slug: "tala-hua-gosht",             videoId: "jgVD8EeicIg", title: "Tala Hua Gosht – Traditional Hyderabadi on Tawa" },
+    { slug: "kheema",                     videoId: "OLKnHiYxH2M", title: "Hyderabadi Dum Ka Keema" },
+    { slug: "double-ka-meetha",           videoId: "i5Zmw7ZGeIU", title: "Double Ka Meetha – Nawab's Kitchen Official" },
+    { slug: "dahi-ki-chutney",            videoId: "aKylCGKtumA", title: "Dahi Ki Chutney – Norien Nasri" },
+    { slug: "haleem",                     videoId: "2kMZA1W4Sn8", title: "World Famous Pista House Haleem" },
+    { slug: "bagara-baingan",             videoId: "MusgIHWeH0Y", title: "Bagare Baingan – Hyderabadi Nizams Style – Cook With Fem" },
+    { slug: "qubani-ka-meetha",           videoId: "ZDrCpK7Le4U", title: "Qubani Ka Meetha – Authentic Hyderabadi – Norien Nasri" },
+    { slug: "dum-ka-chicken",             videoId: "lOk1lD2z-yU", title: "Hyderabadi Dum Ka Murgh – Cook With Fem" },
+    { slug: "shami-kabab",               videoId: "jPlotlxOSgM", title: "Hyderabadi Shami Kabab – Cook With Fem" },
+    { slug: "kaddu-ka-dalcha",            videoId: "hAZklLbETqU", title: "Hyderabadi Kaddu Ka Dalcha" },
+    { slug: "tamatar-ki-chutney",         videoId: "_22q5ztwox8", title: "Hyderabadi Gadre Tamatar Chutney – Old Style" },
+    { slug: "chicken-65",                 videoId: "xSefj4uFou8", title: "Hyderabadi Chicken 65 – Restaurant Style" },
+    { slug: "luqmi",                      videoId: "nOrBtMxOM5k", title: "Hyderabadi Warqi Kheema Lukhmi – Cook With Fem" },
+    { slug: "sheer-khurma",               videoId: "JPX1_hyGW-8", title: "World Famous Hyderabadi Sheer Khurma – Norien Nasri" },
+    { slug: "osmania-biscuit",            videoId: "c2Q5eZTUrLg", title: "Osmania Biscuit – Hyderabad Famous Biscuits at Home" },
+  ] as const;
+
+  for (const ref of VIDEO_REFS) {
+    const recipe = await prisma.recipe.findFirst({
+      where: { slug: ref.slug, organizationId: null },
+    });
+    if (!recipe) {
+      console.warn(`  [skip] Recipe not found for slug: ${ref.slug}`);
+      continue;
+    }
+    await prisma.recipeMediaReference.create({
+      data: {
+        recipeId: recipe.id,
+        type: "youtube",
+        provider: "youtube",
+        title: ref.title,
+        url: `https://www.youtube.com/watch?v=${ref.videoId}`,
+        embedUrl: `https://www.youtube.com/embed/${ref.videoId}`,
+        externalId: ref.videoId,
+        thumbnailUrl: `https://img.youtube.com/vi/${ref.videoId}/hqdefault.jpg`,
+        isPrimary: true,
+        displayOrder: 0,
+      },
+    });
+    console.log(`  [ok] ${ref.slug} → ${ref.videoId}`);
+  }
+}
 
 main()
   .then(async () => { await prisma.$disconnect(); })

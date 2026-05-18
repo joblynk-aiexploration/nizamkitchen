@@ -9,11 +9,7 @@ import { formatTotalTime, formatQuantity, groupIngredientsBySection } from "@/li
 import { getRecipeById } from "@/server/recipes";
 import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { isAIVideoAnalysisAvailable, getVideoAnalysisConfig } from "@/lib/video-analysis-config";
-import { getVideoAnalysesForReference } from "@/server/video-analysis/video-analysis-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
-import { VideoAnalysisDisplay } from "@/components/video/video-analysis-display";
-import { AIAnalysisButton } from "@/components/video/ai-analysis-button";
 import { favoriteRecipeAction } from "@/app/(app)/household/actions";
 import {
   canAccessFamilyProfiles,
@@ -55,10 +51,7 @@ export default async function RecipeDetailPage({
   const canEdit = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES) ||
     (recipe.organizationId === orgId);
 
-  const [youtubeEnabled, aiAnalysisEnabled] = await Promise.all([
-    isFeatureEnabled("youtube_references", orgId),
-    isFeatureEnabled("ai_video_analysis", orgId),
-  ]);
+  const youtubeEnabled = await isFeatureEnabled("youtube_references", orgId);
   const familyProfilesEnabled = await canAccessFamilyProfiles({
     organizationId: orgId,
     platformRole: session.user.platformRole,
@@ -80,17 +73,6 @@ export default async function RecipeDetailPage({
   const otherRefs = recipe.mediaRefs.filter((r) => r.type !== "youtube");
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
 
-  // Fetch analyses for the primary video only (avoid over-fetching)
-  const primaryAnalyses = primaryRef && aiAnalysisEnabled
-    ? await getVideoAnalysesForReference(primaryRef.id)
-    : [];
-
-  const latestAnalysis = primaryAnalyses.find(
-    (a) => a.verificationStatus === "verified",
-  ) ?? primaryAnalyses[0] ?? null;
-
-  const aiConfigured = isAIVideoAnalysisAvailable();
-  const aiProviderName = getVideoAnalysisConfig().provider;
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
   const [favorite, avoidedIngredients] = showHouseholdTools
     ? await Promise.all([
@@ -153,59 +135,29 @@ export default async function RecipeDetailPage({
         </Card>
       )}
 
-      {/* Video references section */}
-      {youtubeEnabled ? (
-        youtubeRefs.length > 0 ? (
-          <div className="space-y-4">
-            <h2 className="font-semibold text-[var(--color-ink)]">Video</h2>
-
-            {primaryRef ? (
-              <VideoReferenceCard ref_={primaryRef} showEmbed />
-            ) : (
-              <Card>
-                <p className="text-sm text-[var(--color-muted)]">No verified cooking video has been added yet.</p>
-              </Card>
-            )}
-
-            {youtubeRefs.length > 1 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-[var(--color-muted)]">More videos</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {youtubeRefs.filter((r) => r.id !== primaryRef?.id).map((ref) => (
-                    <VideoReferenceCard key={ref.id} ref_={ref} showEmbed={false} />
-                  ))}
-                </div>
+      {/* Video section */}
+      {youtubeEnabled && (
+        <div className="space-y-4">
+          <h2 className="font-semibold text-[var(--color-ink)]">Video</h2>
+          {primaryRef ? (
+            <VideoReferenceCard ref_={primaryRef} showEmbed />
+          ) : (
+            <Card>
+              <p className="text-sm text-[var(--color-muted)]">No verified cooking video has been added yet.</p>
+            </Card>
+          )}
+          {youtubeRefs.length > 1 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-[var(--color-muted)]">More videos</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {youtubeRefs.filter((r) => r.id !== primaryRef?.id).map((ref) => (
+                  <VideoReferenceCard key={ref.id} ref_={ref} showEmbed={false} />
+                ))}
               </div>
-            )}
-
-            {/* AI analysis section */}
-            {aiAnalysisEnabled && primaryRef && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <h3 className="font-semibold text-[var(--color-ink)]">AI video analysis</h3>
-                  <AIAnalysisButton
-                    recipeId={recipe.id}
-                    recipeMediaReferenceId={primaryRef.id}
-                    aiConfigured={aiConfigured}
-                    providerName={aiProviderName}
-                    videoAvailable={primaryRef.availabilityStatus !== "unavailable" && primaryRef.availabilityStatus !== "restricted"}
-                  />
-                </div>
-
-                {latestAnalysis ? (
-                  <VideoAnalysisDisplay analysis={latestAnalysis} />
-                ) : (
-                  <Card>
-                    <p className="text-sm text-[var(--color-muted)]">
-                      No AI analysis yet for this video. Click &ldquo;Analyze with AI&rdquo; to generate one.
-                    </p>
-                  </Card>
-                )}
-              </div>
-            )}
-          </div>
-        ) : null
-      ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
         <div className="space-y-6">

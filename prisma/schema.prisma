@@ -80,15 +80,9 @@ model User {
   apiKeys                    ApiKey[]
   groceryLists               GroceryList[]
   createdMealPlans           MealPlan[]              @relation("MealPlanCreatedBy")
-  videoAnalysesAnalyzedBy    RecipeVideoAnalysis[]   @relation("VideoAnalysisAnalyzedBy")
-  videoAnalysesVerifiedBy    RecipeVideoAnalysis[]   @relation("VideoAnalysisVerifiedBy")
-  videoAnalysisJobsRequested VideoAnalysisJob[]      @relation("VideoAnalysisJobRequestedBy")
   discoveryRuns              YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
   reviewedCandidates         YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
   favoriteRecipesCreated     FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
-  aiTrainingExamplesCreated  AiTrainingExample[]     @relation("AiTrainingExampleCreatedBy")
-  aiTrainingExamplesVerified AiTrainingExample[]     @relation("AiTrainingExampleVerifiedBy")
-  aiTrainingDatasetsCreated  AiTrainingDataset[]     @relation("AiTrainingDatasetCreatedBy")
 }
 
 model Session {
@@ -138,10 +132,11 @@ model Organization {
   mealPlanPreference   MealPlanPreference?
   householdProfile     HouseholdProfile?
   householdPreferences HouseholdPreference[]
+  preferredCuisines    HouseholdPreferredCuisine[]
   avoidedIngredients   AvoidedIngredient[]
   favoriteRecipes      FavoriteRecipe[]
   pantryItems          HouseholdPantryItem[]
-  aiTrainingExamples   AiTrainingExample[]
+  shoppingPreference   HouseholdShoppingPreference?
 
   @@index([countryCode])
   @@index([status])
@@ -409,105 +404,6 @@ enum MediaProvider {
   other
 }
 
-enum VideoAnalysisSource {
-  manual
-  transcript_ai
-  frames_ai
-  transcript_and_frames_ai
-  imported
-}
-
-enum VideoAnalysisVerificationStatus {
-  ai_draft
-  needs_review
-  verified
-  rejected
-}
-
-enum VideoAnalysisConfidence {
-  exact
-  high
-  medium
-  low
-  unknown
-}
-
-enum VideoAnalysisJobStatus {
-  queued
-  running
-  completed
-  failed
-  cancelled
-}
-
-enum VideoAnalysisSourceType {
-  youtube_reference
-  pasted_transcript
-  uploaded_video
-  uploaded_audio
-  manual
-}
-
-enum VideoRecipeDifferenceType {
-  ingredient_difference
-  quantity_difference
-  step_difference
-  timing_difference
-  technique_difference
-  spice_level_difference
-  other
-}
-
-enum DifferenceSeverity {
-  info
-  warning
-  important
-}
-
-enum AiTrainingExampleStatus {
-  draft
-  verified
-  rejected
-  exported
-}
-
-enum AiTrainingSourceType {
-  manual
-  ai_draft_corrected
-  transcript
-  video_analysis
-  imported
-}
-
-enum AiTrainingTaskType {
-  cooking_video_transcript_to_structured_analysis
-  ingredient_extraction
-  cooking_step_extraction
-  recipe_difference_detection
-}
-
-enum AiTrainingDatasetStatus {
-  draft
-  ready
-  exported
-  archived
-}
-
-enum AiTrainingRunStatus {
-  queued
-  running
-  completed
-  failed
-  cancelled
-}
-
-enum AiModelType {
-  local_rules
-  local_finetune_placeholder
-  local_http
-  external_placeholder
-}
-
 enum YouTubeDiscoveryRunStatus {
   queued
   running
@@ -543,6 +439,13 @@ enum AvoidedIngredientSeverity {
   strict
 }
 
+enum PreferredDeliveryMethod {
+  pickup
+  delivery
+  in_store
+  no_preference
+}
+
 model Cuisine {
   id          String   @id @default(cuid())
   name        String
@@ -553,6 +456,7 @@ model Cuisine {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   recipes     Recipe[]
+  householdPreferredCuisines HouseholdPreferredCuisine[]
 
   @@index([countryCode])
 }
@@ -576,7 +480,6 @@ model Unit {
   groceryListItems           GroceryListItem[]
   originalGroceryItemSources GroceryListItemSource[]   @relation("SourceOriginalUnit")
   scaledGroceryItemSources   GroceryListItemSource[]   @relation("SourceScaledUnit")
-  videoAnalysisIngredients   VideoAnalysisIngredient[]
   householdPantryItems       HouseholdPantryItem[]
 
   @@index([type])
@@ -604,7 +507,6 @@ model Ingredient {
   unitConversions          UnitConversion[]
   groceryListItems         GroceryListItem[]
   groceryWarnings          GroceryConversionWarning[]
-  videoAnalysisIngredients VideoAnalysisIngredient[]
   avoidedIngredients       AvoidedIngredient[]
   householdPantryItems     HouseholdPantryItem[]
 
@@ -683,12 +585,9 @@ model Recipe {
   groceryItemSources GroceryListItemSource[]
   groceryWarnings    GroceryConversionWarning[]
   mealPlanEntries    MealPlanEntry[]
-  videoAnalyses      RecipeVideoAnalysis[]
-  videoAnalysisJobs  VideoAnalysisJob[]
   discoveryRuns      YouTubeDiscoveryRun[]
   youtubeCandidates  YouTubeVideoCandidate[]
   favoriteRecipes    FavoriteRecipe[]
-  aiTrainingExamples AiTrainingExample[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -762,10 +661,6 @@ model RecipeMediaReference {
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
   recipe                    Recipe                  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  videoAnalyses             RecipeVideoAnalysis[]
-  analysisJobs              VideoAnalysisJob[]
-  trainingExamples          AiTrainingExample[]
-
   @@index([recipeId])
   @@index([isPrimary])
 }
@@ -988,6 +883,19 @@ model HouseholdProfile {
   @@index([countryCode])
 }
 
+model HouseholdPreferredCuisine {
+  id             String       @id @default(cuid())
+  organizationId String
+  cuisineId      String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cuisine        Cuisine      @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, cuisineId])
+  @@index([organizationId])
+  @@index([cuisineId])
+}
+
 model HouseholdPreference {
   id             String       @id @default(cuid())
   organizationId String
@@ -1049,6 +957,20 @@ model HouseholdPantryItem {
   @@index([organizationId])
   @@index([ingredientId])
   @@index([expiresAt])
+}
+
+model HouseholdShoppingPreference {
+  id                      String                  @id @default(cuid())
+  organizationId          String                  @unique
+  preferredStoreName      String?
+  preferredShoppingDay    String?
+  preferredDeliveryMethod PreferredDeliveryMethod @default(no_preference)
+  notes                   String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  organization            Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model GroceryListRecipe {
@@ -1138,246 +1060,6 @@ model GroceryConversionWarning {
 
   @@index([groceryListId])
   @@index([ingredientId])
-}
-
-// ─── Video Analysis ───────────────────────────────────────────────────────────
-
-model RecipeVideoAnalysis {
-  id                     String                          @id @default(cuid())
-  recipeMediaReferenceId String
-  recipeId               String
-  organizationId         String?
-  countryCode            String?
-  title                  String
-  summary                String?
-  analysisSource         VideoAnalysisSource
-  aiProvider             String?
-  aiModel                String?
-  promptVersion          String                          @default("v1")
-  verificationStatus     VideoAnalysisVerificationStatus @default(ai_draft)
-  confidence             VideoAnalysisConfidence         @default(unknown)
-  analyzedByUserId       String?
-  verifiedByUserId       String?
-  verifiedAt             DateTime?
-  rawTranscriptProvided  Boolean                         @default(false)
-  framesAnalyzedCount    Int?
-  analysisCostCents      Int?
-  errorMessage           String?
-  notes                  String?
-  createdAt              DateTime                        @default(now())
-  updatedAt              DateTime                        @updatedAt
-  mediaReference         RecipeMediaReference            @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
-  recipe                 Recipe                          @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  analyzedBy             User?                           @relation("VideoAnalysisAnalyzedBy", fields: [analyzedByUserId], references: [id], onDelete: SetNull)
-  verifiedBy             User?                           @relation("VideoAnalysisVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
-  ingredients            VideoAnalysisIngredient[]
-  steps                  VideoAnalysisStep[]
-  differences            VideoRecipeDifference[]
-  trainingExamples       AiTrainingExample[]
-
-  @@index([recipeMediaReferenceId])
-  @@index([recipeId])
-  @@index([organizationId])
-  @@index([verificationStatus])
-}
-
-model VideoAnalysisIngredient {
-  id                       String                  @id @default(cuid())
-  videoAnalysisId          String
-  ingredientId             String?
-  ingredientName           String
-  normalizedIngredientName String?
-  quantity                 Float?
-  unitId                   String?
-  unitName                 String?
-  preparationNote          String?
-  timestampStartSeconds    Int?
-  timestampEndSeconds      Int?
-  confidence               VideoAnalysisConfidence @default(unknown)
-  evidenceText             String?
-  evidenceFrameTimestamp   Int?
-  notes                    String?
-  displayOrder             Int                     @default(0)
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
-  videoAnalysis            RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
-  ingredient               Ingredient?             @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
-  unit                     Unit?                   @relation(fields: [unitId], references: [id], onDelete: SetNull)
-
-  @@index([videoAnalysisId])
-  @@index([ingredientId])
-}
-
-model VideoAnalysisStep {
-  id                     String                  @id @default(cuid())
-  videoAnalysisId        String
-  stepNumber             Int
-  title                  String?
-  description            String
-  timestampStartSeconds  Int?
-  timestampEndSeconds    Int?
-  durationSeconds        Int?
-  temperature            String?
-  technique              String?
-  confidence             VideoAnalysisConfidence @default(unknown)
-  evidenceText           String?
-  evidenceFrameTimestamp Int?
-  notes                  String?
-  displayOrder           Int                     @default(0)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  videoAnalysis          RecipeVideoAnalysis     @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
-
-  @@index([videoAnalysisId])
-}
-
-model VideoRecipeDifference {
-  id              String                    @id @default(cuid())
-  videoAnalysisId String
-  differenceType  VideoRecipeDifferenceType
-  title           String
-  description     String
-  severity        DifferenceSeverity        @default(info)
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  videoAnalysis   RecipeVideoAnalysis       @relation(fields: [videoAnalysisId], references: [id], onDelete: Cascade)
-
-  @@index([videoAnalysisId])
-}
-
-model VideoAnalysisSourceFile {
-  id               String              @id @default(cuid())
-  organizationId   String?
-  uploadedByUserId String
-  storageKey       String              @unique
-  contentType      String
-  sizeBytes        Int
-  originalFileName String?
-  durationSeconds  Int?
-  processingStatus String              @default("pending")
-  errorMessage     String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  analysisJobs     VideoAnalysisJob[]
-
-  @@index([organizationId])
-  @@index([uploadedByUserId])
-  @@index([processingStatus])
-}
-
-model VideoAnalysisJob {
-  id                     String                    @id @default(cuid())
-  recipeMediaReferenceId String
-  recipeId               String
-  organizationId         String?
-  requestedByUserId      String
-  status                 VideoAnalysisJobStatus    @default(queued)
-  sourceType             VideoAnalysisSourceType
-  transcriptText         String?
-  uploadedFileId         String?
-  errorMessage           String?
-  startedAt              DateTime?
-  completedAt            DateTime?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
-  mediaReference         RecipeMediaReference      @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: Cascade)
-  recipe                 Recipe                    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  requestedBy            User                      @relation("VideoAnalysisJobRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  sourceFile             VideoAnalysisSourceFile?  @relation(fields: [uploadedFileId], references: [id], onDelete: SetNull)
-
-  @@index([recipeMediaReferenceId])
-  @@index([recipeId])
-  @@index([organizationId])
-  @@index([status])
-  @@index([uploadedFileId])
-}
-
-// ─── AI Training Foundation ──────────────────────────────────────────────────
-
-model AiTrainingExample {
-  id                     String                     @id @default(cuid())
-  organizationId         String?
-  countryCode            String?
-  recipeId               String?
-  recipeMediaReferenceId String?
-  recipeVideoAnalysisId  String?
-  createdByUserId        String
-  verifiedByUserId       String?
-  status                 AiTrainingExampleStatus    @default(draft)
-  sourceType             AiTrainingSourceType
-  taskType               AiTrainingTaskType
-  inputJson              Json
-  expectedOutputJson     Json
-  notes                  String?
-  qualityScore           Int?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
-  verifiedAt             DateTime?
-  organization           Organization?              @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  recipe                 Recipe?                    @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  recipeMediaReference   RecipeMediaReference?      @relation(fields: [recipeMediaReferenceId], references: [id], onDelete: SetNull)
-  recipeVideoAnalysis    RecipeVideoAnalysis?       @relation(fields: [recipeVideoAnalysisId], references: [id], onDelete: SetNull)
-  createdBy              User                       @relation("AiTrainingExampleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  verifiedBy             User?                      @relation("AiTrainingExampleVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
-  datasetExamples        AiTrainingDatasetExample[]
-
-  @@unique([recipeVideoAnalysisId])
-  @@index([organizationId])
-  @@index([countryCode])
-  @@index([recipeId])
-  @@index([status])
-  @@index([taskType])
-}
-
-model AiTrainingDataset {
-  id              String                     @id @default(cuid())
-  name            String
-  description     String?
-  status          AiTrainingDatasetStatus    @default(draft)
-  taskType        AiTrainingTaskType
-  exampleCount    Int                        @default(0)
-  version         Int                        @default(1)
-  createdByUserId String
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  createdBy       User                       @relation("AiTrainingDatasetCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  examples        AiTrainingDatasetExample[]
-  runs            AiTrainingRun[]
-
-  @@index([status])
-  @@index([taskType])
-}
-
-model AiTrainingDatasetExample {
-  id        String            @id @default(cuid())
-  datasetId String
-  exampleId String
-  createdAt DateTime          @default(now())
-  dataset   AiTrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  example   AiTrainingExample @relation(fields: [exampleId], references: [id], onDelete: Cascade)
-
-  @@unique([datasetId, exampleId])
-  @@index([exampleId])
-}
-
-model AiTrainingRun {
-  id                 String              @id @default(cuid())
-  datasetId          String
-  status             AiTrainingRunStatus @default(queued)
-  modelType          AiModelType
-  baseModel          String?
-  outputModelPath    String?
-  trainingConfigJson Json
-  metricsJson        Json?
-  errorMessage       String?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  dataset            AiTrainingDataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-
-  @@index([datasetId])
-  @@index([status])
 }
 
 // ─── YouTube Discovery ────────────────────────────────────────────────────────
