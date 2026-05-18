@@ -19,7 +19,7 @@ export default async function HouseholdPage({ searchParams }: { searchParams: Pr
   if (!enabled) return <ComingSoonFamilyProfiles />;
   if (org.organizationType !== "household") return <NonHouseholdState organizationType={org.organizationType} />;
 
-  const { profile, avoidedIngredients, favorites, pantryItems } = await getHouseholdOverview(org.id);
+  const { profile, avoidedIngredients, favorites, pantryItems, preferredCuisines, shoppingPreference } = await getHouseholdOverview(org.id);
 
   return (
     <div className="space-y-8">
@@ -41,6 +41,14 @@ export default async function HouseholdPage({ searchParams }: { searchParams: Pr
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card>
+          <h2 className="font-semibold">Preferred cuisines</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {preferredCuisines.length === 0 ? <p className="text-sm text-[var(--color-muted)]">No preferred cuisines set yet.</p> : preferredCuisines.map((item) => (
+              <Badge key={item.id} tone="info">{item.cuisine.name}</Badge>
+            ))}
+          </div>
+        </Card>
+        <Card>
           <h2 className="font-semibold">Avoided ingredients</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {avoidedIngredients.length === 0 ? <p className="text-sm text-[var(--color-muted)]">No avoided ingredients yet.</p> : avoidedIngredients.slice(0, 8).map((item) => (
@@ -56,6 +64,13 @@ export default async function HouseholdPage({ searchParams }: { searchParams: Pr
         <Card>
           <h2 className="font-semibold">Pantry placeholder</h2>
           <p className="mt-3 text-sm text-[var(--color-muted)]">{pantryItems.length} pantry item{pantryItems.length === 1 ? "" : "s"} tracked for future grocery planning.</p>
+        </Card>
+        <Card>
+          <h2 className="font-semibold">Shopping preferences</h2>
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            {shoppingPreference?.preferredStoreName ?? "No preferred store yet"} · {shoppingPreference?.preferredDeliveryMethod ?? "no_preference"}
+          </p>
+          <Link href="/household/shopping-preferences" className="mt-3 inline-block text-sm font-semibold text-[var(--color-primary)]">Edit shopping preferences</Link>
         </Card>
       </div>
     </div>

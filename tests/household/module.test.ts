@@ -6,6 +6,15 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => ({
       findUnique: vi.fn(),
       upsert: vi.fn(),
     },
+    householdPreferredCuisine: {
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    householdShoppingPreference: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
     mealPlanPreference: {
       upsert: vi.fn(),
     },
@@ -29,6 +38,7 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    $transaction: vi.fn((ops) => Promise.all(ops)),
   },
   createAuditEvent: vi.fn(),
   isFeatureEnabled: vi.fn(),
@@ -46,6 +56,7 @@ import {
   findAvoidedIngredientMatches,
   isHouseholdOrganization,
   removeFavoriteRecipe,
+  upsertShoppingPreference,
   updatePantryItem,
   upsertHouseholdProfile,
 } from "../../src/server/household";
@@ -59,6 +70,8 @@ describe("household profiles and preferences", () => {
     mockPrisma.householdProfile.findUnique.mockResolvedValue(null);
     mockPrisma.householdProfile.upsert.mockResolvedValue({ id: "profile-1" });
     mockPrisma.mealPlanPreference.upsert.mockResolvedValue({ id: "meal-pref-1" });
+    mockPrisma.householdPreferredCuisine.deleteMany.mockReturnValue(Promise.resolve({ count: 0 }));
+    mockPrisma.householdPreferredCuisine.upsert.mockReturnValue(Promise.resolve({ id: "pref-cuisine-1" }));
 
     await upsertHouseholdProfile({
       organizationId: "org-1",
@@ -91,6 +104,11 @@ describe("household profiles and preferences", () => {
         update: expect.objectContaining({ defaultHouseholdSize: 5, spicePreference: "medium" }),
       }),
     );
+    expect(mockPrisma.householdPreferredCuisine.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId_cuisineId: { organizationId: "org-1", cuisineId: "cuisine-1" } },
+      }),
+    );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "household_profile.created" }));
   });
 
@@ -98,6 +116,7 @@ describe("household profiles and preferences", () => {
     mockPrisma.householdProfile.findUnique.mockResolvedValue({ id: "profile-1" });
     mockPrisma.householdProfile.upsert.mockResolvedValue({ id: "profile-1" });
     mockPrisma.mealPlanPreference.upsert.mockResolvedValue({ id: "meal-pref-1" });
+    mockPrisma.householdPreferredCuisine.deleteMany.mockReturnValue(Promise.resolve({ count: 0 }));
 
     await upsertHouseholdProfile({
       organizationId: "org-1",
@@ -234,5 +253,33 @@ describe("household profiles and preferences", () => {
       }),
     );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "pantry_item.updated" }));
+  });
+
+  it("updates shopping preferences with audit logs", async () => {
+    mockPrisma.householdShoppingPreference.upsert.mockResolvedValue({
+      id: "shopping-1",
+      preferredShoppingDay: "saturday",
+      preferredDeliveryMethod: "pickup",
+    });
+
+    await upsertShoppingPreference({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      countryCode: "US",
+      input: {
+        preferredStoreName: "Local halal market",
+        preferredShoppingDay: "saturday",
+        preferredDeliveryMethod: "pickup",
+        notes: "Prefer curbside pickup.",
+      },
+    });
+
+    expect(mockPrisma.householdShoppingPreference.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: "org-1" },
+        create: expect.objectContaining({ organizationId: "org-1", preferredDeliveryMethod: "pickup" }),
+      }),
+    );
+    expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "shopping_preference.updated" }));
   });
 });

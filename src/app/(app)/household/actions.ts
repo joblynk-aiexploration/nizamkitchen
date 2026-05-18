@@ -13,6 +13,7 @@ import {
   deletePantryItem,
   removeFavoriteRecipe,
   updatePantryItem,
+  upsertShoppingPreference,
   upsertHouseholdProfile,
 } from "@/server/household";
 
@@ -213,12 +214,35 @@ export async function updatePantryItemAction(formData: FormData) {
   }
 }
 
+export async function updateShoppingPreferenceAction(formData: FormData) {
+  try {
+    const session = await requireHouseholdAccess();
+    await upsertShoppingPreference({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      countryCode: session.activeOrganization.countryCode,
+      input: {
+        preferredStoreName: formData.get("preferredStoreName"),
+        preferredShoppingDay: formData.get("preferredShoppingDay"),
+        preferredDeliveryMethod: formData.get("preferredDeliveryMethod") || "no_preference",
+        notes: formData.get("notes"),
+      },
+    });
+    revalidateHouseholdPaths();
+    redirect("/household/shopping-preferences?message=Shopping preferences saved.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/household/shopping-preferences?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save shopping preferences."))}`);
+  }
+}
+
 function revalidateHouseholdPaths() {
   revalidatePath("/household");
   revalidatePath("/household/preferences");
   revalidatePath("/household/avoided-ingredients");
   revalidatePath("/household/favorites");
   revalidatePath("/household/pantry");
+  revalidatePath("/household/shopping-preferences");
   revalidatePath("/settings/meal-preferences");
   revalidatePath("/meal-plans/new");
 }

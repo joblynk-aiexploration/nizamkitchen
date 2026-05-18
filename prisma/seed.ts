@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import {
+  CookingSkillLevel,
   IngredientCategory,
   MeasurementSystem,
   MembershipStatus,
@@ -11,6 +12,7 @@ import {
   RecipeSourceType,
   RecipeVisibility,
   SpiceLevel,
+  PreferredDeliveryMethod,
   UnitSystem,
   UnitType,
   UserStatus,
@@ -1709,6 +1711,57 @@ async function main() {
 
   console.log("Seeding cuisines...");
   const cuisineMap = await seedCuisines();
+  const hyderabadiCuisineId = cuisineMap.get("hyderabadi");
+
+  if (hyderabadiCuisineId) {
+    await prisma.householdProfile.upsert({
+      where: { organizationId: householdOrg.id },
+      update: {
+        countryCode: householdOrg.countryCode,
+        displayName: "Nizam Family Kitchen",
+        defaultHouseholdSize: 4,
+        defaultServings: 4,
+        defaultSpiceLevel: SpiceLevel.medium,
+        preferredMeasurementSystem: MeasurementSystem.mixed,
+        preferredCuisineIds: [hyderabadiCuisineId],
+        cookingSkillLevel: CookingSkillLevel.intermediate,
+        weeklyCookingDays: ["monday", "wednesday", "saturday"],
+        groceryBudgetCurrency: householdOrg.currencyCode,
+      },
+      create: {
+        organizationId: householdOrg.id,
+        countryCode: householdOrg.countryCode,
+        displayName: "Nizam Family Kitchen",
+        defaultHouseholdSize: 4,
+        defaultServings: 4,
+        defaultSpiceLevel: SpiceLevel.medium,
+        preferredMeasurementSystem: MeasurementSystem.mixed,
+        preferredCuisineIds: [hyderabadiCuisineId],
+        cookingSkillLevel: CookingSkillLevel.intermediate,
+        weeklyCookingDays: ["monday", "wednesday", "saturday"],
+        groceryBudgetCurrency: householdOrg.currencyCode,
+      },
+    });
+
+    await prisma.householdPreferredCuisine.upsert({
+      where: { organizationId_cuisineId: { organizationId: householdOrg.id, cuisineId: hyderabadiCuisineId } },
+      update: {},
+      create: { organizationId: householdOrg.id, cuisineId: hyderabadiCuisineId },
+    });
+  }
+
+  await prisma.householdShoppingPreference.upsert({
+    where: { organizationId: householdOrg.id },
+    update: {
+      preferredDeliveryMethod: PreferredDeliveryMethod.no_preference,
+      preferredShoppingDay: "saturday",
+    },
+    create: {
+      organizationId: householdOrg.id,
+      preferredDeliveryMethod: PreferredDeliveryMethod.no_preference,
+      preferredShoppingDay: "saturday",
+    },
+  });
 
   console.log("Seeding ingredients and aliases...");
   const ingredientMap = await seedIngredients(unitMap);

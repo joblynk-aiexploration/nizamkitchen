@@ -7,11 +7,14 @@ import {
   favoriteRecipeSchema,
   householdProfileSchema,
   pantryItemSchema,
+  shoppingPreferenceSchema,
 } from "@/lib/validation/household";
 import { createAuditEvent } from "@/server/audit";
 
 const householdProfileInclude = Prisma.validator<Prisma.HouseholdProfileDefaultArgs>()({
-  include: { organization: { select: { id: true, name: true, organizationType: true, countryCode: true } } },
+  include: {
+    organization: { select: { id: true, name: true, organizationType: true, countryCode: true } },
+  },
 });
 
 export type HouseholdProfileDetail = Prisma.HouseholdProfileGetPayload<typeof householdProfileInclude>;
@@ -36,14 +39,24 @@ export async function getHouseholdProfile(organizationId: string) {
 }
 
 export async function getHouseholdOverview(organizationId: string) {
-  const [profile, avoidedIngredients, favorites, pantryItems] = await Promise.all([
+  const [profile, avoidedIngredients, favorites, pantryItems, preferredCuisines, shoppingPreference] = await Promise.all([
     getHouseholdProfile(organizationId),
     listAvoidedIngredients(organizationId),
     listFavoriteRecipes(organizationId),
     listPantryItems(organizationId),
+    listPreferredCuisines(organizationId),
+    getShoppingPreference(organizationId),
   ]);
 
-  return { profile, avoidedIngredients, favorites, pantryItems };
+  return { profile, avoidedIngredients, favorites, pantryItems, preferredCuisines, shoppingPreference };
+}
+
+export async function listPreferredCuisines(organizationId: string) {
+  return prisma.householdPreferredCuisine.findMany({
+    where: { organizationId },
+    include: { cuisine: true },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 export async function upsertHouseholdProfile(params: {
@@ -96,6 +109,7 @@ export async function upsertHouseholdProfile(params: {
   });
 
   await syncMealPlanPreferenceFromHousehold(params.organizationId, parsed);
+  await syncPreferredCuisines(params.organizationId, parsed.preferredCuisineIds);
 
   await createAuditEvent({
     actorUserId: params.actorUserId,
@@ -112,6 +126,21 @@ export async function upsertHouseholdProfile(params: {
   });
 
   return profile;
+}
+
+async function syncPreferredCuisines(organizationId: string, cuisineIds: string[]) {
+  await prisma.$transaction([
+    prisma.householdPreferredCuisine.deleteMany({
+      where: { organizationId, cuisineId: { notIn: cuisineIds } },
+    }),
+    ...cuisineIds.map((cuisineId) =>
+      prisma.householdPreferredCuisine.upsert({
+        where: { organizationId_cuisineId: { organizationId, cuisineId } },
+        update: {},
+        create: { organizationId, cuisineId },
+      }),
+    ),
+  ]);
 }
 
 async function syncMealPlanPreferenceFromHousehold(
@@ -274,6 +303,52 @@ export async function listPantryItems(organizationId: string) {
     include: { ingredient: true, unit: true },
     orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
   });
+}
+
+export async function getShoppingPreference(organizationId: string) {
+  return prisma.householdShoppingPreference.findUnique({
+    where: { organizationId },
+  });
+}
+
+export async function upsertShoppingPreference(params: {
+  organizationId: string;
+  actorUserId: string;
+  countryCode: string;
+  input: unknown;
+}) {
+  const parsed = shoppingPreferenceSchema.parse(params.input);
+  const preference = await prisma.householdShoppingPreference.upsert({
+    where: { organizationId: params.organizationId },
+    update: {
+      preferredStoreName: parsed.preferredStoreName ?? null,
+      preferredShoppingDay: parsed.preferredShoppingDay ?? null,
+      preferredDeliveryMethod: parsed.preferredDeliveryMethod,
+      notes: parsed.notes ?? null,
+    },
+    create: {
+      organizationId: params.organizationId,
+      preferredStoreName: parsed.preferredStoreName ?? null,
+      preferredShoppingDay: parsed.preferredShoppingDay ?? null,
+      preferredDeliveryMethod: parsed.preferredDeliveryMethod,
+      notes: parsed.notes ?? null,
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode,
+    action: "shopping_preference.updated",
+    targetType: "household_shopping_preference",
+    targetId: preference.id,
+    details: {
+      preferredShoppingDay: preference.preferredShoppingDay,
+      preferredDeliveryMethod: preference.preferredDeliveryMethod,
+    },
+  });
+
+  return preference;
 }
 
 export async function addPantryItem(params: {

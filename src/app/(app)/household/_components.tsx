@@ -19,6 +19,7 @@ export function HouseholdNav() {
     { href: "/household/favorites", label: "Favorites" },
     { href: "/household/avoided-ingredients", label: "Avoided ingredients" },
     { href: "/household/pantry", label: "Pantry" },
+    { href: "/household/shopping-preferences", label: "Shopping" },
   ];
   return (
     <div className="flex flex-wrap gap-2">

@@ -61,28 +61,28 @@ enum UserStatus {
 }
 
 model User {
-  id                         String                  @id @default(cuid())
-  email                      String                  @unique
-  passwordHash               String
-  fullName                   String
-  status                     UserStatus              @default(active)
-  platformRole               PlatformRole?
-  preferredLocale            String?                 @default("en-US")
-  preferredTimezone          String?                 @default("UTC")
-  lastLoginAt                DateTime?
-  createdAt                  DateTime                @default(now())
-  updatedAt                  DateTime                @updatedAt
-  sessions                   Session[]
-  memberships                Membership[]
-  countryAssignments         CountryAssignment[]
-  auditLogs                  AuditLog[]
-  emailLogs                  EmailLog[]
-  apiKeys                    ApiKey[]
-  groceryLists               GroceryList[]
-  createdMealPlans           MealPlan[]              @relation("MealPlanCreatedBy")
-  discoveryRuns              YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates         YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
-  favoriteRecipesCreated     FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
+  id                     String                  @id @default(cuid())
+  email                  String                  @unique
+  passwordHash           String
+  fullName               String
+  status                 UserStatus              @default(active)
+  platformRole           PlatformRole?
+  preferredLocale        String?                 @default("en-US")
+  preferredTimezone      String?                 @default("UTC")
+  lastLoginAt            DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  sessions               Session[]
+  memberships            Membership[]
+  countryAssignments     CountryAssignment[]
+  auditLogs              AuditLog[]
+  emailLogs              EmailLog[]
+  apiKeys                ApiKey[]
+  groceryLists           GroceryList[]
+  createdMealPlans       MealPlan[]              @relation("MealPlanCreatedBy")
+  discoveryRuns          YouTubeDiscoveryRun[]   @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates     YouTubeVideoCandidate[] @relation("CandidateReviewedBy")
+  favoriteRecipesCreated FavoriteRecipe[]        @relation("FavoriteRecipeCreatedBy")
 }
 
 model Session {
@@ -104,21 +104,21 @@ model Session {
 }
 
 model Organization {
-  id                   String                @id @default(cuid())
+  id                   String                       @id @default(cuid())
   name                 String
-  slug                 String                @unique
+  slug                 String                       @unique
   organizationType     OrganizationType
-  status               OrganizationStatus    @default(active)
-  organizationId       String                @unique
+  status               OrganizationStatus           @default(active)
+  organizationId       String                       @unique
   countryCode          String
   currencyCode         String
   defaultTimezone      String
   defaultLocale        String
   measurementSystem    MeasurementSystem
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
   memberships          Membership[]
-  country              Country               @relation(fields: [countryCode], references: [countryCode])
+  country              Country                      @relation(fields: [countryCode], references: [countryCode])
   sessions             Session[]
   auditLogs            AuditLog[]
   featureFlags         FeatureFlag[]
@@ -447,39 +447,39 @@ enum PreferredDeliveryMethod {
 }
 
 model Cuisine {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  countryCode String?
-  isGlobal    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  recipes     Recipe[]
+  id                         String                      @id @default(cuid())
+  name                       String
+  slug                       String                      @unique
+  description                String?
+  countryCode                String?
+  isGlobal                   Boolean                     @default(true)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  recipes                    Recipe[]
   householdPreferredCuisines HouseholdPreferredCuisine[]
 
   @@index([countryCode])
 }
 
 model Unit {
-  id                         String                    @id @default(cuid())
-  code                       String                    @unique
+  id                         String                  @id @default(cuid())
+  code                       String                  @unique
   name                       String
   pluralName                 String
   type                       UnitType
   system                     UnitSystem
   symbol                     String?
-  isBaseUnit                 Boolean                   @default(false)
-  isGlobal                   Boolean                   @default(true)
-  createdAt                  DateTime                  @default(now())
-  updatedAt                  DateTime                  @updatedAt
-  ingredients                Ingredient[]              @relation("IngredientDefaultUnit")
+  isBaseUnit                 Boolean                 @default(false)
+  isGlobal                   Boolean                 @default(true)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
   recipeIngredients          RecipeIngredient[]
-  conversionsFrom            UnitConversion[]          @relation("ConversionFromUnit")
-  conversionsTo              UnitConversion[]          @relation("ConversionToUnit")
+  conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
+  conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
   groceryListItems           GroceryListItem[]
-  originalGroceryItemSources GroceryListItemSource[]   @relation("SourceOriginalUnit")
-  scaledGroceryItemSources   GroceryListItemSource[]   @relation("SourceScaledUnit")
+  originalGroceryItemSources GroceryListItemSource[] @relation("SourceOriginalUnit")
+  scaledGroceryItemSources   GroceryListItemSource[] @relation("SourceScaledUnit")
   householdPantryItems       HouseholdPantryItem[]
 
   @@index([type])
@@ -487,28 +487,28 @@ model Unit {
 }
 
 model Ingredient {
-  id                       String                     @id @default(cuid())
-  organizationId           String?
-  countryCode              String?
-  name                     String
-  canonicalName            String
-  slug                     String
-  category                 IngredientCategory
-  defaultUnitId            String?
-  densityGramPerMl         Float?
-  averagePieceWeightGrams  Float?
-  isGlobal                 Boolean                    @default(true)
-  isActive                 Boolean                    @default(true)
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
-  defaultUnit              Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
-  aliases                  IngredientAlias[]
-  recipeIngredients        RecipeIngredient[]
-  unitConversions          UnitConversion[]
-  groceryListItems         GroceryListItem[]
-  groceryWarnings          GroceryConversionWarning[]
-  avoidedIngredients       AvoidedIngredient[]
-  householdPantryItems     HouseholdPantryItem[]
+  id                      String                     @id @default(cuid())
+  organizationId          String?
+  countryCode             String?
+  name                    String
+  canonicalName           String
+  slug                    String
+  category                IngredientCategory
+  defaultUnitId           String?
+  densityGramPerMl        Float?
+  averagePieceWeightGrams Float?
+  isGlobal                Boolean                    @default(true)
+  isActive                Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
+  aliases                 IngredientAlias[]
+  recipeIngredients       RecipeIngredient[]
+  unitConversions         UnitConversion[]
+  groceryListItems        GroceryListItem[]
+  groceryWarnings         GroceryConversionWarning[]
+  avoidedIngredients      AvoidedIngredient[]
+  householdPantryItems    HouseholdPantryItem[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -661,6 +661,7 @@ model RecipeMediaReference {
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
   recipe                    Recipe                  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
   @@index([recipeId])
   @@index([isPrimary])
 }

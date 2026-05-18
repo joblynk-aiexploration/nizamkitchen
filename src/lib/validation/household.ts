@@ -4,6 +4,7 @@ const spiceLevelValues = ["mild", "medium", "hot", "extra_hot"] as const;
 const measurementSystemValues = ["metric", "imperial", "mixed"] as const;
 const cookingSkillLevelValues = ["beginner", "intermediate", "advanced", "expert"] as const;
 const avoidedIngredientSeverityValues = ["preference", "avoid", "strict"] as const;
+const preferredDeliveryMethodValues = ["pickup", "delivery", "in_store", "no_preference"] as const;
 const weeklyCookingDayValues = [
   "monday",
   "tuesday",
@@ -82,6 +83,23 @@ export const pantryItemSchema = z.object({
   ).optional(),
 });
 
+export const shoppingPreferenceSchema = z.object({
+  preferredStoreName: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().trim().max(120).optional(),
+  ),
+  preferredShoppingDay: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.enum(weeklyCookingDayValues).optional(),
+  ),
+  preferredDeliveryMethod: z.enum(preferredDeliveryMethodValues).default("no_preference"),
+  notes: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.string().trim().max(800).optional(),
+  ),
+});
+
 export type HouseholdProfileInput = z.infer<typeof householdProfileSchema>;
 export type AvoidedIngredientCreateInput = z.infer<typeof avoidedIngredientCreateSchema>;
 export type PantryItemInput = z.infer<typeof pantryItemSchema>;
+export type ShoppingPreferenceInput = z.infer<typeof shoppingPreferenceSchema>;
