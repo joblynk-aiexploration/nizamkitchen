@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { StorageImage } from "@/components/storage/storage-image";
+import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, SocialLinksRow, initialsFromName } from "@/components/profiles/profile-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -37,13 +36,19 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and submit manual order requests. Payment is handled directly with the restaurant for now." />
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <StorageImage src={logoUrl} alt={`${restaurant.name} logo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Restaurant image coming soon" />
-        <StorageImage src={coverUrl} alt={`${restaurant.name} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
-      </div>
-      <PublicSocialLinks links={socialLinks} />
-      <Card>
-        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
+      <ProfileHeader
+        coverUrl={coverUrl}
+        avatarUrl={logoUrl}
+        name={restaurant.name}
+        headline="Restaurant partner serving public menu items through manual order requests."
+        location={restaurant.countryCode}
+        initials={initialsFromName(restaurant.name)}
+        actions={<ContactActions href="/orders" label="View my orders" />}
+      />
+      <ProfileSection title="Social links">
+        <SocialLinksRow links={socialLinks} />
+      </ProfileSection>
+      <MenuPreviewSection>
         {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active public menu items have been published yet.</p> : null}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {menuItems.map((item) => (
@@ -68,7 +73,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
             </div>
           ))}
         </div>
-      </Card>
+      </MenuPreviewSection>
       <CommerceSafetyNotice />
     </div>
   );

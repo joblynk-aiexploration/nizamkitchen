@@ -12,7 +12,10 @@ export const userProfileSchema = z.object({
   coverPhotoFileId: nullableString(120).optional(),
   headline: nullableString(180).optional(),
   bio: nullableString(1200).optional(),
-  location: nullableString(180).optional(),
+  locationText: nullableString(180).optional(),
+  phone: nullableString(40).optional(),
+  preferredLanguage: nullableString(80).optional(),
+  publicProfileEnabled: z.coerce.boolean().default(false),
 });
 
 export type UserProfileInput = z.infer<typeof userProfileSchema>;

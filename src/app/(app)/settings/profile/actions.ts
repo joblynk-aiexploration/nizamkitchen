@@ -17,7 +17,10 @@ export async function updateUserProfileAction(formData: FormData) {
         coverPhotoFileId: formData.get("coverPhotoFileId"),
         headline: formData.get("headline"),
         bio: formData.get("bio"),
-        location: formData.get("location"),
+        locationText: formData.get("locationText"),
+        phone: formData.get("phone"),
+        preferredLanguage: formData.get("preferredLanguage"),
+        publicProfileEnabled: formData.get("publicProfileEnabled") === "on",
       },
     });
     revalidatePath("/settings/profile");

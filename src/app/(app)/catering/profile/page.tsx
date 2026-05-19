@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,6 +14,9 @@ import {
   isHomeCateringBusiness,
 } from "@/server/home-catering";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { prisma } from "@/lib/prisma";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getBusinessProfileCompletion } from "@/server/users/profile";
 import { deleteCateringSocialLinkAction, upsertCateringSocialLinkAction, upsertHomeCateringProfileAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +36,12 @@ export default async function CateringProfilePage() {
     getHomeCateringProfileForOrganization(session.activeOrganization.id),
     listBusinessSocialLinks(session.activeOrganization.id),
   ]);
+  const [profileImageUrl, coverImageUrl, menuItemCount] = await Promise.all([
+    getStorageImageUrl(session, profile?.profilePhotoFileId, profile?.profilePhotoUrl),
+    getStorageImageUrl(session, profile?.coverPhotoFileId, profile?.coverPhotoUrl),
+    prisma.menuItem.count({ where: { organizationId: session.activeOrganization.id } }),
+  ]);
+  const completion = profile ? getBusinessProfileCompletion(profile, { menuItems: menuItemCount, socialLinks: socialLinks.length }) : 0;
   const specialties = Array.isArray(profile?.cuisineSpecialtiesJson) ? profile.cuisineSpecialtiesJson.join(", ") : "";
   const languages = Array.isArray(profile?.languagesJson) ? profile.languagesJson.join(", ") : "";
 
@@ -44,11 +54,19 @@ export default async function CateringProfilePage() {
       />
 
       {profile ? (
-        <div className="flex flex-wrap gap-2">
-          <Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>
-          <Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge>
-          <Badge tone={profile.isPublic ? "success" : "neutral"}>{profile.isPublic ? "Public" : "Hidden"}</Badge>
-        </div>
+        <ProfileHeader
+          coverUrl={coverImageUrl}
+          avatarUrl={profileImageUrl}
+          name={profile.displayName}
+          headline={profile.bio}
+          location={profile.city ? `${profile.city}${profile.region ? `, ${profile.region}` : ""}` : session.activeOrganization.countryCode}
+          initials={initialsFromName(profile.displayName)}
+          badges={[
+            <Badge key="status" tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>,
+            <VerificationBadge key="verification" status={profile.verificationStatus} />,
+            <Badge key="public" tone={profile.isPublic ? "success" : "neutral"}>{profile.isPublic ? "Public" : "Hidden"}</Badge>,
+          ]}
+        />
       ) : null}
 
       <form action={upsertHomeCateringProfileAction} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -75,6 +93,7 @@ export default async function CateringProfilePage() {
         </Card>
 
         <div className="space-y-6">
+          <ProfileCompletionCard score={completion} />
           <Card className="space-y-4">
             <h2 className="font-semibold text-[var(--color-ink)]">Fulfillment options</h2>
             <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">

@@ -21,11 +21,20 @@ export default async function UserProfileSettingsPage({ searchParams }: { search
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput label="Full name" name="fullName" defaultValue={session.user.fullName} required />
             <TextInput label="Headline" name="headline" defaultValue={session.user.headline ?? ""} />
-            <TextInput label="Location" name="location" defaultValue={session.user.location ?? ""} />
+            <TextInput label="Location" name="locationText" defaultValue={session.user.locationText ?? session.user.location ?? ""} />
+            <TextInput label="Phone" name="phone" defaultValue={session.user.phone ?? ""} />
+            <TextInput label="Preferred language" name="preferredLanguage" defaultValue={session.user.preferredLanguage ?? ""} />
             <AvatarWithUpload label="Profile photo" name="profilePhotoFileId" module="users" entityType="user" entityId={session.user.id} defaultFileId={session.user.profilePhotoFileId ?? null} />
             <CoverPhotoUpload label="Cover photo" name="coverPhotoFileId" module="users" entityType="user" entityId={session.user.id} defaultFileId={session.user.coverPhotoFileId ?? null} />
           </div>
           <TextArea label="Bio" name="bio" defaultValue={session.user.bio ?? ""} />
+          <label className="flex items-start gap-3 rounded-2xl border border-[var(--color-border)] p-4 text-sm">
+            <input type="checkbox" name="publicProfileEnabled" defaultChecked={session.user.publicProfileEnabled} className="mt-1" />
+            <span>
+              <span className="block font-semibold text-[var(--color-ink)]">Enable public/internal profile view</span>
+              <span className="mt-1 block text-[var(--color-muted)]">Phone and email stay private unless an admin views the profile.</span>
+            </span>
+          </label>
           <Button type="submit">Save profile</Button>
         </form>
       </Card>

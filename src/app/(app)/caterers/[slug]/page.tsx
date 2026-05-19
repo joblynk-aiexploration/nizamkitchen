@@ -2,9 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { StorageImage } from "@/components/storage/storage-image";
+import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
@@ -32,30 +32,34 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
     <div className="space-y-8">
       <PageHeader
         eyebrow="Home catering seller"
-        title={profile.displayName}
-        description={profile.city ? `${profile.city}${profile.region ? `, ${profile.region}` : ""}` : "Service area details coming soon"}
+        title="Caterer profile"
+        description="Browse seller specialties, menu items, social links, and manual order request options."
       />
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="success">Verified</Badge>
-        {profile.acceptsPickup ? <Badge tone="info">Pickup</Badge> : null}
-        {profile.acceptsDelivery ? <Badge tone="info">Delivery</Badge> : null}
-        {profile.acceptsPreorders ? <Badge tone="info">Preorders</Badge> : null}
-      </div>
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <StorageImage src={profileImageUrl} alt={`${profile.displayName} profile photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Seller photo coming soon" />
-        <StorageImage src={coverImageUrl} alt={`${profile.displayName} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
-      </div>
+      <ProfileHeader
+        coverUrl={coverImageUrl}
+        avatarUrl={profileImageUrl}
+        name={profile.displayName}
+        headline={profile.bio}
+        location={profile.city ? `${profile.city}${profile.region ? `, ${profile.region}` : ""}` : null}
+        initials={initialsFromName(profile.displayName)}
+        badges={[
+          <VerificationBadge key="verification" status={profile.verificationStatus} />,
+          profile.acceptsPickup ? <Badge key="pickup" tone="info">Pickup</Badge> : null,
+          profile.acceptsDelivery ? <Badge key="delivery" tone="info">Delivery</Badge> : null,
+          profile.acceptsPreorders ? <Badge key="preorder" tone="info">Preorders</Badge> : null,
+        ].filter(Boolean)}
+        actions={<ContactActions href="/orders" label="View my orders" />}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">About</h2>
+        <ProfileSection title="About">
           <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">{profile.bio || "This seller has not added a bio yet."}</p>
           <div className="mt-5 flex flex-wrap gap-2">
             {Array.isArray(profile.cuisineSpecialtiesJson)
               ? profile.cuisineSpecialtiesJson.map((item) => <Badge key={String(item)} tone="info">{String(item)}</Badge>)
               : null}
           </div>
-        </Card>
+        </ProfileSection>
 
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Request flow</h2>
@@ -67,11 +71,13 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           </Button>
         </Card>
 
-        <PublicSocialLinks links={socialLinks} />
+        <ProfileSection title="Social links">
+          <SocialLinksRow links={socialLinks} />
+        </ProfileSection>
+        <ReviewsPreviewSection rating={profile.averageRating} count={profile.ratingCount} />
       </div>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
+      <MenuPreviewSection>
         {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active menu items have been published yet.</p> : null}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {menuItems.map((item) => (
@@ -101,7 +107,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
             </div>
           ))}
         </div>
-      </Card>
+      </MenuPreviewSection>
       <CommerceSafetyNotice />
     </div>
   );

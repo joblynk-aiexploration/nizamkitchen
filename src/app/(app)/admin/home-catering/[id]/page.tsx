@@ -1,14 +1,18 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminSocialLinks } from "@/components/business-social-links/social-link-components";
+import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
 import { getAdminHomeCateringProfile } from "@/server/home-catering";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getBusinessProfileCompletion } from "@/server/users/profile";
 import { moderateDeleteBusinessSocialLinkAction } from "../../business-social-links/actions";
 import { updateAdminHomeCateringProfileAction } from "../actions";
 
@@ -34,11 +38,26 @@ export default async function AdminHomeCateringDetailPage({ params }: { params: 
   const { id } = await params;
   const profile = await getAdminHomeCateringProfile(session, id).catch(() => null);
   if (!profile) notFound();
-  const socialLinks = await listBusinessSocialLinks(profile.organizationId);
+  const [socialLinks, avatarUrl, coverUrl, menuCount] = await Promise.all([
+    listBusinessSocialLinks(profile.organizationId),
+    getStorageImageUrl(session, profile.profilePhotoFileId, profile.profilePhotoUrl),
+    getStorageImageUrl(session, profile.coverPhotoFileId, profile.coverPhotoUrl),
+    prisma.menuItem.count({ where: { organizationId: profile.organizationId } }),
+  ]);
+  const completion = getBusinessProfileCompletion(profile, { menuItems: menuCount, socialLinks: socialLinks.length });
   const canMutate = session.user.platformRole !== "auditor";
 
   return (
     <AdminShell session={session} title={profile.displayName} description={`${profile.organization.name} · ${profile.countryCode}`}>
+      <ProfileHeader
+        coverUrl={coverUrl}
+        avatarUrl={avatarUrl}
+        name={profile.displayName}
+        headline={profile.bio ?? "Home catering seller"}
+        location={profile.city ? `${profile.city}${profile.region ? `, ${profile.region}` : ""}` : profile.countryCode}
+        initials={initialsFromName(profile.displayName)}
+        badges={[<VerificationBadge key="verification" status={profile.verificationStatus} />, <Badge key="status" tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>]}
+      />
       <div className="flex flex-wrap gap-2">
         <Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>
         <Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge>
@@ -73,22 +92,25 @@ export default async function AdminHomeCateringDetailPage({ params }: { params: 
           <AdminSocialLinks links={socialLinks} deleteAction={moderateDeleteBusinessSocialLinkAction} />
         </div>
 
-        {canMutate ? (
-          <Card className="space-y-4">
-            <h2 className="font-semibold text-[var(--color-ink)]">Admin controls</h2>
-            <form action={updateAdminHomeCateringProfileAction} className="space-y-3">
-              <input type="hidden" name="profileId" value={profile.id} />
-              <SelectInput label="Status" name="status" defaultValue={profile.status} options={statusOptions} />
-              <SelectInput label="Verification" name="verificationStatus" defaultValue={profile.verificationStatus} options={verificationOptions} />
-              <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
-                <input type="checkbox" name="isPublic" defaultChecked={profile.isPublic} />
-                Public listing
-              </label>
-              <TextArea label="Internal admin notes" name="adminNotes" defaultValue={profile.adminNotes ?? ""} />
-              <Button type="submit" className="w-full justify-center">Save controls</Button>
-            </form>
-          </Card>
-        ) : null}
+        <div className="space-y-6">
+          <ProfileCompletionCard score={completion} />
+          {canMutate ? (
+            <Card className="space-y-4">
+              <h2 className="font-semibold text-[var(--color-ink)]">Admin controls</h2>
+              <form action={updateAdminHomeCateringProfileAction} className="space-y-3">
+                <input type="hidden" name="profileId" value={profile.id} />
+                <SelectInput label="Status" name="status" defaultValue={profile.status} options={statusOptions} />
+                <SelectInput label="Verification" name="verificationStatus" defaultValue={profile.verificationStatus} options={verificationOptions} />
+                <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+                  <input type="checkbox" name="isPublic" defaultChecked={profile.isPublic} />
+                  Public listing
+                </label>
+                <TextArea label="Internal admin notes" name="adminNotes" defaultValue={profile.adminNotes ?? ""} />
+                <Button type="submit" className="w-full justify-center">Save controls</Button>
+              </form>
+            </Card>
+          ) : null}
+        </div>
       </div>
     </AdminShell>
   );

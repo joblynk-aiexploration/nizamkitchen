@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -10,6 +11,8 @@ import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getBusinessProfileCompletion } from "@/server/users/profile";
 import { addChefSpecialtyAction, addChefVerificationDocumentAction, deleteChefSocialLinkAction, upsertChefProfileAction, upsertChefSocialLinkAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +32,11 @@ export default async function ChefProfilePage() {
     listRecipes({ organizationId: session.activeOrganization.id, countryCode: session.activeOrganization.countryCode, publishedOnly: true }),
     listBusinessSocialLinks(session.activeOrganization.id),
   ]);
+  const [profileImageUrl, coverImageUrl] = await Promise.all([
+    getStorageImageUrl(session, profile?.profilePhotoFileId, profile?.profilePhotoUrl),
+    getStorageImageUrl(session, profile?.coverPhotoFileId),
+  ]);
+  const completion = profile ? getBusinessProfileCompletion(profile, { services: profile.services.length, socialLinks: socialLinks.length }) : 0;
 
   return (
     <div className="space-y-8">
@@ -39,11 +47,19 @@ export default async function ChefProfilePage() {
       />
 
       {profile ? (
-        <div className="flex flex-wrap gap-2">
-          <Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>
-          <Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge>
-          <Badge tone={profile.isPublic ? "success" : "neutral"}>{profile.isPublic ? "Public" : "Hidden"}</Badge>
-        </div>
+        <ProfileHeader
+          coverUrl={coverImageUrl}
+          avatarUrl={profileImageUrl}
+          name={profile.displayName}
+          headline={profile.bio}
+          location={profile.baseCity ? `${profile.baseCity}${profile.baseRegion ? `, ${profile.baseRegion}` : ""}` : session.activeOrganization.countryCode}
+          initials={initialsFromName(profile.displayName)}
+          badges={[
+            <Badge key="status" tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>,
+            <VerificationBadge key="verification" status={profile.verificationStatus} />,
+            <Badge key="public" tone={profile.isPublic ? "success" : "neutral"}>{profile.isPublic ? "Public" : "Hidden"}</Badge>,
+          ]}
+        />
       ) : null}
 
       <form action={upsertChefProfileAction} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -68,6 +84,7 @@ export default async function ChefProfilePage() {
         </Card>
 
         <div className="space-y-6">
+          <ProfileCompletionCard score={completion} />
           <Card className="space-y-4">
             <h2 className="font-semibold text-[var(--color-ink)]">Review workflow</h2>
             <p className="text-sm text-[var(--color-muted)]">Submitting asks admins to review. You cannot approve or verify your own profile.</p>

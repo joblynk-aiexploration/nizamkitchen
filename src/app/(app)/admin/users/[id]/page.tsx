@@ -7,9 +7,12 @@ import { AuditLogTable } from "@/components/admin/audit-log-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountryBadge } from "@/components/ui/country-badge";
+import { ProfileCompletionCard, ProfileHeader, initialsFromName } from "@/components/profiles/profile-components";
 import { RoleBadge } from "@/components/ui/role-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAdminUserDetail } from "@/server/admin/users";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getUserProfileCompletion } from "@/server/users/profile";
 
 export default async function UserDetailPage({
   params,
@@ -28,6 +31,11 @@ export default async function UserDetailPage({
   const { id } = await params;
   const query = await searchParams;
   const user = await getAdminUserDetail(session, id);
+  const [avatarUrl, coverUrl] = await Promise.all([
+    getStorageImageUrl(session, user.profilePhotoFileId),
+    getStorageImageUrl(session, user.coverPhotoFileId),
+  ]);
+  const completion = getUserProfileCompletion(user);
   const canMutate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
 
   return (
@@ -41,7 +49,17 @@ export default async function UserDetailPage({
         </Button>
       }
     >
+      <ProfileHeader
+        coverUrl={coverUrl}
+        avatarUrl={avatarUrl}
+        name={user.fullName}
+        headline={user.headline ?? user.platformRole ?? "NizamKitchen user"}
+        location={user.locationText ?? user.location}
+        initials={initialsFromName(user.fullName)}
+        badges={[<RoleBadge key="role" value={user.platformRole ?? "none"} />, <StatusBadge key="status" value={user.status} />]}
+      />
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <ProfileCompletionCard score={completion} />
         <Card>
           <div className="flex flex-wrap items-center gap-3">
             <RoleBadge value={user.platformRole ?? "none"} />

@@ -185,6 +185,10 @@ model User {
   headline                   String?
   bio                        String?
   location                   String?
+  locationText               String?
+  phone                      String?
+  preferredLanguage          String?
+  publicProfileEnabled       Boolean                        @default(false)
   preferredLocale            String?                        @default("en-US")
   preferredTimezone          String?                        @default("UTC")
   lastLoginAt                DateTime?

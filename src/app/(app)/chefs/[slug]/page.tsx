@@ -1,9 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
-import { StorageImage } from "@/components/storage/storage-image";
+import { BusinessServicesSection, ContactActions, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
@@ -34,28 +31,25 @@ export default async function ChefPublicProfilePage({
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Home chef"
-        title={chef.displayName}
-        description={chef.bio}
-        actions={<Button asChild><Link href={`/chefs/${chef.slug}/request`}>Request this chef</Link></Button>}
+      <PageHeader eyebrow="Home chef" title="Chef profile" description="Review chef services, specialties, availability, and social links before submitting a manual request." />
+      <ProfileHeader
+        coverUrl={coverImageUrl}
+        avatarUrl={profileImageUrl}
+        name={chef.displayName}
+        headline={chef.bio}
+        location={chef.baseCity ? `${chef.baseCity}${chef.baseRegion ? `, ${chef.baseRegion}` : ""}` : null}
+        initials={initialsFromName(chef.displayName)}
+        badges={[
+          <Badge key="public" tone="success">Approved public profile</Badge>,
+          <VerificationBadge key="verified" status={chef.verificationStatus} />,
+          chef.yearsExperience ? <Badge key="exp" tone="neutral">{chef.yearsExperience} years experience</Badge> : null,
+        ].filter(Boolean)}
+        actions={<ContactActions href={`/chefs/${chef.slug}/request`} label="Request this chef" />}
       />
-
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="success">Approved public profile</Badge>
-        {chef.verificationStatus === "verified" ? <Badge tone="success">Verified</Badge> : null}
-        {chef.baseCity ? <Badge tone="info">{chef.baseCity}{chef.baseRegion ? `, ${chef.baseRegion}` : ""}</Badge> : null}
-        {chef.yearsExperience ? <Badge tone="neutral">{chef.yearsExperience} years experience</Badge> : null}
-      </div>
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <StorageImage src={profileImageUrl} alt={`${chef.displayName} profile photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Chef photo coming soon" />
-        <StorageImage src={coverImageUrl} alt={`${chef.displayName} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
-      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-[var(--color-ink)]">Services</h2>
+          <BusinessServicesSection>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {chef.services.filter((service) => service.isActive).map((service) => (
                 <div key={service.id} className="rounded-2xl border border-[var(--color-border)] p-4">
@@ -67,10 +61,9 @@ export default async function ChefPublicProfilePage({
                 </div>
               ))}
             </div>
-          </Card>
+          </BusinessServicesSection>
 
-          <Card>
-            <h2 className="text-lg font-semibold text-[var(--color-ink)]">Specialties</h2>
+          <ProfileSection title="Specialties">
             <div className="mt-5 flex flex-wrap gap-2">
               {Array.isArray(chef.specialties) ? chef.specialties.map((item) => <Badge key={String(item)} tone="info">{String(item)}</Badge>) : null}
             </div>
@@ -82,7 +75,7 @@ export default async function ChefPublicProfilePage({
                 </div>
               ))}
             </div>
-          </Card>
+          </ProfileSection>
         </div>
 
         <div className="space-y-6">
@@ -101,7 +94,10 @@ export default async function ChefPublicProfilePage({
               )}
             </div>
           </Card>
-          <PublicSocialLinks links={socialLinks} />
+          <ProfileSection title="Social links">
+            <SocialLinksRow links={socialLinks} />
+          </ProfileSection>
+          <ReviewsPreviewSection rating={chef.averageRating} count={chef.ratingCount} />
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Important</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
