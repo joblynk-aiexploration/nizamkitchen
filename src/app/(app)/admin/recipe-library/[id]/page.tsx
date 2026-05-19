@@ -267,6 +267,7 @@ export default async function AdminRecipeDetailPage({
             {pendingCandidates.map((c) => (
               <div key={c.id} className="flex gap-4 rounded-2xl border border-[var(--color-border)] p-4">
                 {c.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.thumbnailUrl} alt={c.title} width={120} height={68}
                     className="h-17 w-28 shrink-0 rounded-xl object-cover" />
                 ) : (

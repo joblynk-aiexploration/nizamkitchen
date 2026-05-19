@@ -3,13 +3,13 @@ import { revalidatePath } from "next/cache";
 import { getCurrentSession } from "@/lib/auth/session";
 import { AccessDeniedError, FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
 import { getRecipeById } from "@/server/recipes";
-import { getMediaReferenceById, updateMediaReference, deleteMediaReference } from "@/server/media-references";
+import { updateMediaReference, deleteMediaReference } from "@/server/media-references";
 import { mediaReferenceUpdateSchema } from "@/lib/validation/video";
 import { auditAccessDenied } from "@/server/audit";
 
 type RouteParams = { params: Promise<{ id: string; refId: string }> };
 
-async function assertAccess(session: Awaited<ReturnType<typeof getCurrentSession>>, recipeId: string, request: Request) {
+async function assertAccess(session: Awaited<ReturnType<typeof getCurrentSession>>, recipeId: string) {
   if (!session) throw new AccessDeniedError("Not authenticated.", "UNAUTHENTICATED");
   const recipe = await getRecipeById(recipeId);
   if (!recipe) throw new Error("Recipe not found.");
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { id: recipeId, refId } = await params;
 
   try {
-    const recipe = await assertAccess(session, recipeId, request);
+    const recipe = await assertAccess(session, recipeId);
     const formData = await request.formData();
     const method = formData.get("_method");
 
@@ -89,7 +89,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   const session = await getCurrentSession();
   const { id: recipeId, refId } = await params;
   try {
-    const recipe = await assertAccess(session, recipeId, request);
+    const recipe = await assertAccess(session, recipeId);
     await deleteMediaReference({
       id: refId,
       recipeId,

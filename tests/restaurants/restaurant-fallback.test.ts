@@ -40,11 +40,8 @@ vi.mock("@/server/restaurants/maptiler-service", () => ({
 
 import {
   runRestaurantSearch,
-  getSearchWithResults,
-  listSearches,
   saveRestaurant,
   unsaveRestaurant,
-  listSavedRestaurants,
 } from "@/server/restaurants/restaurant-fallback-service";
 import { buildRestaurantQueriesForRecipe, buildRestaurantQueriesForQuery } from "@/lib/restaurant-search";
 import { isRestaurantDiscoveryAvailable } from "@/lib/restaurant-config";

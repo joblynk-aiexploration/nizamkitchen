@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, LayoutDashboard, Logs, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, Users, UtensilsCrossed } from "lucide-react";
+import { BarChart3, BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, Inbox, LayoutDashboard, Logs, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, Users, UtensilsCrossed } from "lucide-react";
 import { getPlatformNavItems, getWorkspaceNavItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +47,9 @@ const iconByHref = {
   "/admin/grocery-partners": ShoppingCart,
   "/admin/system-settings": Cog,
   "/admin/support": Users,
+  "/admin/reports": BarChart3,
+  "/admin/leads": Inbox,
+  "/reports": BarChart3,
 } as const;
 
 export function SidebarNav({

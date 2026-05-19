@@ -2,7 +2,7 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { listContactLeads, updateLeadStatus } from "@/server/leads";
+import { listContactLeads } from "@/server/leads";
 
 export const dynamic = "force-dynamic";
 

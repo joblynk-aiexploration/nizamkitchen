@@ -30,7 +30,7 @@ vi.mock("@/lib/auth", () => ({
 import { createContactLead, listContactLeads, updateLeadStatus } from "../../src/server/leads";
 import { contactLeadSchema } from "../../src/lib/validation/contact";
 import { registerSchema } from "../../src/lib/validation/auth";
-import { getWorkspaceNavItems, getPlatformNavItems } from "../../src/lib/navigation";
+import { getPlatformNavItems } from "../../src/lib/navigation";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
