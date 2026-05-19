@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TextArea } from "@/components/ui/text-area";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessHomeChefs, getHomeChefRequest, isHouseholdRequestOrganization } from "@/server/home-chef";
-import { cancelHomeChefRequestAction, createHomeChefMessageAction } from "../../actions";
+import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +75,29 @@ export default async function HomeChefRequestDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          {(request.quotedAmount || request.depositAmount) && request.paymentStatus !== "paid" ? (
+            <Card className="border-emerald-200 bg-emerald-50">
+              <h2 className="font-semibold text-emerald-950">Secure payment</h2>
+              <p className="mt-2 text-sm text-emerald-800">Pay through Stripe hosted checkout. NizamKitchen never stores card numbers or CVV.</p>
+              <div className="mt-4 flex flex-col gap-3">
+                {request.depositAmount ? (
+                  <form action={createHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="deposit" />
+                    <Button type="submit" className="w-full">Pay deposit {request.currencyCode} {request.depositAmount}</Button>
+                  </form>
+                ) : null}
+                {request.quotedAmount ? (
+                  <form action={createHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="full" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay full quote {request.currencyCode} {request.quotedAmount}</Button>
+                  </form>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+
           <Card className="space-y-4">
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Request brief</h2>
             {request.description ? (

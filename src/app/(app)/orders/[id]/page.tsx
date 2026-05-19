@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getCustomerFoodOrder } from "@/server/food-orders";
-import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction } from "../actions";
+import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction, createFoodOrderCheckoutAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,14 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Actions</h2>
           <div className="mt-5 space-y-5">
+            {order.subtotalAmount && order.paymentStatus !== "paid" ? (
+              <form action={createFoodOrderCheckoutAction} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <input type="hidden" name="orderId" value={order.id} />
+                <p className="text-sm font-semibold text-emerald-950">Payment</p>
+                <p className="mt-1 text-sm text-emerald-800">Pay securely with Stripe hosted checkout. NizamKitchen never sees card numbers or CVV.</p>
+                <Button type="submit" className="mt-4 w-full">Pay now</Button>
+              </form>
+            ) : null}
             <FoodOrderMessageForm action={createCustomerFoodOrderMessageAction} orderId={order.id} />
             {canCancel ? (
               <form action={cancelCustomerFoodOrderAction} className="space-y-3 border-t border-[var(--color-border)] pt-5">

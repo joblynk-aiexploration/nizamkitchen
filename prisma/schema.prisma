@@ -442,6 +442,7 @@ enum BillingSubscriptionStatus {
 enum BillingProvider {
   manual
   stripe_placeholder
+  stripe
 }
 
 model BillingPlan {
@@ -455,6 +456,7 @@ model BillingPlan {
   status          BillingPlanStatus     @default(draft)
   limitsJson      Json                  @default("{}")
   featuresJson    Json                  @default("[]")
+  stripePriceId   String?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   subscriptions   BillingSubscription[]
@@ -475,6 +477,7 @@ model BillingSubscription {
   provider               BillingProvider           @default(manual)
   providerCustomerId     String?
   providerSubscriptionId String?
+  paymentOrderId         String?
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
   organization           Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -795,6 +798,16 @@ enum FoodOrderFulfillmentType {
   delivery
   preorder
   inquiry_only
+}
+
+enum ModulePaymentStatus {
+  unpaid
+  pending
+  paid
+  failed
+  refunded
+  partially_refunded
+  not_required
 }
 
 enum BusinessProfileType {
@@ -1713,6 +1726,10 @@ model FoodOrder {
   customerNotes          String?
   sellerNotes            String?
   adminNotes             String?
+  paymentRequired        Boolean                    @default(false)
+  paymentStatus          ModulePaymentStatus        @default(not_required)
+  paymentOrderId         String?
+  paidAt                 DateTime?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
   cancelledAt            DateTime?
@@ -1732,6 +1749,8 @@ model FoodOrder {
   @@index([countryCode])
   @@index([sellerType])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([paymentOrderId])
   @@index([createdAt])
 }
 
@@ -2238,6 +2257,13 @@ model HomeChefRequest {
   genderPreference           GenderPreference               @default(no_preference)
   budgetAmount               Float?
   budgetCurrency             String?
+  paymentRequired            Boolean                        @default(false)
+  paymentStatus              ModulePaymentStatus            @default(not_required)
+  paymentOrderId             String?
+  quotedAmount               Float?
+  depositAmount              Float?
+  currencyCode               String                         @default("USD")
+  paidAt                     DateTime?
   notes                      String?
   adminNotes                 String?
   assignedChefOrganizationId String?
@@ -2256,6 +2282,8 @@ model HomeChefRequest {
   @@index([countryCode])
   @@index([createdById])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([paymentOrderId])
   @@index([requestType])
   @@index([requestedDate])
   @@index([mealPlanId])

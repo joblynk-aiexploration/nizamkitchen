@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import {
   cancelCustomerFoodOrder,
   createFoodOrder,
   createFoodOrderMessage,
 } from "@/server/food-orders";
+import { createStripeFoodOrderCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 
 export async function createFoodOrderAction(formData: FormData) {
   const session = await requireMembership();
@@ -40,4 +42,16 @@ export async function cancelCustomerFoodOrderAction(formData: FormData) {
     note: String(formData.get("note") ?? "") || null,
   });
   revalidatePath(`/orders/${orderId}`);
+}
+
+export async function createFoodOrderCheckoutAction(formData: FormData) {
+  const session = await requireMembership();
+  const orderId = String(formData.get("orderId") ?? "");
+  const result = await createStripeFoodOrderCheckout({
+    foodOrderId: orderId,
+    userId: session.user.id,
+    appUrl: env.APP_URL,
+  });
+  if (!result.checkoutUrl) throw new Error("Stripe checkout could not be created.");
+  redirect(result.checkoutUrl);
 }

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { getPaymentOrder } from "@/server/payments/admin";
+import { createStripeRefundAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,24 @@ export default async function PaymentTransactionDetailPage({ params }: { params:
           <Detail label="Idempotency key" value={order.idempotencyKey} />
         </dl>
       </Card>
+      {session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin" ? (
+        <Card className="border-amber-200 bg-amber-50">
+          <h2 className="text-base font-semibold text-amber-950">Issue Stripe refund</h2>
+          <p className="mt-2 text-sm text-amber-800">Refunds are processed through Stripe using the trusted provider payment intent. Only platform owner/admin can perform this action.</p>
+          <form action={createStripeRefundAction} className="mt-4 grid gap-4 md:grid-cols-3">
+            <input type="hidden" name="paymentOrderId" value={order.id} />
+            <label className="flex flex-col gap-2 text-sm font-medium text-amber-950">
+              Amount
+              <input name="amount" type="number" step="0.01" max={order.amount.toString()} required className="rounded-2xl border border-amber-200 px-4 py-3" />
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-amber-950">
+              Reason
+              <input name="reason" placeholder="requested_by_customer" className="rounded-2xl border border-amber-200 px-4 py-3" />
+            </label>
+            <div className="flex items-end"><button className="min-h-11 rounded-xl bg-amber-900 px-4 py-2 text-sm font-semibold text-white">Create refund</button></div>
+          </form>
+        </Card>
+      ) : null}
       <AdminDataTable
         data={order.transactions}
         emptyMessage="No provider transactions yet."

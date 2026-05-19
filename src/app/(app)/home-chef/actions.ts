@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { env } from "@/lib/env";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
   canAccessHomeChefs,
@@ -12,6 +13,7 @@ import {
   isHouseholdRequestOrganization,
   updateHomeChefRequestDraft,
 } from "@/server/home-chef";
+import { createStripeHomeChefCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 
 async function requireHomeChefHouseholdAccess() {
   const session = await requireMembership();
@@ -141,5 +143,24 @@ export async function createHomeChefMessageAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to send message."))}`);
+  }
+}
+
+export async function createHomeChefCheckoutAction(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+  const paymentType = formData.get("paymentType") === "deposit" ? "deposit" : "full";
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    const result = await createStripeHomeChefCheckout({
+      requestId,
+      userId: session.user.id,
+      appUrl: env.APP_URL,
+      paymentType,
+    });
+    if (!result.checkoutUrl) throw new Error("Stripe checkout could not be created.");
+    redirect(result.checkoutUrl);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create payment link."))}`);
   }
 }

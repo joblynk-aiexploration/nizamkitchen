@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { listBillingPlans } from "@/server/billing/plans";
 import { getSubscriptionForOrg } from "@/server/billing/subscriptions";
+import { createSubscriptionCheckoutAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -81,13 +82,13 @@ export default async function BillingPlansPage() {
                   <span className="block w-full rounded-2xl border border-[var(--color-border)] px-4 py-2.5 text-center text-sm font-semibold text-[var(--color-muted)]">
                     Your current plan
                   </span>
-                ) : stripeConfigured ? (
-                  <button
-                    disabled
-                    className="block w-full cursor-not-allowed rounded-2xl bg-[var(--color-primary)] px-4 py-2.5 text-center text-sm font-semibold text-white opacity-50"
-                  >
-                    Upgrade (coming soon)
-                  </button>
+                ) : plan.stripePriceId ? (
+                  <form action={createSubscriptionCheckoutAction}>
+                    <input type="hidden" name="planId" value={plan.id} />
+                    <button className="block w-full rounded-2xl bg-[var(--color-primary)] px-4 py-2.5 text-center text-sm font-semibold text-white">
+                      Pay subscription
+                    </button>
+                  </form>
                 ) : (
                   <span className="block w-full rounded-2xl border border-[var(--color-border)] px-4 py-2.5 text-center text-xs text-[var(--color-muted)]">
                     Contact support to upgrade
