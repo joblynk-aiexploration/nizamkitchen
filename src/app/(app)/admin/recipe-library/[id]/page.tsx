@@ -14,6 +14,7 @@ import { listCandidatesForRecipe } from "@/server/youtube-discovery/candidate-se
 import { getDiscoveryRunsForRecipe } from "@/server/youtube-discovery/discovery-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
 import { ConfirmRemoveButton } from "@/components/admin/confirm-remove-button";
+import { EditVideoRefForm } from "@/components/admin/edit-video-ref-form";
 import { FormMessage } from "@/components/ui/form-message";
 import { formatYouTubeDuration } from "@/lib/youtube";
 
@@ -147,20 +148,26 @@ export default async function AdminRecipeDetailPage({
                 </div>
 
                 {canMutate && (
-                  <div className="flex gap-2 border-t border-[var(--color-border)] pt-3">
-                    <ConfirmRemoveButton
-                      formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
-                      hiddenFields={{ _method: "DELETE" }}
-                      confirmMessage="Remove this video reference?"
-                    />
-                    {!ref.isPrimary && (
-                      <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
-                        <input type="hidden" name="isPrimary" value="on" />
-                        <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-slate-50">
-                          Set as primary
-                        </button>
-                      </form>
-                    )}
+                  <div className="space-y-3 border-t border-[var(--color-border)] pt-3">
+                    <div className="flex flex-wrap gap-2">
+                      <ConfirmRemoveButton
+                        formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
+                        hiddenFields={{ _method: "DELETE" }}
+                        confirmMessage="Remove this video reference?"
+                      />
+                      {!ref.isPrimary && (
+                        <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
+                          <input type="hidden" name="isPrimary" value="on" />
+                          <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-slate-50">
+                            Set as primary
+                          </button>
+                        </form>
+                      )}
+                      <EditVideoRefForm
+                        ref_={ref}
+                        formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
