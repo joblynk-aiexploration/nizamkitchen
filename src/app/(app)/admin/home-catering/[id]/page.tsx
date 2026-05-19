@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminSocialLinks } from "@/components/business-social-links/social-link-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { listBusinessSocialLinks } from "@/server/business-social-links";
 import { getAdminHomeCateringProfile } from "@/server/home-catering";
+import { moderateDeleteBusinessSocialLinkAction } from "../../business-social-links/actions";
 import { updateAdminHomeCateringProfileAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +34,7 @@ export default async function AdminHomeCateringDetailPage({ params }: { params: 
   const { id } = await params;
   const profile = await getAdminHomeCateringProfile(session, id).catch(() => null);
   if (!profile) notFound();
+  const socialLinks = await listBusinessSocialLinks(profile.organizationId);
   const canMutate = session.user.platformRole !== "auditor";
 
   return (
@@ -65,6 +69,8 @@ export default async function AdminHomeCateringDetailPage({ params }: { params: 
               <Info label="Languages" value={Array.isArray(profile.languagesJson) ? profile.languagesJson.join(", ") : null} />
             </div>
           </Card>
+
+          <AdminSocialLinks links={socialLinks} deleteAction={moderateDeleteBusinessSocialLinkAction} />
         </div>
 
         {canMutate ? (

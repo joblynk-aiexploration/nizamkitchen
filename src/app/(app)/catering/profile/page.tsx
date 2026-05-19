@@ -11,7 +11,8 @@ import {
   getHomeCateringProfileForOrganization,
   isHomeCateringBusiness,
 } from "@/server/home-catering";
-import { upsertHomeCateringProfileAction } from "../actions";
+import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { deleteCateringSocialLinkAction, upsertCateringSocialLinkAction, upsertHomeCateringProfileAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,10 @@ export default async function CateringProfilePage() {
     return <EmptyState title="Home catering profile unavailable" description="Profile tools are available only for enabled home catering organizations." />;
   }
 
-  const profile = await getHomeCateringProfileForOrganization(session.activeOrganization.id);
+  const [profile, socialLinks] = await Promise.all([
+    getHomeCateringProfileForOrganization(session.activeOrganization.id),
+    listBusinessSocialLinks(session.activeOrganization.id),
+  ]);
   const specialties = Array.isArray(profile?.cuisineSpecialtiesJson) ? profile.cuisineSpecialtiesJson.join(", ") : "";
   const languages = Array.isArray(profile?.languagesJson) ? profile.languagesJson.join(", ") : "";
 
@@ -95,6 +99,14 @@ export default async function CateringProfilePage() {
           </Card>
         </div>
       </form>
+
+      <SocialLinksManager
+        links={socialLinks}
+        profileType="home_catering"
+        upsertAction={upsertCateringSocialLinkAction}
+        deleteAction={deleteCateringSocialLinkAction}
+      />
     </div>
   );
 }
+import { SocialLinksManager } from "@/components/business-social-links/social-link-components";

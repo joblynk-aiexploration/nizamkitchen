@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
+import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
 import {
   addChefSpecialty,
   canAccessChefMarketplace,
@@ -143,6 +144,41 @@ export async function pauseChefProfileAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update chef profile status."))}`);
+  }
+}
+
+export async function upsertChefSocialLinkAction(formData: FormData) {
+  try {
+    const session = await requireChefBusinessAccess();
+    await upsertBusinessSocialLink({
+      organizationId: session.activeOrganization.id,
+      organizationType: session.activeOrganization.organizationType,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      input: Object.fromEntries(formData),
+    });
+    revalidateChefPaths();
+    redirect("/chef/profile?message=Social link saved.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save social link."))}`);
+  }
+}
+
+export async function deleteChefSocialLinkAction(formData: FormData) {
+  try {
+    const session = await requireChefBusinessAccess();
+    await deleteBusinessSocialLink({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      input: Object.fromEntries(formData),
+    });
+    revalidateChefPaths();
+    redirect("/chef/profile?message=Social link deleted.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to delete social link."))}`);
   }
 }
 

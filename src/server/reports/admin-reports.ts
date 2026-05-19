@@ -38,6 +38,14 @@ export async function getAdminReportData(session: Session) {
   const restaurantWhere: Prisma.RestaurantFallbackSearchWhereInput =
     isCountryManager ? { countryCode: { in: assignedCountries } } : {};
 
+  const menuItemWhere: Prisma.MenuItemWhereInput = isCountryManager
+    ? { countryCode: { in: assignedCountries } }
+    : {};
+
+  const foodOrderWhere: Prisma.FoodOrderWhereInput = isCountryManager
+    ? { countryCode: { in: assignedCountries } }
+    : {};
+
   const [
     totalOrganizations,
     orgsByType,
@@ -55,6 +63,12 @@ export async function getAdminReportData(session: Session) {
     totalFlagsCount,
     subscriptionsByPlan,
     recentOrgs,
+    homeCateringSellersCount,
+    activeMenuItemsCount,
+    foodOrdersByStatus,
+    topRequestedDishes,
+    restaurantsWithMenusCount,
+    businessSocialLinksCount,
   ] = await Promise.all([
     prisma.organization.count({ where: orgWhere }),
 
@@ -133,6 +147,38 @@ export async function getAdminReportData(session: Session) {
         createdAt: true,
       },
     }),
+
+    prisma.homeCateringProfile.count({
+      where: isCountryManager ? { countryCode: { in: assignedCountries } } : {},
+    }),
+
+    prisma.menuItem.count({ where: { ...menuItemWhere, status: "active" } }),
+
+    prisma.foodOrder.groupBy({
+      by: ["status"],
+      where: foodOrderWhere,
+      _count: { _all: true },
+    }),
+
+    prisma.foodOrderItem.groupBy({
+      by: ["nameSnapshot"],
+      where: isCountryManager ? { order: { countryCode: { in: assignedCountries } } } : {},
+      _count: { _all: true },
+      orderBy: { _count: { nameSnapshot: "desc" } },
+      take: 5,
+    }),
+
+    prisma.organization.count({
+      where: {
+        ...orgWhere,
+        organizationType: "restaurant",
+        menuItems: { some: { status: { in: ["active", "sold_out"] } } },
+      },
+    }),
+
+    prisma.businessSocialLink.count({
+      where: isCountryManager ? { organization: { countryCode: { in: assignedCountries } } } : {},
+    }),
   ]);
 
   const orgsByTypeMap = Object.fromEntries(
@@ -199,6 +245,19 @@ export async function getAdminReportData(session: Session) {
     totalFlagsCount,
     subscriptionsByPlan,
     recentOrgs,
+    homeCateringSellersCount,
+    activeMenuItemsCount,
+    foodOrdersByStatus: foodOrdersByStatus.map((r) => ({
+      status: r.status,
+      count: r._count._all,
+    })),
+    foodOrdersTotal: foodOrdersByStatus.reduce((s, r) => s + r._count._all, 0),
+    topRequestedDishes: topRequestedDishes.map((r) => ({
+      name: r.nameSnapshot,
+      count: r._count._all,
+    })),
+    restaurantsWithMenusCount,
+    businessSocialLinksCount,
   };
 }
 

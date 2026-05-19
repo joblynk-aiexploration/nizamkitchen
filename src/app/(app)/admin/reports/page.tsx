@@ -74,6 +74,29 @@ export default async function AdminReportsPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminMetricCard
+          label="Home catering sellers"
+          value={data.homeCateringSellersCount}
+          hint="Seller profiles in scope."
+        />
+        <AdminMetricCard
+          label="Active menu items"
+          value={data.activeMenuItemsCount}
+          hint="Orderable menu items."
+        />
+        <AdminMetricCard
+          label="Food orders"
+          value={data.foodOrdersTotal}
+          hint="Manual order requests."
+        />
+        <AdminMetricCard
+          label="Business social links"
+          value={data.businessSocialLinksCount}
+          hint={`${data.restaurantsWithMenusCount} restaurants have menu items.`}
+        />
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminMetricCard
           label="Recipes"
           value={data.totalRecipes}
           hint={`${data.publishedRecipes} published.`}
@@ -178,6 +201,35 @@ export default async function AdminReportsPage() {
             {data.restaurantSearchesByStatus.length === 0 && (
               <p className="text-sm text-[var(--color-muted)]">No searches yet.</p>
             )}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-[var(--color-ink)]">
+            Food orders
+            <span className="ml-1.5 text-sm font-normal text-[var(--color-muted)]">({data.foodOrdersTotal})</span>
+          </h2>
+          <div className="mt-4 space-y-2">
+            {data.foodOrdersByStatus.map((r) => (
+              <div key={r.status} className="flex items-center justify-between rounded-2xl px-3 py-2 text-sm odd:bg-slate-50">
+                <span className="capitalize text-[var(--color-ink)]">{r.status.replace(/_/g, " ")}</span>
+                <Badge tone={r.status === "completed" ? "success" : r.status === "cancelled" || r.status === "declined" ? "danger" : "info"}>{r.count}</Badge>
+              </div>
+            ))}
+            {data.foodOrdersByStatus.length === 0 ? <p className="text-sm text-[var(--color-muted)]">No food orders yet.</p> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-[var(--color-ink)]">Top requested dishes</h2>
+          <div className="mt-4 space-y-2">
+            {data.topRequestedDishes.map((dish) => (
+              <div key={dish.name} className="flex items-center justify-between rounded-2xl px-3 py-2 text-sm odd:bg-slate-50">
+                <span className="text-[var(--color-ink)]">{dish.name}</span>
+                <Badge tone="neutral">{dish.count}</Badge>
+              </div>
+            ))}
+            {data.topRequestedDishes.length === 0 ? <p className="text-sm text-[var(--color-muted)]">No requested dishes yet.</p> : null}
           </div>
         </Card>
       </div>

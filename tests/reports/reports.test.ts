@@ -15,9 +15,14 @@ const { mockPrisma } = vi.hoisted(() => ({
     groceryList: { count: vi.fn() },
     groceryListItem: { groupBy: vi.fn() },
     homeChefRequest: { groupBy: vi.fn() },
+    homeCateringProfile: { count: vi.fn() },
     chefProfile: { groupBy: vi.fn() },
     restaurantFallbackSearch: { count: vi.fn(), groupBy: vi.fn() },
     savedRestaurant: { count: vi.fn() },
+    menuItem: { count: vi.fn() },
+    foodOrder: { groupBy: vi.fn() },
+    foodOrderItem: { groupBy: vi.fn() },
+    businessSocialLink: { count: vi.fn() },
     featureFlag: { count: vi.fn() },
     billingSubscription: { groupBy: vi.fn() },
     favoriteRecipe: { findMany: vi.fn() },
@@ -86,6 +91,16 @@ describe("getAdminReportData", () => {
     mockPrisma.savedRestaurant.count.mockResolvedValue(8);
     mockPrisma.featureFlag.count.mockResolvedValue(12);
     mockPrisma.billingSubscription.groupBy.mockResolvedValue([]);
+    mockPrisma.homeCateringProfile.count.mockResolvedValue(3);
+    mockPrisma.menuItem.count.mockResolvedValue(11);
+    mockPrisma.foodOrder.groupBy.mockResolvedValue([
+      { status: "submitted", _count: { _all: 4 } },
+      { status: "completed", _count: { _all: 6 } },
+    ]);
+    mockPrisma.foodOrderItem.groupBy.mockResolvedValue([
+      { nameSnapshot: "Chicken Biryani", _count: { _all: 5 } },
+    ]);
+    mockPrisma.businessSocialLink.count.mockResolvedValue(9);
   });
 
   it("returns aggregated platform metrics", async () => {
@@ -110,6 +125,15 @@ describe("getAdminReportData", () => {
   it("returns restaurantSearchTotal", async () => {
     const data = await getAdminReportData(makeAdminSession());
     expect(data.restaurantSearchTotal).toBe(15);
+  });
+
+  it("returns food commerce metrics", async () => {
+    const data = await getAdminReportData(makeAdminSession());
+    expect(data.homeCateringSellersCount).toBe(3);
+    expect(data.activeMenuItemsCount).toBe(11);
+    expect(data.foodOrdersTotal).toBe(10);
+    expect(data.topRequestedDishes[0]).toEqual({ name: "Chicken Biryani", count: 5 });
+    expect(data.businessSocialLinksCount).toBe(9);
   });
 
   it("handles zero published recipes for videoCoveragePct", async () => {

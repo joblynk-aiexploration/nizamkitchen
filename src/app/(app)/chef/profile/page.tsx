@@ -8,7 +8,8 @@ import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
-import { addChefSpecialtyAction, upsertChefProfileAction } from "../actions";
+import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { addChefSpecialtyAction, deleteChefSocialLinkAction, upsertChefProfileAction, upsertChefSocialLinkAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +23,10 @@ export default async function ChefProfilePage() {
     return <EmptyState title="Chef profile unavailable" description="Chef profile tools are available only for enabled chef business organizations." />;
   }
 
-  const [profile, recipes] = await Promise.all([
+  const [profile, recipes, socialLinks] = await Promise.all([
     getChefProfileForOrganization(session.activeOrganization.id),
     listRecipes({ organizationId: session.activeOrganization.id, countryCode: session.activeOrganization.countryCode, publishedOnly: true }),
+    listBusinessSocialLinks(session.activeOrganization.id),
   ]);
 
   return (
@@ -97,6 +99,14 @@ export default async function ChefProfilePage() {
           </form>
         </Card>
       ) : null}
+
+      <SocialLinksManager
+        links={socialLinks}
+        profileType="chef_business"
+        upsertAction={upsertChefSocialLinkAction}
+        deleteAction={deleteChefSocialLinkAction}
+      />
     </div>
   );
 }
+import { SocialLinksManager } from "@/components/business-social-links/social-link-components";

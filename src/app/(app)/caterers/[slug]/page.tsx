@@ -2,11 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
+import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getPublicHomeCateringProfile } from "@/server/home-catering";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
+import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,10 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
   if (!profile) notFound();
-  const menuItems = await listPublicMenuItemsForOrganization(profile.organizationId);
+  const [menuItems, socialLinks] = await Promise.all([
+    listPublicMenuItemsForOrganization(profile.organizationId),
+    listPublicBusinessSocialLinks(profile.organizationId, "home_catering"),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -51,6 +57,8 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
             <Link href="/orders">View my orders</Link>
           </Button>
         </Card>
+
+        <PublicSocialLinks links={socialLinks} />
       </div>
 
       <Card>
@@ -84,6 +92,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           ))}
         </div>
       </Card>
+      <CommerceSafetyNotice />
     </div>
   );
 }

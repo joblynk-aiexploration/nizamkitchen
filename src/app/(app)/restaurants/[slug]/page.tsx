@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
+import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
+import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
 
 export const dynamic = "force-dynamic";
@@ -21,11 +24,15 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
     select: { id: true, name: true, countryCode: true },
   });
   if (!restaurant) notFound();
-  const menuItems = await listPublicMenuItemsForOrganization(restaurant.id);
+  const [menuItems, socialLinks] = await Promise.all([
+    listPublicMenuItemsForOrganization(restaurant.id),
+    listPublicBusinessSocialLinks(restaurant.id, "restaurant"),
+  ]);
 
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and submit manual order requests. Payment is handled directly with the restaurant for now." />
+      <PublicSocialLinks links={socialLinks} />
       <Card>
         <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
         {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active public menu items have been published yet.</p> : null}
@@ -52,6 +59,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
           ))}
         </div>
       </Card>
+      <CommerceSafetyNotice />
     </div>
   );
 }

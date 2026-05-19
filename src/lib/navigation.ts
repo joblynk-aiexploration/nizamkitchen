@@ -97,10 +97,11 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
   if (organizationType === "restaurant") {
     return [
       { href: "/restaurant", label: "Restaurant Dashboard" },
+      { href: "/restaurant/profile", label: "Profile" },
       { href: "/restaurant/menu", label: "Menus" },
       { href: "/restaurant/menu-items", label: "Menu Items" },
       { href: "/restaurant/orders", label: "Order Requests" },
-      { href: "/settings", label: "Settings" },
+      { href: "/restaurant/settings", label: "Settings" },
     ];
   }
 

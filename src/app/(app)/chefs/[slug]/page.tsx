@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,7 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
+  const socialLinks = await listPublicBusinessSocialLinks(chef.organizationId, "chef_business");
 
   return (
     <div className="space-y-8">
@@ -88,6 +91,7 @@ export default async function ChefPublicProfilePage({
               )}
             </div>
           </Card>
+          <PublicSocialLinks links={socialLinks} />
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Important</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">

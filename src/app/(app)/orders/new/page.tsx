@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { FoodOrderRequestForm } from "@/components/food-orders/order-forms";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -47,6 +48,7 @@ export default async function NewFoodOrderPage({
         customerName={session.user.fullName}
         customerEmail={session.user.email}
       />
+      <CommerceSafetyNotice />
     </div>
   );
 }

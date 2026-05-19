@@ -206,6 +206,7 @@ model Organization {
   foodOrders                 FoodOrder[]                    @relation("FoodOrderTenantOrganization")
   customerFoodOrders         FoodOrder[]                    @relation("FoodOrderCustomerOrganization")
   sellerFoodOrders           FoodOrder[]                    @relation("FoodOrderSellerOrganization")
+  businessSocialLinks        BusinessSocialLink[]
 
   @@index([countryCode])
   @@index([status])
@@ -787,6 +788,24 @@ enum FoodOrderFulfillmentType {
   delivery
   preorder
   inquiry_only
+}
+
+enum BusinessProfileType {
+  home_catering
+  chef_business
+  restaurant
+}
+
+enum SocialPlatform {
+  instagram
+  facebook
+  tiktok
+  youtube
+  whatsapp
+  website
+  x
+  snapchat
+  other
 }
 
 enum ChefVerificationStatus {
@@ -1644,6 +1663,26 @@ model FoodOrderStatusHistory {
   @@index([orderId])
   @@index([changedById])
   @@index([newStatus])
+}
+
+model BusinessSocialLink {
+  id             String              @id @default(cuid())
+  organizationId String
+  profileType    BusinessProfileType
+  platform       SocialPlatform
+  label          String?
+  url            String
+  displayOrder   Int                 @default(0)
+  isPublic       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([profileType])
+  @@index([platform])
+  @@index([isPublic])
+  @@index([displayOrder])
 }
 
 model ChefProfile {
