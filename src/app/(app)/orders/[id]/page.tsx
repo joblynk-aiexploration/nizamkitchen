@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getCustomerFoodOrder } from "@/server/food-orders";
-import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction, createFoodOrderCheckoutAction } from "../actions";
+import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction, createFoodOrderCheckoutAction, createPayPalFoodOrderCheckoutAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,15 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
                 <input type="hidden" name="orderId" value={order.id} />
                 <p className="text-sm font-semibold text-emerald-950">Payment</p>
                 <p className="mt-1 text-sm text-emerald-800">Pay securely with Stripe hosted checkout. NizamKitchen never sees card numbers or CVV.</p>
-                <Button type="submit" className="mt-4 w-full">Pay now</Button>
+                <Button type="submit" className="mt-4 w-full">Pay with Stripe</Button>
+              </form>
+            ) : null}
+            {order.subtotalAmount && order.paymentStatus !== "paid" ? (
+              <form action={createPayPalFoodOrderCheckoutAction} className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <input type="hidden" name="orderId" value={order.id} />
+                <p className="text-sm font-semibold text-blue-950">PayPal</p>
+                <p className="mt-1 text-sm text-blue-800">PayPal approval redirects back to NizamKitchen for server-side capture confirmation.</p>
+                <Button type="submit" variant="secondary" className="mt-4 w-full">Pay with PayPal</Button>
               </form>
             ) : null}
             <FoodOrderMessageForm action={createCustomerFoodOrderMessageAction} orderId={order.id} />

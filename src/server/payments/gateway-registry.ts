@@ -1,6 +1,7 @@
 import { PaymentOrderStatus, PaymentProvider } from "@prisma/client";
 import { PaymentGatewayUnavailableError } from "@/server/payments/payment-errors";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
+import { paypalAdapter } from "@/server/payments/providers/paypal/paypal-adapter";
 import { stripeAdapter } from "@/server/payments/providers/stripe/stripe-adapter";
 import type {
   CreateCheckoutSessionInput,
@@ -82,6 +83,7 @@ for (const provider of Object.values(PaymentProvider)) {
   registry.set(provider, new PlaceholderGatewayAdapter(provider, { manual: provider === PaymentProvider.manual || provider === PaymentProvider.cash }));
 }
 registry.set(PaymentProvider.stripe, stripeAdapter);
+registry.set(PaymentProvider.paypal, paypalAdapter);
 
 export function registerPaymentGateway(adapter: PaymentGatewayAdapter) {
   registry.set(adapter.provider, adapter);

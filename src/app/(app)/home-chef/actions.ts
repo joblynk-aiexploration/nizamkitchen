@@ -14,6 +14,7 @@ import {
   updateHomeChefRequestDraft,
 } from "@/server/home-chef";
 import { createStripeHomeChefCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
+import { createPayPalHomeChefCheckout } from "@/server/payments/providers/paypal/paypal-adapter";
 
 async function requireHomeChefHouseholdAccess() {
   const session = await requireMembership();
@@ -162,5 +163,24 @@ export async function createHomeChefCheckoutAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create payment link."))}`);
+  }
+}
+
+export async function createPayPalHomeChefCheckoutAction(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+  const paymentType = formData.get("paymentType") === "deposit" ? "deposit" : "full";
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    const result = await createPayPalHomeChefCheckout({
+      requestId,
+      userId: session.user.id,
+      appUrl: env.APP_URL,
+      paymentType,
+    });
+    if (!result.checkoutUrl) throw new Error("PayPal checkout could not be created.");
+    redirect(result.checkoutUrl);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create PayPal payment link."))}`);
   }
 }

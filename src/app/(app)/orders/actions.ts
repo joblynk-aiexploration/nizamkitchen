@@ -10,6 +10,7 @@ import {
   createFoodOrderMessage,
 } from "@/server/food-orders";
 import { createStripeFoodOrderCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
+import { createPayPalFoodOrderCheckout } from "@/server/payments/providers/paypal/paypal-adapter";
 
 export async function createFoodOrderAction(formData: FormData) {
   const session = await requireMembership();
@@ -53,5 +54,17 @@ export async function createFoodOrderCheckoutAction(formData: FormData) {
     appUrl: env.APP_URL,
   });
   if (!result.checkoutUrl) throw new Error("Stripe checkout could not be created.");
+  redirect(result.checkoutUrl);
+}
+
+export async function createPayPalFoodOrderCheckoutAction(formData: FormData) {
+  const session = await requireMembership();
+  const orderId = String(formData.get("orderId") ?? "");
+  const result = await createPayPalFoodOrderCheckout({
+    foodOrderId: orderId,
+    userId: session.user.id,
+    appUrl: env.APP_URL,
+  });
+  if (!result.checkoutUrl) throw new Error("PayPal checkout could not be created.");
   redirect(result.checkoutUrl);
 }

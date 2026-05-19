@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TextArea } from "@/components/ui/text-area";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessHomeChefs, getHomeChefRequest, isHouseholdRequestOrganization } from "@/server/home-chef";
-import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction } from "../../actions";
+import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction, createPayPalHomeChefCheckoutAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +87,25 @@ export default async function HomeChefRequestDetailPage({
                     <Button type="submit" className="w-full">Pay deposit {request.currencyCode} {request.depositAmount}</Button>
                   </form>
                 ) : null}
+                {request.depositAmount ? (
+                  <form action={createPayPalHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="deposit" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay deposit with PayPal</Button>
+                  </form>
+                ) : null}
                 {request.quotedAmount ? (
                   <form action={createHomeChefCheckoutAction}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <input type="hidden" name="paymentType" value="full" />
                     <Button type="submit" variant="secondary" className="w-full">Pay full quote {request.currencyCode} {request.quotedAmount}</Button>
+                  </form>
+                ) : null}
+                {request.quotedAmount ? (
+                  <form action={createPayPalHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="full" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay full quote with PayPal</Button>
                   </form>
                 ) : null}
               </div>
