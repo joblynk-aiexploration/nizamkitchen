@@ -17,6 +17,12 @@ export const registerSchema = z.object({
     .regex(/[0-9]/, "Password must include a number."),
   organizationName: z.string().trim().min(2).max(120),
   countryCode: z.string().trim().min(2).max(3).toUpperCase(),
+  accountType: z.enum(["household", "chef", "restaurant"]).default("household"),
+  householdSize: z.coerce.number().int().min(1).max(20).optional(),
+  spiceLevel: z.enum(["mild", "medium", "hot", "extra_hot"]).optional(),
+  cuisineIds: z.union([z.string(), z.array(z.string())]).optional().transform((v) =>
+    v === undefined ? [] : Array.isArray(v) ? v : [v],
+  ),
 });
 
 export const switchOrganizationSchema = z.object({

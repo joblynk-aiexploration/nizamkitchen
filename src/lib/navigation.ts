@@ -33,6 +33,7 @@ const platformAdminHrefs = [
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
   "/admin/system-settings",
+  "/admin/leads",
 ] as const;
 
 const countryManagerHrefs = [
@@ -173,6 +174,7 @@ function labelForHref(href: string) {
     "/admin/billing/plans": "Plans",
     "/admin/billing/subscriptions": "Subscriptions",
     "/admin/reports": "Reports",
+    "/admin/leads": "Contact Leads",
     "/reports": "Reports",
   };
 

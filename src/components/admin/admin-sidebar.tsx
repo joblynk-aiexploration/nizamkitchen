@@ -12,6 +12,7 @@ import {
   CircleDollarSign,
   Flag,
   Globe2,
+  Inbox,
   LayoutDashboard,
   Logs,
   Ruler,
@@ -77,6 +78,7 @@ const adminNavGroups = [
     title: "Analytics",
     items: [
       { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+      { href: "/admin/leads", label: "Contact leads", icon: Inbox },
     ],
   },
   {
@@ -126,6 +128,7 @@ function canSeeLink(session: Session, href: string) {
       "/admin/home-chef-requests",
       "/admin/chefs",
       "/admin/support",
+      "/admin/leads",
     ].includes(href);
   }
 

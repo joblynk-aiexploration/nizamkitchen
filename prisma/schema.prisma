@@ -1716,3 +1716,18 @@ model SavedRestaurant {
   @@index([organizationId])
   @@index([countryCode])
 }
+
+model ContactLead {
+  id               String   @id @default(cuid())
+  name             String
+  email            String
+  organizationType String?
+  countryCode      String?
+  message          String
+  status           String   @default("new")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([email])
+}

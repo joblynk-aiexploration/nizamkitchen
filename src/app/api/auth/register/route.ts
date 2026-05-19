@@ -9,6 +9,18 @@ import { slugify } from "@/lib/utils";
 import { registerSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
 
+const orgTypeMap: Record<string, OrganizationType> = {
+  household: OrganizationType.household,
+  chef: OrganizationType.chef_business,
+  restaurant: OrganizationType.restaurant,
+};
+
+const redirectAfterRegister: Record<string, string> = {
+  household: "/dashboard",
+  chef: "/chef/profile",
+  restaurant: "/restaurant",
+};
+
 export async function POST(request: Request) {
   const clientIp = getClientIpFromHeaders(request.headers);
 
@@ -23,12 +35,20 @@ export async function POST(request: Request) {
   }
 
   const formData = await request.formData();
+
+  // formData.getAll for cuisineIds (multi-value checkbox)
+  const cuisineIds = formData.getAll("cuisineIds");
+
   const parsed = registerSchema.safeParse({
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     password: formData.get("password"),
     organizationName: formData.get("organizationName"),
     countryCode: formData.get("countryCode"),
+    accountType: formData.get("accountType") ?? "household",
+    householdSize: formData.get("householdSize") ?? undefined,
+    spiceLevel: formData.get("spiceLevel") ?? undefined,
+    cuisineIds: cuisineIds.length > 0 ? cuisineIds : undefined,
   });
 
   if (!parsed.success) {
@@ -55,6 +75,7 @@ export async function POST(request: Request) {
 
   const passwordHash = await hashPassword(parsed.data.password);
   const slug = `${slugify(parsed.data.organizationName)}-${Math.random().toString(36).slice(2, 8)}`;
+  const organizationType = orgTypeMap[parsed.data.accountType] ?? OrganizationType.household;
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
@@ -69,7 +90,7 @@ export async function POST(request: Request) {
       data: {
         name: parsed.data.organizationName,
         slug,
-        organizationType: OrganizationType.household,
+        organizationType,
         organizationId: crypto.randomUUID(),
         countryCode: country.countryCode,
         currencyCode: country.currencyCode,
@@ -88,11 +109,30 @@ export async function POST(request: Request) {
       },
     });
 
+    if (organizationType === OrganizationType.household) {
+      const size = parsed.data.householdSize ?? 4;
+      await tx.householdProfile.create({
+        data: {
+          organizationId: organization.id,
+          countryCode: country.countryCode,
+          displayName: parsed.data.organizationName,
+          defaultHouseholdSize: size,
+          defaultServings: size,
+          defaultSpiceLevel: parsed.data.spiceLevel ?? "medium",
+          preferredMeasurementSystem: country.measurementSystem,
+          preferredCuisineIds: parsed.data.cuisineIds ?? [],
+          cookingSkillLevel: "beginner",
+          weeklyCookingDays: [],
+        },
+      });
+    }
+
     return { user, organization };
   });
 
   await createSession(result.user.id, result.organization.id);
   const requestMeta = await getRequestMetadata();
+
   await createAuditLog({
     actorUserId: result.user.id,
     organizationId: result.organization.id,
@@ -109,6 +149,7 @@ export async function POST(request: Request) {
     action: "organization.created",
     targetType: "organization",
     targetId: result.organization.id,
+    details: { organizationType },
     ...requestMeta,
   });
   await createAuditLog({
@@ -122,5 +163,6 @@ export async function POST(request: Request) {
     ...requestMeta,
   });
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  const destination = redirectAfterRegister[parsed.data.accountType] ?? "/dashboard";
+  return NextResponse.redirect(new URL(destination, request.url));
 }
