@@ -19,6 +19,7 @@ import {
   Scale,
   Settings,
   Shield,
+  ServerCog,
   ShoppingCart,
   UtensilsCrossed,
   UserRoundSearch,
@@ -85,6 +86,7 @@ const adminNavGroups = [
     title: "Configuration",
     items: [
       { href: "/admin/feature-flags", label: "Feature flags", icon: Flag },
+      { href: "/admin/system", label: "System status", icon: ServerCog },
       { href: "/admin/system-settings", label: "System settings", icon: Settings },
       { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
       { href: "/admin/support", label: "Support", icon: UserRoundSearch },
@@ -141,7 +143,7 @@ function canSeeLink(session: Session, href: string) {
     ].includes(href);
   }
 
-  if (href === "/admin/system-settings") {
+  if (href === "/admin/system" || href === "/admin/system-settings") {
     return role === "platform_owner" || role === "platform_admin";
   }
 

@@ -2,6 +2,7 @@ import { NotificationPriority, NotificationStatus, PlatformRole, Prisma } from "
 import { assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationPreferenceSchema } from "@/lib/validation/notifications";
+import { logError } from "@/server/observability/logger";
 import { renderEmailTemplate, sendEmail, type EmailTemplateKey } from "./email-service";
 import type { getCurrentSession } from "@/lib/session";
 
@@ -81,11 +82,10 @@ export async function createNotification(input: NotificationInput) {
 
     return notification;
   } catch (error) {
-    console.error("[notifications] failed to create notification", {
+    logError("[notifications] failed to create notification", error, {
       type: input.type,
       organizationId: input.organizationId,
       userId: input.userId,
-      error: error instanceof Error ? error.message : "Unknown error",
     });
     return null;
   }
@@ -103,9 +103,8 @@ export async function createAdminNotification(input: Omit<NotificationInput, "us
 
     return Promise.all(users.map((user) => createNotification({ ...input, userId: user.id, preferenceKey: "adminAlerts" })));
   } catch (error) {
-    console.error("[notifications] failed to create admin notifications", {
+    logError("[notifications] failed to create admin notifications", error, {
       type: input.type,
-      error: error instanceof Error ? error.message : "Unknown error",
     });
     return [];
   }
