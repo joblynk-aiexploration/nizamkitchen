@@ -2,6 +2,7 @@ import { PaymentOrderStatus, Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
+import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
@@ -246,8 +247,9 @@ export async function createStripeConnectOnboarding(params: { organizationId: st
 }
 
 export async function createStripeRefundForPaymentOrder(params: { paymentOrderId: string; amount: number; reason?: string; requestedById: string }) {
-  const order = await prisma.paymentOrder.findUniqueOrThrow({ where: { id: params.paymentOrderId } });
+  const { order, remaining } = await validateRefundAmount(params.paymentOrderId, params.amount);
   const result = await stripeAdapter.refundPayment({ paymentOrderId: order.id, amount: params.amount, currencyCode: order.currencyCode, reason: params.reason });
+  const fullRefund = params.amount >= remaining;
   const refund = await prisma.paymentRefund.create({
     data: {
       paymentOrderId: order.id,
@@ -262,6 +264,8 @@ export async function createStripeRefundForPaymentOrder(params: { paymentOrderId
       requestedById: params.requestedById,
     },
   });
+  await prisma.paymentOrder.update({ where: { id: order.id }, data: { status: fullRefund ? "refunded" : "partially_refunded" } });
+  await syncModulePaymentStatus(order.id, fullRefund ? "refunded" : "partially_refunded");
   await prisma.paymentTransaction.create({
     data: {
       paymentOrderId: order.id,

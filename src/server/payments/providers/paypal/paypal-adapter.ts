@@ -2,6 +2,7 @@ import { PaymentOrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
+import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { getPayPalAccessToken, getPayPalGateway, getPayPalSecrets, paypalApiBase, paypalFetch } from "@/server/payments/providers/paypal/paypal-client";
 import { handlePayPalWebhook, markPayPalOrderPaid, validatePayPalWebhook } from "@/server/payments/providers/paypal/paypal-webhooks";
@@ -192,9 +193,9 @@ export async function createPayPalHomeChefCheckout(params: { requestId: string; 
 }
 
 export async function createPayPalRefundForPaymentOrder(params: { paymentOrderId: string; amount: number; reason?: string; requestedById: string }) {
-  const order = await prisma.paymentOrder.findUniqueOrThrow({ where: { id: params.paymentOrderId } });
+  const { order, remaining } = await validateRefundAmount(params.paymentOrderId, params.amount);
   const result = await paypalAdapter.refundPayment({ paymentOrderId: order.id, amount: params.amount, currencyCode: order.currencyCode, reason: params.reason });
-  return prisma.paymentRefund.create({
+  const refund = await prisma.paymentRefund.create({
     data: {
       paymentOrderId: order.id,
       organizationId: order.organizationId,
@@ -208,6 +209,10 @@ export async function createPayPalRefundForPaymentOrder(params: { paymentOrderId
       requestedById: params.requestedById,
     },
   });
+  const fullRefund = params.amount >= remaining;
+  await prisma.paymentOrder.update({ where: { id: order.id }, data: { status: fullRefund ? "refunded" : "partially_refunded" } });
+  await syncModulePaymentStatus(order.id, fullRefund ? "refunded" : "partially_refunded");
+  return refund;
 }
 
 function headersFromRecord(record: Record<string, string | string[] | undefined>) {

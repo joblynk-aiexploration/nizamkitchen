@@ -93,9 +93,11 @@ const adminNavGroups = [
       { href: "/admin/system-settings", label: "System settings", icon: Settings },
       { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
       { href: "/admin/payments", label: "Payments", icon: CircleDollarSign },
+      { href: "/admin/payments/operations", label: "Payment operations", icon: BarChart3 },
       { href: "/admin/payments/gateways", label: "Payment gateways", icon: Shield },
       { href: "/admin/payments/configurations", label: "Payment config", icon: Settings },
       { href: "/admin/payments/transactions", label: "Transactions", icon: Inbox },
+      { href: "/admin/payments/commissions", label: "Commissions", icon: Scale },
       { href: "/admin/support", label: "Support", icon: UserRoundSearch },
     ],
   },
@@ -129,8 +131,10 @@ function canSeeLink(session: Session, href: string) {
       "/admin/restaurant-fallback",
       "/admin/grocery-partners",
       "/admin/payments",
+      "/admin/payments/operations",
       "/admin/payments/configurations",
       "/admin/payments/transactions",
+      "/admin/payments/commissions",
     ].includes(href);
   }
 
@@ -148,6 +152,7 @@ function canSeeLink(session: Session, href: string) {
       "/admin/support",
       "/admin/leads",
       "/admin/payments",
+      "/admin/payments/operations",
       "/admin/payments/transactions",
     ].includes(href);
   }

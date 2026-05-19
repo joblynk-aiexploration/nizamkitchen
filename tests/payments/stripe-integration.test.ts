@@ -12,9 +12,10 @@ const { mockPrisma, stripeClient } = vi.hoisted(() => ({
   mockPrisma: {
     paymentGateway: { findFirst: vi.fn(), findUnique: vi.fn() },
     paymentConfiguration: { findUnique: vi.fn() },
-    paymentOrder: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn() },
+    paymentOrder: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     paymentTransaction: { create: vi.fn() },
     paymentRefund: { create: vi.fn() },
+    paymentDispute: { upsert: vi.fn() },
     paymentWebhookEvent: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     foodOrder: { findUniqueOrThrow: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     homeChefRequest: { updateMany: vi.fn() },
@@ -64,6 +65,7 @@ describe("Stripe payment gateway integration", () => {
     mockPrisma.paymentGateway.findUnique.mockResolvedValue(gateway());
     mockPrisma.paymentConfiguration.findUnique.mockResolvedValue({ platformCommissionPercent: "10", fixedCommissionAmount: "1.00", taxPercent: "0" });
     mockPrisma.paymentOrder.findUnique.mockResolvedValue(null);
+    mockPrisma.paymentOrder.findFirst.mockResolvedValue({ id: "payment-order-1", organizationId: "org-household", countryCode: "US" });
     mockPrisma.paymentOrder.create.mockImplementation(async ({ data }) => ({ id: "payment-order-1", status: "pending", ...data }));
     mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue({
       id: "payment-order-1",
@@ -140,8 +142,36 @@ describe("Stripe payment gateway integration", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "payment_order.paid" }));
   });
 
+  it("creates disputes from Stripe dispute webhooks", async () => {
+    stripeClient.webhooks.constructEvent.mockReturnValue({
+      id: "evt_dispute",
+      type: "charge.dispute.created",
+      data: {
+        object: {
+          id: "dp_1",
+          amount: 2500,
+          currency: "usd",
+          reason: "fraudulent",
+          payment_intent: "pi_1",
+          evidence_details: { due_by: 1780000000 },
+        },
+      },
+    });
+    mockPrisma.paymentWebhookEvent.findUnique.mockResolvedValue(null);
+    const result = await handleStripeWebhook({ rawBody: "{}", signature: "sig" });
+    expect(result.status).toBe("processed");
+    expect(mockPrisma.paymentDispute.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        providerDisputeId: "dp_1",
+        status: "needs_response",
+        amount: new Prisma.Decimal(25),
+        currencyCode: "USD",
+      }),
+    }));
+  });
+
   it("creates refund records without letting sellers process refunds", async () => {
-    mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue({ id: "payment-order-1", organizationId: "org-household", countryCode: "US", currencyCode: "USD", gatewayId: "gateway-stripe", providerPaymentIntentId: "pi_1" });
+    mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue({ id: "payment-order-1", status: "paid", organizationId: "org-household", countryCode: "US", currencyCode: "USD", amount: new Prisma.Decimal(50), gatewayId: "gateway-stripe", providerPaymentIntentId: "pi_1", refunds: [] });
     stripeClient.refunds.create.mockResolvedValue({ id: "re_1" });
     mockPrisma.paymentRefund.create.mockResolvedValue({ id: "refund-1" });
     await createStripeRefundForPaymentOrder({ paymentOrderId: "payment-order-1", amount: 10, requestedById: "admin-1" });

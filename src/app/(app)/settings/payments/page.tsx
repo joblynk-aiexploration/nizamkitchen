@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getSellerPaymentSummary } from "@/server/payments/operations";
 import { createStripeConnectOnboardingAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,12 @@ export default async function SellerPaymentSettingsPage({ searchParams }: { sear
   if (!["home_catering", "restaurant", "chef_business"].includes(session.activeOrganization.organizationType)) {
     return <EmptyState title="Seller payments unavailable" description="Payout setup is available only for home catering, restaurant, and chef business organizations." />;
   }
-  const payoutAccount = await prisma.sellerPayoutAccount.findUnique({
-    where: { organizationId_provider: { organizationId: session.activeOrganization.id, provider: "stripe" } },
-  });
+  const [payoutAccount, summary] = await Promise.all([
+    prisma.sellerPayoutAccount.findUnique({
+      where: { organizationId_provider: { organizationId: session.activeOrganization.id, provider: "stripe" } },
+    }),
+    getSellerPaymentSummary(session.activeOrganization.id),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -33,6 +37,31 @@ export default async function SellerPaymentSettingsPage({ searchParams }: { sear
           <form action={createStripeConnectOnboardingAction}>
             <Button type="submit">{payoutAccount ? "Refresh payout setup" : "Set up payouts"}</Button>
           </form>
+        </div>
+      </Card>
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paid orders</p>
+          <p className="mt-3 text-3xl font-semibold">{summary.paidOrders}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Gross sales</p>
+          <p className="mt-3 text-3xl font-semibold">{summary.grossSales.toFixed(2)}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Seller net</p>
+          <p className="mt-3 text-3xl font-semibold">{summary.sellerNet.toFixed(2)}</p>
+        </Card>
+      </section>
+      <Card>
+        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Payout history</h2>
+        <div className="mt-4 space-y-3 text-sm">
+          {summary.payouts.length ? summary.payouts.map((payout) => (
+            <div key={payout.id} className="flex flex-col gap-1 rounded-2xl border border-[var(--color-border)] p-4 md:flex-row md:items-center md:justify-between">
+              <span>{payout.currencyCode} {payout.amount.toString()}</span>
+              <Badge tone={payout.status === "paid" ? "success" : payout.status === "failed" ? "danger" : "warning"}>{payout.status}</Badge>
+            </div>
+          )) : <p className="text-[var(--color-muted)]">No payout records yet.</p>}
         </div>
       </Card>
     </div>

@@ -110,6 +110,37 @@ async function processStripeEvent(event: Stripe.Event) {
     return;
   }
 
+  if (event.type === "charge.dispute.created") {
+    const dispute = event.data.object as Stripe.Dispute;
+    const paymentOrder = dispute.payment_intent
+      ? await prisma.paymentOrder.findFirst({ where: { providerPaymentIntentId: typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent.id } })
+      : null;
+    await prisma.paymentDispute.upsert({
+      where: { provider_providerDisputeId: { provider: "stripe", providerDisputeId: dispute.id } },
+      update: {
+        status: "needs_response",
+        amount: dispute.amount ? new Prisma.Decimal(dispute.amount / 100) : null,
+        currencyCode: dispute.currency?.toUpperCase() ?? null,
+        reason: dispute.reason ?? null,
+        rawJson: dispute as unknown as Prisma.InputJsonValue,
+      },
+      create: {
+        paymentOrderId: paymentOrder?.id ?? null,
+        organizationId: paymentOrder?.organizationId ?? null,
+        provider: "stripe",
+        providerDisputeId: dispute.id,
+        status: "needs_response",
+        amount: dispute.amount ? new Prisma.Decimal(dispute.amount / 100) : null,
+        currencyCode: dispute.currency?.toUpperCase() ?? null,
+        reason: dispute.reason ?? null,
+        evidenceDueBy: dispute.evidence_details?.due_by ? new Date(dispute.evidence_details.due_by * 1000) : null,
+        rawJson: dispute as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await createAuditEvent({ action: "payment_dispute.created", targetType: "payment_dispute", targetId: dispute.id, organizationId: paymentOrder?.organizationId ?? null, countryCode: paymentOrder?.countryCode ?? null });
+    return;
+  }
+
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted" || event.type === "customer.subscription.created") {
     const subscription = event.data.object as Stripe.Subscription;
     await prisma.billingSubscription.updateMany({
