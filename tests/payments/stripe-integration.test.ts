@@ -30,6 +30,7 @@ vi.mock("stripe", () => ({ default: vi.fn(() => stripeClient) }));
 vi.mock("@/lib/env", () => ({ env: { ENCRYPTION_KEY: "stripe-test-encryption-key-that-is-long-enough", APP_URL: "http://localhost:3000" } }));
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/server/audit", () => ({ createAuditEvent: vi.fn() }));
+vi.mock("@/server/notifications/notification-service", () => ({ createAdminNotification: vi.fn() }));
 
 import { createAuditEvent } from "@/server/audit";
 import { encryptGatewayCredential } from "@/server/payments/credentials";

@@ -90,8 +90,19 @@ describe("PayPal and wallet gateway framework", () => {
     expect(ignored.status).toBe("ignored");
   });
 
+  it("does not mark PayPal approved-only webhooks as paid before server capture", async () => {
+    mockPrisma.paymentWebhookEvent.findUnique.mockResolvedValue(null);
+    await handlePayPalWebhook({ rawBody: JSON.stringify({ id: "evt-approved", event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "paypal-order-1" } }), headers: new Headers() });
+    expect(mockPrisma.paymentOrder.updateMany).toHaveBeenCalledWith({
+      where: { provider: "paypal", providerOrderId: "paypal-order-1", status: { not: "paid" } },
+      data: { status: "requires_action" },
+    });
+    expect(mockPrisma.foodOrder.updateMany).not.toHaveBeenCalled();
+  });
+
   it("creates PayPal refunds from successful captures", async () => {
     mockPrisma.paymentTransaction.findFirst.mockResolvedValue({ providerTransactionId: "capture-1" });
+    mockPrisma.paymentRefund.create.mockResolvedValue({ id: "refund-1" });
     await createPayPalRefundForPaymentOrder({ paymentOrderId: "payment-order-1", amount: 5, requestedById: "admin-1" });
     expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/v2/payments/captures/capture-1/refund"), expect.objectContaining({ method: "POST" }));
     expect(mockPrisma.paymentRefund.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ provider: "paypal" }) }));

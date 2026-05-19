@@ -1,5 +1,6 @@
 import { PaymentOrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createAuditEvent } from "@/server/audit";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
 import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
@@ -212,6 +213,15 @@ export async function createPayPalRefundForPaymentOrder(params: { paymentOrderId
   const fullRefund = params.amount >= remaining;
   await prisma.paymentOrder.update({ where: { id: order.id }, data: { status: fullRefund ? "refunded" : "partially_refunded" } });
   await syncModulePaymentStatus(order.id, fullRefund ? "refunded" : "partially_refunded");
+  await createAuditEvent({
+    actorUserId: params.requestedById,
+    organizationId: order.organizationId,
+    countryCode: order.countryCode,
+    action: "payment_refund.requested",
+    targetType: "payment_refund",
+    targetId: refund.id,
+    details: { provider: "paypal", amount: params.amount, fullRefund },
+  });
   return refund;
 }
 

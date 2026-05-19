@@ -11,6 +11,10 @@ export async function GET(request: Request) {
   if (!paymentOrderId || !token) return NextResponse.redirect(new URL("/orders?payment=failed", url.origin));
 
   try {
+    const pendingOrder = await prisma.paymentOrder.findUnique({ where: { id: paymentOrderId } });
+    if (!pendingOrder || pendingOrder.provider !== "paypal" || pendingOrder.providerOrderId !== token) {
+      return NextResponse.redirect(new URL("/orders?payment=failed", url.origin));
+    }
     await paypalAdapter.capturePayment({ providerOrderId: token });
     const order = await prisma.paymentOrder.findUnique({ where: { id: paymentOrderId } });
     const redirectPath = order?.module === "home_chef_request"

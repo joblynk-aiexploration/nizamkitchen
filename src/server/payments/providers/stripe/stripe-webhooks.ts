@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { createAdminNotification } from "@/server/notifications/notification-service";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
 
 export async function constructStripeWebhookEvent(params: { rawBody: string; signature?: string | null; gatewayId?: string | null }) {
@@ -138,6 +139,15 @@ async function processStripeEvent(event: Stripe.Event) {
       },
     });
     await createAuditEvent({ action: "payment_dispute.created", targetType: "payment_dispute", targetId: dispute.id, organizationId: paymentOrder?.organizationId ?? null, countryCode: paymentOrder?.countryCode ?? null });
+    await createAdminNotification({
+      organizationId: paymentOrder?.organizationId ?? null,
+      countryCode: paymentOrder?.countryCode ?? null,
+      type: "payment_dispute_opened",
+      title: "Payment dispute opened",
+      body: `Stripe dispute ${dispute.id} requires admin review.`,
+      actionUrl: "/admin/payments/disputes",
+      priority: "urgent",
+    });
     return;
   }
 

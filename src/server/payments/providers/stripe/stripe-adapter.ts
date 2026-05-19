@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
 import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
+import { createAuditEvent } from "@/server/audit";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
@@ -278,6 +279,15 @@ export async function createStripeRefundForPaymentOrder(params: { paymentOrderId
       currencyCode: order.currencyCode,
       providerRefundId: result.providerTransactionId ?? null,
     },
+  });
+  await createAuditEvent({
+    actorUserId: params.requestedById,
+    organizationId: order.organizationId,
+    countryCode: order.countryCode,
+    action: "payment_refund.requested",
+    targetType: "payment_refund",
+    targetId: refund.id,
+    details: { provider: "stripe", amount: params.amount, fullRefund },
   });
   return refund;
 }

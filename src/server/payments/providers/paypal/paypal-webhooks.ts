@@ -52,7 +52,18 @@ export async function handlePayPalWebhook(params: { rawBody: string; headers: He
 }
 
 async function processPayPalEvent(event: PayPalWebhookEvent) {
-  if (event.event_type === "CHECKOUT.ORDER.APPROVED" || event.event_type === "CHECKOUT.ORDER.COMPLETED" || event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+  if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
+    const providerOrderId = event.resource?.id;
+    if (providerOrderId) {
+      await prisma.paymentOrder.updateMany({
+        where: { provider: "paypal", providerOrderId, status: { not: "paid" } },
+        data: { status: "requires_action" },
+      });
+    }
+    return;
+  }
+
+  if (event.event_type === "CHECKOUT.ORDER.COMPLETED" || event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
     const providerOrderId = event.resource?.supplementary_data?.related_ids?.order_id ?? event.resource?.id;
     if (providerOrderId) await markPayPalOrderPaid(providerOrderId, event.resource?.id);
   }
