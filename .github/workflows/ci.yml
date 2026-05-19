@@ -28,6 +28,9 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
       - name: Generate Next.js route types
         run: npm run typegen
 

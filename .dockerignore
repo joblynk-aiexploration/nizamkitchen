@@ -4,8 +4,11 @@
 node_modules
 npm-debug.log*
 docs
-.env
-.env.local
-.env.production
+.env*
+!.env.example
 coverage
 *.tsbuildinfo
+backups
+tmp
+*.log
+.DS_Store
