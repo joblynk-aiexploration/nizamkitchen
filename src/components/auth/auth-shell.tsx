@@ -18,18 +18,20 @@ export function AuthShell({
         <LogoMark />
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--color-primary)]">
-            Enterprise foundation
+            Plan · Cook · Hire · Order
           </p>
           <h1 className="mt-4 font-serif text-5xl leading-tight text-[var(--color-ink)]">
-            Secure multi-tenant operations for the next phase of NizamKitchen.
+            Your household kitchen, organised at last.
           </h1>
           <p className="mt-6 text-lg text-[var(--color-muted)]">
-            Start with governance, identity, tenant isolation, country readiness, and operational controls before product modules plug in.
+            Plan authentic Hyderabadi meals, generate grocery lists, hire home chefs,
+            and discover local restaurants — all in one place.
           </p>
         </div>
         <div className="rounded-3xl border border-white/70 bg-white/60 p-6 backdrop-blur">
           <p className="text-sm text-[var(--color-muted)]">
-            This phase intentionally excludes recipes, grocery engines, home chefs, restaurants, maps, YouTube, and ordering. The goal is a safe extensible backbone.
+            Trusted by households, home chefs, and restaurant partners across India, the UK, and beyond.
+            Multi-tenant, country-aware, and built for growth.
           </p>
         </div>
       </section>

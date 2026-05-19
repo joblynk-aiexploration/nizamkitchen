@@ -37,7 +37,7 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="Workspace overview"
         title={session.activeOrganization.name}
-        description="This dashboard is the control surface for tenant-safe operations, country-aware setup, and future module enablement."
+        description="Welcome to your NizamKitchen workspace. Plan meals, manage your team, and access all your kitchen tools from here."
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
