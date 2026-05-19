@@ -98,6 +98,81 @@ enum SupportTicketPriority {
   urgent
 }
 
+enum StorageProvider {
+  aws_s3
+  s3_compatible
+  local_dev
+}
+
+enum StorageConfigurationStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum StorageTestStatus {
+  not_tested
+  success
+  failed
+}
+
+enum StorageFileVisibility {
+  private
+  organization
+  public
+}
+
+enum StorageFileStatus {
+  active
+  archived
+  deleted
+  quarantined
+}
+
+enum StorageFilePurpose {
+  user_profile_photo
+  user_cover_photo
+  business_profile_photo
+  business_cover_photo
+  recipe_image
+  menu_item_photo
+  chef_document
+  home_catering_document
+  restaurant_document
+  verification_document
+  support_attachment
+  order_attachment
+  grocery_attachment
+  general_document
+  admin_dropbox
+}
+
+enum StorageModule {
+  users
+  organizations
+  recipes
+  menus
+  home_chefs
+  home_catering
+  restaurants
+  orders
+  grocery
+  support
+  admin_dropbox
+  system
+}
+
+enum StorageFileAction {
+  uploaded
+  downloaded
+  viewed
+  signed_url_created
+  deleted
+  archived
+  restored
+}
+
 model User {
   id                         String                         @id @default(cuid())
   email                      String                         @unique
@@ -136,6 +211,11 @@ model User {
   foodOrders                 FoodOrder[]                    @relation("FoodOrderCustomerUser")
   foodOrderMessages          FoodOrderMessage[]             @relation("FoodOrderMessageSender")
   foodOrderStatusChanges     FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
+  storageConfigurationsCreated StorageConfiguration[]        @relation("StorageConfigurationCreatedBy")
+  storageConfigurationsUpdated StorageConfiguration[]        @relation("StorageConfigurationUpdatedBy")
+  storageFilesUploaded       StorageFile[]                  @relation("StorageFileUploadedBy")
+  storageFileAccessLogs      StorageFileAccessLog[]
+  storageFileVersions        StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
 }
 
 model Session {
@@ -519,21 +599,115 @@ model ApiKey {
   @@index([userId])
 }
 
-model StorageFile {
-  id             String       @id @default(cuid())
-  organizationId String
-  countryCode    String
-  storageKey     String
-  bucket         String
-  contentType    String
-  sizeBytes      Int
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model StorageConfiguration {
+  id                          String                     @id @default(cuid())
+  provider                    StorageProvider            @default(aws_s3)
+  displayName                 String
+  status                      StorageConfigurationStatus @default(draft)
+  bucketName                  String
+  region                      String?
+  endpoint                    String?
+  forcePathStyle              Boolean                    @default(false)
+  publicBaseUrl               String?
+  encryptedAccessKeyId        String?
+  encryptedSecretAccessKey    String?
+  encryptedSessionToken       String?
+  signedUrlExpiresInSeconds   Int                        @default(900)
+  maxUploadSizeBytes          Int                        @default(10485760)
+  allowedMimeTypesJson        Json
+  createdById                 String
+  updatedById                 String?
+  lastTestedAt                DateTime?
+  lastTestStatus              StorageTestStatus          @default(not_tested)
+  lastTestMessage             String?
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+  createdBy                   User                       @relation("StorageConfigurationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                   User?                      @relation("StorageConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  @@unique([bucket, storageKey])
+  @@index([provider])
+  @@index([status])
+  @@index([createdById])
+}
+
+model StorageFile {
+  id                 String                  @id @default(cuid())
+  organizationId     String?
+  userId             String?
+  uploadedById       String
+  countryCode        String?
+  module             StorageModule
+  entityType         String?
+  entityId           String?
+  provider           StorageProvider
+  bucketName         String
+  objectKey          String
+  originalFilename   String
+  storedFilename     String
+  mimeType           String
+  fileExtension      String?
+  sizeBytes          Int
+  checksumSha256     String?
+  visibility         StorageFileVisibility   @default(private)
+  status             StorageFileStatus       @default(active)
+  purpose            StorageFilePurpose
+  metadataJson       Json?
+  imageWidth         Int?
+  imageHeight        Int?
+  altText            String?
+  caption            String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  deletedAt          DateTime?
+  organization       Organization?           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy         User                    @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  accessLogs         StorageFileAccessLog[]
+  versions           StorageFileVersion[]
+
+  @@unique([bucketName, objectKey])
   @@index([organizationId])
+  @@index([userId])
+  @@index([uploadedById])
   @@index([countryCode])
+  @@index([module])
+  @@index([entityType, entityId])
+  @@index([visibility])
+  @@index([status])
+  @@index([purpose])
+}
+
+model StorageFileAccessLog {
+  id        String            @id @default(cuid())
+  fileId    String
+  userId    String?
+  action    StorageFileAction
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime          @default(now())
+  file      StorageFile       @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([fileId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model StorageFileVersion {
+  id             String       @id @default(cuid())
+  fileId         String
+  versionNumber  Int
+  objectKey      String
+  sizeBytes      Int
+  checksumSha256 String?
+  createdById    String
+  createdAt      DateTime     @default(now())
+  file           StorageFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("StorageFileVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([fileId, versionNumber])
+  @@index([fileId])
+  @@index([createdById])
 }
 
 model EmailLog {

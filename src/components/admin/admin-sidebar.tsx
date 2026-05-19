@@ -90,6 +90,9 @@ const adminNavGroups = [
     items: [
       { href: "/admin/feature-flags", label: "Feature flags", icon: Flag },
       { href: "/admin/system", label: "System status", icon: ServerCog },
+      { href: "/admin/storage", label: "Storage", icon: ServerCog },
+      { href: "/admin/storage/configuration", label: "Storage config", icon: Settings },
+      { href: "/admin/storage/files", label: "Storage files", icon: Inbox },
       { href: "/admin/system-settings", label: "System settings", icon: Settings },
       { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
       { href: "/admin/payments", label: "Payments", icon: CircleDollarSign },
@@ -168,7 +171,7 @@ function canSeeLink(session: Session, href: string) {
     ].includes(href);
   }
 
-  if (href === "/admin/system" || href === "/admin/system-settings") {
+  if (href === "/admin/system" || href === "/admin/system-settings" || href.startsWith("/admin/storage")) {
     return role === "platform_owner" || role === "platform_admin";
   }
 
