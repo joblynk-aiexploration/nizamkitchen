@@ -13,6 +13,7 @@ import { isYouTubeDiscoveryAvailable } from "@/lib/youtube-discovery-config";
 import { listCandidatesForRecipe } from "@/server/youtube-discovery/candidate-service";
 import { getDiscoveryRunsForRecipe } from "@/server/youtube-discovery/discovery-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { ConfirmRemoveButton } from "@/components/admin/confirm-remove-button";
 import { FormMessage } from "@/components/ui/form-message";
 import { formatYouTubeDuration } from "@/lib/youtube";
 
@@ -147,18 +148,11 @@ export default async function AdminRecipeDetailPage({
 
                 {canMutate && (
                   <div className="flex gap-2 border-t border-[var(--color-border)] pt-3">
-                    <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
-                      <input type="hidden" name="_method" value="DELETE" />
-                      <button
-                        type="submit"
-                        className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        onClick={(e) => {
-                          if (!confirm("Remove this video reference?")) e.preventDefault();
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </form>
+                    <ConfirmRemoveButton
+                      formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
+                      hiddenFields={{ _method: "DELETE" }}
+                      confirmMessage="Remove this video reference?"
+                    />
                     {!ref.isPrimary && (
                       <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
                         <input type="hidden" name="isPrimary" value="on" />
