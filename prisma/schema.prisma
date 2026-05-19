@@ -207,6 +207,13 @@ model Organization {
   customerFoodOrders         FoodOrder[]                    @relation("FoodOrderCustomerOrganization")
   sellerFoodOrders           FoodOrder[]                    @relation("FoodOrderSellerOrganization")
   businessSocialLinks        BusinessSocialLink[]
+  paymentGateways            PaymentGateway[]
+  paymentOrders              PaymentOrder[]
+  paymentTransactions        PaymentTransaction[]
+  paymentRefunds             PaymentRefund[]
+  paymentDisputes            PaymentDispute[]
+  sellerPayoutAccounts       SellerPayoutAccount[]
+  sellerPayouts              SellerPayout[]
 
   @@index([countryCode])
   @@index([status])
@@ -806,6 +813,117 @@ enum SocialPlatform {
   x
   snapchat
   other
+}
+
+enum PaymentProvider {
+  stripe
+  paypal
+  google_pay
+  adyen
+  razorpay
+  paystack
+  flutterwave
+  mollie
+  manual
+  cash
+}
+
+enum PaymentGatewayStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum PaymentEnvironment {
+  sandbox
+  live
+}
+
+enum PaymentConfigurationStatus {
+  active
+  disabled
+}
+
+enum PaymentModule {
+  subscription
+  food_order
+  home_chef_request
+  catering_order
+  restaurant_order
+  chef_booking
+  manual_invoice
+}
+
+enum PaymentOrderStatus {
+  draft
+  pending
+  checkout_created
+  requires_action
+  authorized
+  paid
+  partially_refunded
+  refunded
+  cancelled
+  failed
+  expired
+}
+
+enum PaymentTransactionType {
+  authorization
+  capture
+  charge
+  refund
+  adjustment
+  payout
+  fee
+}
+
+enum PaymentTransactionStatus {
+  pending
+  succeeded
+  failed
+  cancelled
+}
+
+enum PaymentRefundStatus {
+  requested
+  processing
+  succeeded
+  failed
+  cancelled
+}
+
+enum PaymentWebhookStatus {
+  received
+  processed
+  failed
+  ignored
+}
+
+enum PaymentDisputeStatus {
+  warning_needs_response
+  needs_response
+  under_review
+  won
+  lost
+  closed
+}
+
+enum SellerPayoutAccountStatus {
+  not_started
+  pending
+  active
+  restricted
+  disabled
+}
+
+enum SellerPayoutStatus {
+  pending
+  in_transit
+  paid
+  failed
+  cancelled
 }
 
 enum ChefVerificationStatus {
@@ -1683,6 +1801,289 @@ model BusinessSocialLink {
   @@index([platform])
   @@index([isPublic])
   @@index([displayOrder])
+}
+
+model PaymentGateway {
+  id                      String                     @id @default(cuid())
+  organizationId          String?
+  provider                PaymentProvider
+  displayName             String
+  status                  PaymentGatewayStatus       @default(draft)
+  environment             PaymentEnvironment         @default(sandbox)
+  countryCode             String?
+  supportedCountriesJson  Json
+  supportedCurrenciesJson Json
+  priority                Int                        @default(100)
+  isDefault               Boolean                    @default(false)
+  isPlatformGateway       Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  organization            Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credentials             PaymentGatewayCredential[]
+  settings                PaymentGatewaySetting[]
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+  @@index([environment])
+  @@index([countryCode])
+  @@index([isDefault])
+}
+
+model PaymentGatewayCredential {
+  id             String         @id @default(cuid())
+  gatewayId      String
+  keyName        String
+  encryptedValue String
+  valuePreview   String
+  createdById    String
+  updatedById    String?
+  rotatedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  gateway        PaymentGateway @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+
+  @@unique([gatewayId, keyName])
+  @@index([gatewayId])
+  @@index([keyName])
+}
+
+model PaymentGatewaySetting {
+  id               String         @id @default(cuid())
+  gatewayId        String
+  settingKey       String
+  settingValueJson Json
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  gateway          PaymentGateway @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+
+  @@unique([gatewayId, settingKey])
+  @@index([gatewayId])
+}
+
+model PaymentConfiguration {
+  id                        String                     @id @default(cuid())
+  countryCode               String
+  currencyCode              String
+  defaultGatewayId          String?
+  allowStripe               Boolean                    @default(false)
+  allowPayPal               Boolean                    @default(false)
+  allowGooglePay            Boolean                    @default(false)
+  allowManualPayment        Boolean                    @default(true)
+  platformCommissionPercent Decimal?                   @db.Decimal(5, 2)
+  fixedCommissionAmount     Decimal?                   @db.Decimal(10, 2)
+  taxPercent                Decimal?                   @db.Decimal(5, 2)
+  status                    PaymentConfigurationStatus @default(active)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+
+  @@unique([countryCode, currencyCode])
+  @@index([countryCode])
+  @@index([currencyCode])
+  @@index([status])
+}
+
+model PaymentOrder {
+  id                        String                @id @default(cuid())
+  organizationId            String
+  countryCode               String
+  customerOrganizationId    String?
+  customerUserId            String?
+  sellerOrganizationId      String?
+  module                    PaymentModule
+  moduleEntityId            String
+  provider                  PaymentProvider
+  gatewayId                 String?
+  status                    PaymentOrderStatus    @default(pending)
+  amount                    Decimal               @db.Decimal(10, 2)
+  currencyCode              String
+  platformFeeAmount         Decimal?              @db.Decimal(10, 2)
+  sellerAmount              Decimal?              @db.Decimal(10, 2)
+  taxAmount                 Decimal?              @db.Decimal(10, 2)
+  providerOrderId           String?
+  providerPaymentIntentId   String?
+  providerCheckoutSessionId String?
+  providerCustomerId        String?
+  idempotencyKey            String                @unique
+  checkoutUrl               String?
+  returnUrl                 String?
+  cancelUrl                 String?
+  metadataJson              Json?
+  failureCode               String?
+  failureMessage            String?
+  expiresAt                 DateTime?
+  paidAt                    DateTime?
+  cancelledAt               DateTime?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  organization              Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions              PaymentTransaction[]
+  refunds                   PaymentRefund[]
+  disputes                  PaymentDispute[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([customerOrganizationId])
+  @@index([customerUserId])
+  @@index([sellerOrganizationId])
+  @@index([module, moduleEntityId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentTransaction {
+  id                    String                   @id @default(cuid())
+  paymentOrderId        String
+  organizationId        String
+  provider              PaymentProvider
+  gatewayId             String?
+  transactionType       PaymentTransactionType
+  status                PaymentTransactionStatus @default(pending)
+  amount                Decimal                  @db.Decimal(10, 2)
+  currencyCode          String
+  providerTransactionId String?
+  providerChargeId      String?
+  providerRefundId      String?
+  providerRawJson       Json?
+  failureCode           String?
+  failureMessage        String?
+  createdAt             DateTime                 @default(now())
+  paymentOrder          PaymentOrder             @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  refunds               PaymentRefund[]
+
+  @@index([paymentOrderId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([transactionType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentRefund {
+  id                   String              @id @default(cuid())
+  paymentOrderId       String
+  paymentTransactionId String?
+  organizationId       String
+  provider             PaymentProvider
+  gatewayId            String?
+  status               PaymentRefundStatus @default(requested)
+  amount               Decimal             @db.Decimal(10, 2)
+  currencyCode         String
+  reason               String?
+  providerRefundId     String?
+  requestedById        String
+  processedById        String?
+  failureMessage       String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  paymentOrder         PaymentOrder        @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([paymentOrderId])
+  @@index([paymentTransactionId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentWebhookEvent {
+  id             String               @id @default(cuid())
+  provider       PaymentProvider
+  gatewayId      String?
+  eventId        String
+  eventType      String
+  status         PaymentWebhookStatus @default(received)
+  rawJson        Json
+  signatureValid Boolean              @default(false)
+  processedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime             @default(now())
+
+  @@unique([provider, eventId])
+  @@index([gatewayId])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentDispute {
+  id                String               @id @default(cuid())
+  paymentOrderId    String?
+  organizationId    String?
+  provider          PaymentProvider
+  status            PaymentDisputeStatus
+  amount            Decimal?             @db.Decimal(10, 2)
+  currencyCode      String?
+  providerDisputeId String
+  reason            String?
+  evidenceDueBy     DateTime?
+  rawJson           Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  paymentOrder      PaymentOrder?        @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  organization      Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerDisputeId])
+  @@index([paymentOrderId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SellerPayoutAccount {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  provider          PaymentProvider
+  gatewayId         String?
+  status            SellerPayoutAccountStatus @default(not_started)
+  providerAccountId String?
+  onboardingUrl     String?
+  chargesEnabled    Boolean                   @default(false)
+  payoutsEnabled    Boolean                   @default(false)
+  detailsSubmitted  Boolean                   @default(false)
+  countryCode       String
+  currencyCode      String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([countryCode])
+}
+
+model SellerPayout {
+  id                String             @id @default(cuid())
+  organizationId    String
+  provider          PaymentProvider
+  gatewayId         String?
+  status            SellerPayoutStatus @default(pending)
+  amount            Decimal            @db.Decimal(10, 2)
+  currencyCode      String
+  providerPayoutId  String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  failureMessage    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model ChefProfile {

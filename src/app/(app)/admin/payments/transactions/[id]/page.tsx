@@ -1,0 +1,50 @@
+import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { requirePlatformRole } from "@/lib/auth/session";
+import { getPaymentOrder } from "@/server/payments/admin";
+
+export const dynamic = "force-dynamic";
+
+export default async function PaymentTransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"]);
+  const { id } = await params;
+  const order = await getPaymentOrder(session, id);
+
+  return (
+    <AdminShell session={session} title={`Payment order ${order.id.slice(0, 10)}`} description="Trusted payment state is derived from server-side provider events and admin-controlled gateway configuration.">
+      <section className="grid gap-4 md:grid-cols-4">
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p><p className="mt-3"><Badge tone={order.status === "paid" ? "success" : "warning"}>{order.status}</Badge></p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Amount</p><p className="mt-3 text-xl font-semibold">{order.currencyCode} {order.amount.toString()}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Platform fee</p><p className="mt-3 text-xl font-semibold">{order.platformFeeAmount?.toString() ?? "0"}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Seller amount</p><p className="mt-3 text-xl font-semibold">{order.sellerAmount?.toString() ?? "0"}</p></Card>
+      </section>
+      <Card>
+        <h2 className="text-base font-semibold text-[var(--color-ink)]">Provider identifiers</h2>
+        <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+          <Detail label="Provider" value={order.provider} />
+          <Detail label="Gateway ID" value={order.gatewayId ?? "Not assigned"} />
+          <Detail label="Provider order" value={order.providerOrderId ?? "Not set"} />
+          <Detail label="Payment intent" value={order.providerPaymentIntentId ?? "Not set"} />
+          <Detail label="Checkout session" value={order.providerCheckoutSessionId ?? "Not set"} />
+          <Detail label="Idempotency key" value={order.idempotencyKey} />
+        </dl>
+      </Card>
+      <AdminDataTable
+        data={order.transactions}
+        emptyMessage="No provider transactions yet."
+        columns={[
+          { key: "type", header: "Type", render: (transaction) => transaction.transactionType },
+          { key: "status", header: "Status", render: (transaction) => <Badge tone={transaction.status === "succeeded" ? "success" : transaction.status === "failed" ? "danger" : "warning"}>{transaction.status}</Badge> },
+          { key: "amount", header: "Amount", render: (transaction) => `${transaction.currencyCode} ${transaction.amount.toString()}` },
+          { key: "provider", header: "Provider ID", render: (transaction) => transaction.providerTransactionId ?? "Not set" },
+        ]}
+      />
+    </AdminShell>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="font-semibold text-[var(--color-ink)]">{label}</dt><dd className="text-[var(--color-muted)]">{value}</dd></div>;
+}
