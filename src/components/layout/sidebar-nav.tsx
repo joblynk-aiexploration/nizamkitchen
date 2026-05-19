@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, CalendarDays, ChefHat, Cog, Flag, Heart, LayoutDashboard, Logs, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, Users, UtensilsCrossed } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, LayoutDashboard, Logs, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, Users, UtensilsCrossed } from "lucide-react";
 import { getPlatformNavItems, getWorkspaceNavItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,10 @@ const iconByHref = {
   "/chefs": Users,
   "/order-instead": Search,
   "/saved-restaurants": Store,
+  "/billing": CircleDollarSign,
+  "/admin/billing": CircleDollarSign,
+  "/admin/billing/plans": CircleDollarSign,
+  "/admin/billing/subscriptions": CircleDollarSign,
   "/settings": Settings2,
   "/audit-logs": Logs,
   "/chef": ChefHat,

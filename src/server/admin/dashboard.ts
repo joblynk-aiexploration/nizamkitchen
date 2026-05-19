@@ -118,7 +118,10 @@ export async function getAdminDashboardData(session: Session) {
       orderBy: { updatedAt: "desc" },
     }),
     prisma.billingSubscription.findMany({
-      where: isCountryManager ? { countryCode: { in: assignedCountries } } : {},
+      where: isCountryManager
+        ? { organization: { countryCode: { in: assignedCountries } } }
+        : {},
+      include: { plan: { select: { slug: true, name: true } } },
     }),
   ]);
 

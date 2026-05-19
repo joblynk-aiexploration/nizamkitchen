@@ -1680,11 +1680,95 @@ async function main() {
   // Remove discontinued AI flags from the database.
   await prisma.featureFlag.deleteMany({ where: { key: { in: ["ai_video_analysis", "ai_training", "ai_suggestions"] } } });
 
-  const existingSubscription = await prisma.billingSubscription.findFirst({ where: { organizationId: householdOrg.id, planCode: "foundation-trial" } });
-  if (!existingSubscription) {
-    await prisma.billingSubscription.create({
-      data: { organizationId: householdOrg.id, countryCode: "US", provider: "placeholder", status: "trialing", planCode: "foundation-trial", currencyCode: "USD", billingPeriod: "monthly" },
+  // ─── Billing Plans ──────────────────────────────────────────────────────────
+  const billingPlanSeeds = [
+    {
+      slug: "free",
+      name: "Free / Starter",
+      description: "Get started with essential features. No payment required.",
+      priceAmount: 0,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 1, maxSavedRestaurants: 5, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Recipe browsing", "Basic meal planning", "Simple grocery lists"],
+    },
+    {
+      slug: "family-plus",
+      name: "Family Plus",
+      description: "More meal plans, grocery exports, and restaurant fallback for growing families.",
+      priceAmount: 9.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 10, maxGroceryListsPerMonth: 20, maxHouseholdMembers: 6, maxSavedRestaurants: 30, maxChefRequestsPerMonth: 3, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Everything in Free", "10 meal plans", "Grocery exports (PDF/CSV)", "Restaurant fallback", "Browse home chefs", "Favorites & preferences"],
+    },
+    {
+      slug: "premium-household",
+      name: "Premium Household",
+      description: "Unlimited meal planning, advanced features, and home chef request access.",
+      priceAmount: 19.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 10, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 10, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Everything in Family Plus", "Unlimited meal plans", "Unlimited grocery lists", "Home chef request priority", "Advanced preferences"],
+    },
+    {
+      slug: "chef-business",
+      name: "Chef Business",
+      description: "Chef profile, services, availability management, and request fulfillment.",
+      priceAmount: 14.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: 10, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
+      featuresJson: ["Chef marketplace listing", "Service & availability setup", "Unlimited request management", "Chef review system", "Profile verification"],
+    },
+    {
+      slug: "restaurant-partner",
+      name: "Restaurant Partner",
+      description: "Saved restaurant listing and future order lead features.",
+      priceAmount: 0,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 3, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Restaurant profile placeholder", "Order lead pipeline (coming soon)"],
+    },
+    {
+      slug: "enterprise",
+      name: "Enterprise / Country Partner",
+      description: "Custom limits for country operators and large household networks.",
+      priceAmount: 0,
+      billingInterval: "custom" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: -1, maxSavedRestaurants: -1, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["All features", "Custom limits", "Country-level configuration", "Priority support"],
+    },
+  ];
+
+  const billingPlans = new Map<string, { id: string }>();
+  for (const plan of billingPlanSeeds) {
+    const upserted = await prisma.billingPlan.upsert({
+      where: { slug: plan.slug },
+      update: { name: plan.name, description: plan.description, priceAmount: plan.priceAmount, billingInterval: plan.billingInterval, status: plan.status, limitsJson: plan.limitsJson, featuresJson: plan.featuresJson },
+      create: { ...plan },
     });
+    billingPlans.set(plan.slug, upserted);
+  }
+
+  // Assign demo subscriptions (idempotent — skip if org already has one)
+  const demoSubscriptions: Array<{ orgId: string; planSlug: string; status: "free" | "trialing" | "active" }> = [
+    { orgId: householdOrg.id, planSlug: "family-plus", status: "trialing" },
+    { orgId: chefOrg.id, planSlug: "chef-business", status: "active" },
+    { orgId: restaurantOrg.id, planSlug: "restaurant-partner", status: "free" },
+  ];
+
+  for (const { orgId, planSlug, status } of demoSubscriptions) {
+    const plan = billingPlans.get(planSlug)!;
+    const existing = await prisma.billingSubscription.findFirst({ where: { organizationId: orgId } });
+    if (!existing) {
+      await prisma.billingSubscription.create({
+        data: { organizationId: orgId, planId: plan.id, status, provider: "manual" },
+      });
+    }
   }
 
   await prisma.systemSetting.upsert({
