@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { StorageImage } from "@/components/storage/storage-image";
 import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, SocialLinksRow, initialsFromName } from "@/components/profiles/profile-components";
+import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,6 +12,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
+import { getPublicSellerVerificationBadge } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +27,12 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
     select: { id: true, name: true, countryCode: true, logoFileId: true, coverPhotoFileId: true },
   });
   if (!restaurant) notFound();
-  const [menuItems, socialLinks, logoUrl, coverUrl] = await Promise.all([
+  const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadge] = await Promise.all([
     listPublicMenuItemsForOrganization(restaurant.id),
     listPublicBusinessSocialLinks(restaurant.id, "restaurant"),
     getStorageImageUrl(session, restaurant.logoFileId),
     getStorageImageUrl(session, restaurant.coverPhotoFileId),
+    getPublicSellerVerificationBadge(restaurant.id),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
@@ -43,6 +46,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
         headline="Restaurant partner serving public menu items through manual order requests."
         location={restaurant.countryCode}
         initials={initialsFromName(restaurant.name)}
+        badges={[<SellerVerificationBadge key="seller-verification" label={sellerBadge.label} tone={sellerBadge.tone} />]}
         actions={<ContactActions href="/orders" label="View my orders" />}
       />
       <ProfileSection title="Social links">

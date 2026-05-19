@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { BusinessServicesSection, ContactActions, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
+import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
+import { getPublicSellerVerificationBadge } from "@/server/seller-verifications";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +25,11 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
-  const [socialLinks, profileImageUrl, coverImageUrl] = await Promise.all([
+  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadge] = await Promise.all([
     listPublicBusinessSocialLinks(chef.organizationId, "chef_business"),
     getStorageImageUrl(session, chef.profilePhotoFileId, chef.profilePhotoUrl),
     getStorageImageUrl(session, chef.coverPhotoFileId),
+    getPublicSellerVerificationBadge(chef.organizationId),
   ]);
 
   return (
@@ -42,6 +45,7 @@ export default async function ChefPublicProfilePage({
         badges={[
           <Badge key="public" tone="success">Approved public profile</Badge>,
           <VerificationBadge key="verified" status={chef.verificationStatus} />,
+          <SellerVerificationBadge key="seller-verification" label={sellerBadge.label} tone={sellerBadge.tone} />,
           chef.yearsExperience ? <Badge key="exp" tone="neutral">{chef.yearsExperience} years experience</Badge> : null,
         ].filter(Boolean)}
         actions={<ContactActions href={`/chefs/${chef.slug}/request`} label="Request this chef" />}

@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { StorageImage } from "@/components/storage/storage-image";
 import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
+import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getPublicHomeCateringProfile } from "@/server/home-catering";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
+import { getPublicSellerVerificationBadge } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
@@ -20,11 +22,12 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
   if (!profile) notFound();
-  const [menuItems, socialLinks, profileImageUrl, coverImageUrl] = await Promise.all([
+  const [menuItems, socialLinks, profileImageUrl, coverImageUrl, sellerBadge] = await Promise.all([
     listPublicMenuItemsForOrganization(profile.organizationId),
     listPublicBusinessSocialLinks(profile.organizationId, "home_catering"),
     getStorageImageUrl(session, profile.profilePhotoFileId, profile.profilePhotoUrl),
     getStorageImageUrl(session, profile.coverPhotoFileId, profile.coverPhotoUrl),
+    getPublicSellerVerificationBadge(profile.organizationId),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
@@ -44,6 +47,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         initials={initialsFromName(profile.displayName)}
         badges={[
           <VerificationBadge key="verification" status={profile.verificationStatus} />,
+          <SellerVerificationBadge key="seller-verification" label={sellerBadge.label} tone={sellerBadge.tone} />,
           profile.acceptsPickup ? <Badge key="pickup" tone="info">Pickup</Badge> : null,
           profile.acceptsDelivery ? <Badge key="delivery" tone="info">Delivery</Badge> : null,
           profile.acceptsPreorders ? <Badge key="preorder" tone="info">Preorders</Badge> : null,

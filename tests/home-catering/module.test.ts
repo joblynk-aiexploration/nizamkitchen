@@ -197,6 +197,7 @@ describe("home catering seller foundation", () => {
       "/catering/menu",
       "/catering/menu-items",
       "/catering/orders",
+      "/catering/verification",
       "/catering/settings",
     ]);
   });

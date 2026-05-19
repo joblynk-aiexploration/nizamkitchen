@@ -141,6 +141,10 @@ enum StorageFilePurpose {
   home_catering_document
   restaurant_document
   verification_document
+  business_license_document
+  food_handler_certificate
+  kitchen_photo
+  background_check_consent
   support_attachment
   order_attachment
   grocery_attachment
@@ -174,57 +178,62 @@ enum StorageFileAction {
 }
 
 model User {
-  id                         String                         @id @default(cuid())
-  email                      String                         @unique
-  passwordHash               String
-  fullName                   String
-  status                     UserStatus                     @default(active)
-  platformRole               PlatformRole?
-  profilePhotoFileId         String?
-  coverPhotoFileId           String?
-  headline                   String?
-  bio                        String?
-  location                   String?
-  locationText               String?
-  phone                      String?
-  preferredLanguage          String?
-  publicProfileEnabled       Boolean                        @default(false)
-  preferredLocale            String?                        @default("en-US")
-  preferredTimezone          String?                        @default("UTC")
-  lastLoginAt                DateTime?
-  createdAt                  DateTime                       @default(now())
-  updatedAt                  DateTime                       @updatedAt
-  sessions                   Session[]
-  memberships                Membership[]
-  countryAssignments         CountryAssignment[]
-  auditLogs                  AuditLog[]
-  emailLogs                  EmailLog[]
-  apiKeys                    ApiKey[]
-  groceryLists               GroceryList[]
-  groceryListShares          GroceryListShare[]             @relation("GroceryListShareCreatedBy")
-  groceryListExports         GroceryListExport[]            @relation("GroceryListExportCreatedBy")
-  createdMealPlans           MealPlan[]                     @relation("MealPlanCreatedBy")
-  discoveryRuns              YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates         YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
-  favoriteRecipesCreated     FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated    HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent       HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges      HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews                ChefReview[]
-  restaurantFallbackSearches RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
-  notifications              Notification[]
-  notificationPreference     NotificationPreference?
-  supportTicketsCreated      SupportTicket[]                @relation("SupportTicketCreatedBy")
-  supportTicketsAssigned     SupportTicket[]                @relation("SupportTicketAssignedTo")
-  supportTicketComments      SupportTicketComment[]
-  foodOrders                 FoodOrder[]                    @relation("FoodOrderCustomerUser")
-  foodOrderMessages          FoodOrderMessage[]             @relation("FoodOrderMessageSender")
-  foodOrderStatusChanges     FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
-  storageConfigurationsCreated StorageConfiguration[]        @relation("StorageConfigurationCreatedBy")
-  storageConfigurationsUpdated StorageConfiguration[]        @relation("StorageConfigurationUpdatedBy")
-  storageFilesUploaded       StorageFile[]                  @relation("StorageFileUploadedBy")
-  storageFileAccessLogs      StorageFileAccessLog[]
-  storageFileVersions        StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
+  id                           String                         @id @default(cuid())
+  email                        String                         @unique
+  passwordHash                 String
+  fullName                     String
+  status                       UserStatus                     @default(active)
+  platformRole                 PlatformRole?
+  profilePhotoFileId           String?
+  coverPhotoFileId             String?
+  headline                     String?
+  bio                          String?
+  location                     String?
+  locationText                 String?
+  phone                        String?
+  preferredLanguage            String?
+  publicProfileEnabled         Boolean                        @default(false)
+  preferredLocale              String?                        @default("en-US")
+  preferredTimezone            String?                        @default("UTC")
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime                       @default(now())
+  updatedAt                    DateTime                       @updatedAt
+  sessions                     Session[]
+  memberships                  Membership[]
+  countryAssignments           CountryAssignment[]
+  auditLogs                    AuditLog[]
+  emailLogs                    EmailLog[]
+  apiKeys                      ApiKey[]
+  groceryLists                 GroceryList[]
+  groceryListShares            GroceryListShare[]             @relation("GroceryListShareCreatedBy")
+  groceryListExports           GroceryListExport[]            @relation("GroceryListExportCreatedBy")
+  createdMealPlans             MealPlan[]                     @relation("MealPlanCreatedBy")
+  discoveryRuns                YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates           YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
+  favoriteRecipesCreated       FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
+  homeChefRequestsCreated      HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent         HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges        HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews                  ChefReview[]
+  restaurantFallbackSearches   RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
+  notifications                Notification[]
+  notificationPreference       NotificationPreference?
+  supportTicketsCreated        SupportTicket[]                @relation("SupportTicketCreatedBy")
+  supportTicketsAssigned       SupportTicket[]                @relation("SupportTicketAssignedTo")
+  supportTicketComments        SupportTicketComment[]
+  foodOrders                   FoodOrder[]                    @relation("FoodOrderCustomerUser")
+  foodOrderMessages            FoodOrderMessage[]             @relation("FoodOrderMessageSender")
+  foodOrderStatusChanges       FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
+  storageConfigurationsCreated StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
+  storageConfigurationsUpdated StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
+  storageFilesUploaded         StorageFile[]                  @relation("StorageFileUploadedBy")
+  storageFileAccessLogs        StorageFileAccessLog[]
+  storageFileVersions          StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
+  reviewedSellerProfiles       SellerVerificationProfile[]    @relation("SellerVerificationProfileReviewedBy")
+  reviewedVerificationItems    SellerVerificationItem[]       @relation("SellerVerificationItemReviewedBy")
+  acceptedSellerAttestations   SellerAttestation[]            @relation("SellerAttestationAcceptedBy")
+  requestedBackgroundChecks    SellerBackgroundCheck[]        @relation("SellerBackgroundCheckRequestedBy")
+  reviewedKitchenSafety        KitchenSafetyReview[]          @relation("KitchenSafetyReviewReviewedBy")
 }
 
 model Session {
@@ -294,9 +303,9 @@ model Organization {
   savedRestaurants           SavedRestaurant[]
   notifications              Notification[]
   supportTickets             SupportTicket[]
-  foodOrders                 FoodOrder[]                    @relation("FoodOrderTenantOrganization")
-  customerFoodOrders         FoodOrder[]                    @relation("FoodOrderCustomerOrganization")
-  sellerFoodOrders           FoodOrder[]                    @relation("FoodOrderSellerOrganization")
+  foodOrders                 FoodOrder[]                  @relation("FoodOrderTenantOrganization")
+  customerFoodOrders         FoodOrder[]                  @relation("FoodOrderCustomerOrganization")
+  sellerFoodOrders           FoodOrder[]                  @relation("FoodOrderSellerOrganization")
   businessSocialLinks        BusinessSocialLink[]
   paymentGateways            PaymentGateway[]
   paymentOrders              PaymentOrder[]
@@ -305,6 +314,10 @@ model Organization {
   paymentDisputes            PaymentDispute[]
   sellerPayoutAccounts       SellerPayoutAccount[]
   sellerPayouts              SellerPayout[]
+  sellerVerificationProfile  SellerVerificationProfile?
+  sellerAttestations         SellerAttestation[]
+  sellerBackgroundChecks     SellerBackgroundCheck[]
+  kitchenSafetyReviews       KitchenSafetyReview[]
 
   @@index([countryCode])
   @@index([status])
@@ -611,30 +624,30 @@ model ApiKey {
 }
 
 model StorageConfiguration {
-  id                          String                     @id @default(cuid())
-  provider                    StorageProvider            @default(aws_s3)
-  displayName                 String
-  status                      StorageConfigurationStatus @default(draft)
-  bucketName                  String
-  region                      String?
-  endpoint                    String?
-  forcePathStyle              Boolean                    @default(false)
-  publicBaseUrl               String?
-  encryptedAccessKeyId        String?
-  encryptedSecretAccessKey    String?
-  encryptedSessionToken       String?
-  signedUrlExpiresInSeconds   Int                        @default(900)
-  maxUploadSizeBytes          Int                        @default(10485760)
-  allowedMimeTypesJson        Json
-  createdById                 String
-  updatedById                 String?
-  lastTestedAt                DateTime?
-  lastTestStatus              StorageTestStatus          @default(not_tested)
-  lastTestMessage             String?
-  createdAt                   DateTime                   @default(now())
-  updatedAt                   DateTime                   @updatedAt
-  createdBy                   User                       @relation("StorageConfigurationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy                   User?                      @relation("StorageConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  id                        String                     @id @default(cuid())
+  provider                  StorageProvider            @default(aws_s3)
+  displayName               String
+  status                    StorageConfigurationStatus @default(draft)
+  bucketName                String
+  region                    String?
+  endpoint                  String?
+  forcePathStyle            Boolean                    @default(false)
+  publicBaseUrl             String?
+  encryptedAccessKeyId      String?
+  encryptedSecretAccessKey  String?
+  encryptedSessionToken     String?
+  signedUrlExpiresInSeconds Int                        @default(900)
+  maxUploadSizeBytes        Int                        @default(10485760)
+  allowedMimeTypesJson      Json
+  createdById               String
+  updatedById               String?
+  lastTestedAt              DateTime?
+  lastTestStatus            StorageTestStatus          @default(not_tested)
+  lastTestMessage           String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  createdBy                 User                       @relation("StorageConfigurationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                 User?                      @relation("StorageConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@index([provider])
   @@index([status])
@@ -642,38 +655,38 @@ model StorageConfiguration {
 }
 
 model StorageFile {
-  id                 String                  @id @default(cuid())
-  organizationId     String?
-  userId             String?
-  uploadedById       String
-  countryCode        String?
-  module             StorageModule
-  entityType         String?
-  entityId           String?
-  provider           StorageProvider
-  bucketName         String
-  objectKey          String
-  originalFilename   String
-  storedFilename     String
-  mimeType           String
-  fileExtension      String?
-  sizeBytes          Int
-  checksumSha256     String?
-  visibility         StorageFileVisibility   @default(private)
-  status             StorageFileStatus       @default(active)
-  purpose            StorageFilePurpose
-  metadataJson       Json?
-  imageWidth         Int?
-  imageHeight        Int?
-  altText            String?
-  caption            String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  deletedAt          DateTime?
-  organization       Organization?           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy         User                    @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  accessLogs         StorageFileAccessLog[]
-  versions           StorageFileVersion[]
+  id               String                 @id @default(cuid())
+  organizationId   String?
+  userId           String?
+  uploadedById     String
+  countryCode      String?
+  module           StorageModule
+  entityType       String?
+  entityId         String?
+  provider         StorageProvider
+  bucketName       String
+  objectKey        String
+  originalFilename String
+  storedFilename   String
+  mimeType         String
+  fileExtension    String?
+  sizeBytes        Int
+  checksumSha256   String?
+  visibility       StorageFileVisibility  @default(private)
+  status           StorageFileStatus      @default(active)
+  purpose          StorageFilePurpose
+  metadataJson     Json?
+  imageWidth       Int?
+  imageHeight      Int?
+  altText          String?
+  caption          String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+  organization     Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy       User                   @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  accessLogs       StorageFileAccessLog[]
+  versions         StorageFileVersion[]
 
   @@unique([bucketName, objectKey])
   @@index([organizationId])
@@ -705,16 +718,16 @@ model StorageFileAccessLog {
 }
 
 model StorageFileVersion {
-  id             String       @id @default(cuid())
+  id             String      @id @default(cuid())
   fileId         String
   versionNumber  Int
   objectKey      String
   sizeBytes      Int
   checksumSha256 String?
   createdById    String
-  createdAt      DateTime     @default(now())
-  file           StorageFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  createdBy      User         @relation("StorageFileVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime    @default(now())
+  file           StorageFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdBy      User        @relation("StorageFileVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@unique([fileId, versionNumber])
   @@index([fileId])
@@ -1122,6 +1135,120 @@ enum SellerPayoutStatus {
   paid
   failed
   cancelled
+}
+
+enum SellerType {
+  chef_business
+  home_catering
+  restaurant
+}
+
+enum SellerVerificationStatus {
+  not_started
+  in_progress
+  submitted
+  under_review
+  verified
+  rejected
+  expired
+  suspended
+}
+
+enum SellerVerificationLevel {
+  unverified
+  profile_verified
+  identity_verified
+  food_safety_verified
+  kitchen_reviewed
+  background_checked
+  fully_verified
+}
+
+enum SellerRequirementType {
+  identity
+  business_info
+  food_handler_certificate
+  local_permit
+  kitchen_photos
+  background_check
+  payout_onboarding
+  insurance
+  tax_form
+  platform_attestation
+  trial_taste_test
+  other
+}
+
+enum SellerVerificationItemStatus {
+  not_started
+  pending
+  submitted
+  approved
+  rejected
+  expired
+  provider_pending
+  provider_failed
+}
+
+enum VerificationProvider {
+  manual
+  stripe_identity
+  stripe_connect
+  persona_placeholder
+  checkr_placeholder
+  local_admin_review
+  other
+}
+
+enum BackgroundCheckStatus {
+  not_started
+  consent_required
+  consent_collected
+  requested
+  pending
+  clear
+  consider
+  suspended
+  failed
+  cancelled
+}
+
+enum AdverseActionStatus {
+  none
+  pre_adverse_action
+  waiting_period
+  post_adverse_action
+  resolved
+}
+
+enum KitchenSafetyReviewStatus {
+  not_started
+  submitted
+  under_review
+  approved
+  rejected
+  needs_more_info
+}
+
+enum KitchenSafetyPhotoCategory {
+  cooking_area
+  sink_sanitation
+  refrigerator_storage
+  dry_storage
+  prep_surface
+  packaging_area
+  handwashing
+  other
+}
+
+enum AttestationType {
+  food_safety_responsibility
+  cottage_food_compliance
+  background_check_consent
+  seller_terms
+  tax_responsibility
+  kitchen_safety_attestation
+  local_law_acknowledgement
 }
 
 enum ChefVerificationStatus {
@@ -1766,38 +1893,38 @@ model HouseholdShoppingPreference {
 }
 
 model HomeCateringProfile {
-  id                       String                           @id @default(cuid())
-  organizationId           String                           @unique
-  countryCode              String
-  displayName              String
-  slug                     String                           @unique
-  ownerName                String?
-  bio                      String?
-  status                   HomeCateringProfileStatus        @default(draft)
-  verificationStatus       HomeCateringVerificationStatus   @default(unverified)
-  profilePhotoUrl          String?
-  coverPhotoUrl            String?
-  profilePhotoFileId       String?
-  coverPhotoFileId         String?
-  cuisineSpecialtiesJson   Json
-  languagesJson            Json
-  serviceAreaText          String?
-  city                     String?
-  region                   String?
-  postalCode               String?
-  phone                    String?
-  email                    String?
-  acceptsPickup            Boolean                          @default(true)
-  acceptsDelivery          Boolean                          @default(false)
-  acceptsPreorders         Boolean                          @default(true)
-  minimumNoticeHours       Int?
-  averageRating            Float?
-  ratingCount              Int                              @default(0)
-  isPublic                 Boolean                          @default(false)
-  adminNotes               String?
-  createdAt                DateTime                         @default(now())
-  updatedAt                DateTime                         @updatedAt
-  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                     String                         @id @default(cuid())
+  organizationId         String                         @unique
+  countryCode            String
+  displayName            String
+  slug                   String                         @unique
+  ownerName              String?
+  bio                    String?
+  status                 HomeCateringProfileStatus      @default(draft)
+  verificationStatus     HomeCateringVerificationStatus @default(unverified)
+  profilePhotoUrl        String?
+  coverPhotoUrl          String?
+  profilePhotoFileId     String?
+  coverPhotoFileId       String?
+  cuisineSpecialtiesJson Json
+  languagesJson          Json
+  serviceAreaText        String?
+  city                   String?
+  region                 String?
+  postalCode             String?
+  phone                  String?
+  email                  String?
+  acceptsPickup          Boolean                        @default(true)
+  acceptsDelivery        Boolean                        @default(false)
+  acceptsPreorders       Boolean                        @default(true)
+  minimumNoticeHours     Int?
+  averageRating          Float?
+  ratingCount            Int                            @default(0)
+  isPublic               Boolean                        @default(false)
+  adminNotes             String?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([countryCode])
@@ -1889,14 +2016,14 @@ model MenuItemAvailability {
 }
 
 model FoodOrder {
-  id                     String                     @id @default(cuid())
+  id                     String                   @id @default(cuid())
   organizationId         String
   countryCode            String
   customerOrganizationId String
   customerUserId         String
   sellerOrganizationId   String
   sellerType             FoodOrderSellerType
-  status                 FoodOrderStatus            @default(submitted)
+  status                 FoodOrderStatus          @default(submitted)
   fulfillmentType        FoodOrderFulfillmentType
   requestedDate          DateTime?
   requestedTimeWindow    String?
@@ -1914,18 +2041,18 @@ model FoodOrder {
   customerNotes          String?
   sellerNotes            String?
   adminNotes             String?
-  paymentRequired        Boolean                    @default(false)
-  paymentStatus          ModulePaymentStatus        @default(not_required)
+  paymentRequired        Boolean                  @default(false)
+  paymentStatus          ModulePaymentStatus      @default(not_required)
   paymentOrderId         String?
   paidAt                 DateTime?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
   cancelledAt            DateTime?
   completedAt            DateTime?
-  organization           Organization               @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
-  customerOrganization   Organization               @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
-  customerUser           User                       @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
-  sellerOrganization     Organization               @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  organization           Organization             @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  customerOrganization   Organization             @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  customerUser           User                     @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
+  sellerOrganization     Organization             @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
   items                  FoodOrderItem[]
   messages               FoodOrderMessage[]
   statusHistory          FoodOrderStatusHistory[]
@@ -1975,15 +2102,15 @@ model FoodOrderMessage {
 }
 
 model FoodOrderStatusHistory {
-  id          String          @id @default(cuid())
+  id          String           @id @default(cuid())
   orderId     String
   oldStatus   FoodOrderStatus?
   newStatus   FoodOrderStatus
   changedById String
   note        String?
-  createdAt   DateTime        @default(now())
-  order       FoodOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  changedBy   User            @relation("FoodOrderStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime         @default(now())
+  order       FoodOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   User             @relation("FoodOrderStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([changedById])
@@ -2091,7 +2218,7 @@ model PaymentConfiguration {
 }
 
 model PaymentOrder {
-  id                        String                @id @default(cuid())
+  id                        String               @id @default(cuid())
   organizationId            String
   countryCode               String
   customerOrganizationId    String?
@@ -2101,17 +2228,17 @@ model PaymentOrder {
   moduleEntityId            String
   provider                  PaymentProvider
   gatewayId                 String?
-  status                    PaymentOrderStatus    @default(pending)
-  amount                    Decimal               @db.Decimal(10, 2)
+  status                    PaymentOrderStatus   @default(pending)
+  amount                    Decimal              @db.Decimal(10, 2)
   currencyCode              String
-  platformFeeAmount         Decimal?              @db.Decimal(10, 2)
-  sellerAmount              Decimal?              @db.Decimal(10, 2)
-  taxAmount                 Decimal?              @db.Decimal(10, 2)
+  platformFeeAmount         Decimal?             @db.Decimal(10, 2)
+  sellerAmount              Decimal?             @db.Decimal(10, 2)
+  taxAmount                 Decimal?             @db.Decimal(10, 2)
   providerOrderId           String?
   providerPaymentIntentId   String?
   providerCheckoutSessionId String?
   providerCustomerId        String?
-  idempotencyKey            String                @unique
+  idempotencyKey            String               @unique
   checkoutUrl               String?
   returnUrl                 String?
   cancelUrl                 String?
@@ -2121,9 +2248,9 @@ model PaymentOrder {
   expiresAt                 DateTime?
   paidAt                    DateTime?
   cancelledAt               DateTime?
-  createdAt                 DateTime              @default(now())
-  updatedAt                 DateTime              @updatedAt
-  organization              Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions              PaymentTransaction[]
   refunds                   PaymentRefund[]
   disputes                  PaymentDispute[]
@@ -2271,20 +2398,20 @@ model SellerPayoutAccount {
 }
 
 model SellerPayout {
-  id                String             @id @default(cuid())
-  organizationId    String
-  provider          PaymentProvider
-  gatewayId         String?
-  status            SellerPayoutStatus @default(pending)
-  amount            Decimal            @db.Decimal(10, 2)
-  currencyCode      String
-  providerPayoutId  String?
-  periodStart       DateTime?
-  periodEnd         DateTime?
-  failureMessage    String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id               String             @id @default(cuid())
+  organizationId   String
+  provider         PaymentProvider
+  gatewayId        String?
+  status           SellerPayoutStatus @default(pending)
+  amount           Decimal            @db.Decimal(10, 2)
+  currencyCode     String
+  providerPayoutId String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  failureMessage   String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([provider])
@@ -2420,6 +2547,178 @@ model ChefVerificationDocument {
 
   @@index([chefProfileId])
   @@index([status])
+}
+
+model SellerVerificationProfile {
+  id                String                   @id @default(cuid())
+  organizationId    String                   @unique
+  countryCode       String
+  region            String?
+  sellerType        SellerType
+  status            SellerVerificationStatus @default(not_started)
+  verificationLevel SellerVerificationLevel  @default(unverified)
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  rejectionReason   String?
+  adminNotes        String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy        User?                    @relation("SellerVerificationProfileReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  items             SellerVerificationItem[]
+  attestations      SellerAttestation[]
+  backgroundChecks  SellerBackgroundCheck[]
+  kitchenReviews    KitchenSafetyReview[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([status])
+  @@index([verificationLevel])
+}
+
+model SellerVerificationRequirement {
+  id              String                   @id @default(cuid())
+  countryCode     String?
+  region          String?
+  sellerType      SellerType
+  requirementType SellerRequirementType
+  title           String
+  description     String?
+  isRequired      Boolean                  @default(true)
+  provider        VerificationProvider     @default(manual)
+  validityDays    Int?
+  sortOrder       Int                      @default(0)
+  isActive        Boolean                  @default(true)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  items           SellerVerificationItem[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([requirementType])
+  @@index([isActive])
+}
+
+model SellerVerificationItem {
+  id                    String                         @id @default(cuid())
+  verificationProfileId String
+  requirementId         String?
+  requirementType       SellerRequirementType
+  status                SellerVerificationItemStatus   @default(not_started)
+  documentFileId        String?
+  provider              VerificationProvider           @default(manual)
+  providerReferenceId   String?
+  providerStatus        String?
+  submittedAt           DateTime?
+  reviewedAt            DateTime?
+  reviewedById          String?
+  expiresAt             DateTime?
+  rejectionReason       String?
+  metadataJson          Json?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  verificationProfile   SellerVerificationProfile      @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  requirement           SellerVerificationRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  reviewedBy            User?                          @relation("SellerVerificationItemReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([verificationProfileId])
+  @@index([requirementId])
+  @@index([requirementType])
+  @@index([status])
+  @@index([documentFileId])
+}
+
+model SellerAttestation {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  attestationType       AttestationType
+  version               String
+  textSnapshot          String
+  acceptedByUserId      String
+  acceptedAt            DateTime                  @default(now())
+  ipAddress             String?
+  userAgent             String?
+  createdAt             DateTime                  @default(now())
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  acceptedBy            User                      @relation("SellerAttestationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: Cascade)
+  backgroundChecks      SellerBackgroundCheck[]   @relation("BackgroundCheckConsentAttestation")
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([attestationType])
+  @@index([acceptedByUserId])
+}
+
+model SellerBackgroundCheck {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  provider              VerificationProvider      @default(checkr_placeholder)
+  providerCandidateId   String?
+  providerReportId      String?
+  status                BackgroundCheckStatus     @default(not_started)
+  consentAttestationId  String?
+  requestedById         String?
+  requestedAt           DateTime?
+  completedAt           DateTime?
+  resultSummary         String?
+  adverseActionStatus   AdverseActionStatus       @default(none)
+  metadataJson          Json?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  consentAttestation    SellerAttestation?        @relation("BackgroundCheckConsentAttestation", fields: [consentAttestationId], references: [id], onDelete: SetNull)
+  requestedBy           User?                     @relation("SellerBackgroundCheckRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+  @@index([provider])
+}
+
+model KitchenSafetyReview {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  status                KitchenSafetyReviewStatus @default(not_started)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  cleanlinessScore      Int?
+  storageScore          Int?
+  sanitationScore       Int?
+  packagingScore        Int?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("KitchenSafetyReviewReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  photos                KitchenSafetyPhoto[]
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+}
+
+model KitchenSafetyPhoto {
+  id                    String                     @id @default(cuid())
+  kitchenSafetyReviewId String
+  fileId                String
+  category              KitchenSafetyPhotoCategory
+  caption               String?
+  createdAt             DateTime                   @default(now())
+  kitchenSafetyReview   KitchenSafetyReview        @relation(fields: [kitchenSafetyReviewId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenSafetyReviewId])
+  @@index([fileId])
+  @@index([category])
 }
 
 model HomeChefRequest {

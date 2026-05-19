@@ -41,6 +41,8 @@ const platformAdminHrefs = [
   "/admin/youtube-discovery",
   "/admin/home-chef-requests",
   "/admin/chefs",
+  "/admin/verifications",
+  "/admin/verifications/requirements",
   "/admin/home-catering",
   "/admin/menu-items",
   "/admin/food-orders",
@@ -75,6 +77,8 @@ const countryManagerHrefs = [
   "/admin/payments/commissions",
   "/admin/home-chef-requests",
   "/admin/chefs",
+  "/admin/verifications",
+  "/admin/verifications/requirements",
   "/admin/home-catering",
   "/admin/food-orders",
   "/admin/restaurant-fallback",
@@ -91,6 +95,7 @@ const supportAdminHrefs = [
   "/admin/audit-logs",
   "/admin/home-chef-requests",
   "/admin/chefs",
+  "/admin/verifications",
   "/admin/support",
   "/admin/dropbox",
   "/admin/dropbox/files",
@@ -118,6 +123,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/chef", label: "Chef Dashboard" },
       { href: "/chef/profile", label: "Profile" },
       { href: "/chef/services", label: "Services" },
+      { href: "/chef/verification", label: "Verification" },
       { href: "/chef/availability", label: "Availability" },
       { href: "/chef/requests", label: "Assigned Requests" },
       { href: "/chef/reviews", label: "Reviews" },
@@ -132,6 +138,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/restaurant/menu", label: "Menus" },
       { href: "/restaurant/menu-items", label: "Menu Items" },
       { href: "/restaurant/orders", label: "Order Requests" },
+      { href: "/restaurant/verification", label: "Verification" },
       { href: "/restaurant/settings", label: "Settings" },
     ];
   }
@@ -143,6 +150,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/catering/menu", label: "Menus" },
       { href: "/catering/menu-items", label: "Menu Items" },
       { href: "/catering/orders", label: "Order Requests" },
+      { href: "/catering/verification", label: "Verification" },
       { href: "/catering/settings", label: "Settings" },
     ];
   }
@@ -222,6 +230,8 @@ function labelForHref(href: string) {
     "/admin/youtube-discovery": "YouTube Discovery",
     "/admin/home-chef-requests": "Home Chef Requests",
     "/admin/chefs": "Chef Marketplace",
+    "/admin/verifications": "Seller Verifications",
+    "/admin/verifications/requirements": "Verification Requirements",
     "/admin/home-catering": "Home Catering",
     "/admin/restaurant-fallback": "Restaurant Fallback",
     "/admin/menu-items": "Menu Items",

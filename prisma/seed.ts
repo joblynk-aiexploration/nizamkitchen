@@ -17,6 +17,8 @@ import {
   RecipeDifficulty,
   RecipeSourceType,
   RecipeVisibility,
+  SellerRequirementType,
+  SellerType,
   SpiceLevel,
   PreferredDeliveryMethod,
   UnitSystem,
@@ -47,6 +49,9 @@ const FEATURE_FLAGS = [
   "admin_dropbox",
   "profile_uploads",
   "document_uploads",
+  "seller_verification",
+  "background_checks",
+  "kitchen_safety_reviews",
   "subscriptions",
   "family_profiles",
   "chef_verification",
@@ -54,7 +59,7 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification", "restaurant_fallback", "grocery_partners"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners"]);
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -78,6 +83,42 @@ const USER_SEEDS = [
 
 function slugify(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+async function ensureSellerRequirement(input: {
+  sellerType: SellerType;
+  requirementType: SellerRequirementType;
+  title: string;
+  description: string;
+  sortOrder: number;
+  isRequired?: boolean;
+  countryCode?: string | null;
+  region?: string | null;
+}) {
+  const existing = await prisma.sellerVerificationRequirement.findFirst({
+    where: {
+      sellerType: input.sellerType,
+      requirementType: input.requirementType,
+      countryCode: input.countryCode ?? null,
+      region: input.region ?? null,
+      title: input.title,
+    },
+  });
+  const data = {
+    sellerType: input.sellerType,
+    requirementType: input.requirementType,
+    title: input.title,
+    description: input.description,
+    sortOrder: input.sortOrder,
+    isRequired: input.isRequired ?? true,
+    countryCode: input.countryCode ?? null,
+    region: input.region ?? null,
+    provider: "manual" as const,
+    isActive: true,
+  };
+  return existing
+    ? prisma.sellerVerificationRequirement.update({ where: { id: existing.id }, data })
+    : prisma.sellerVerificationRequirement.create({ data });
 }
 
 async function upsertUser(
@@ -1690,6 +1731,23 @@ async function main() {
 
   // Remove discontinued AI flags from the database.
   await prisma.featureFlag.deleteMany({ where: { key: { in: ["ai_video_analysis", "ai_training", "ai_suggestions"] } } });
+
+  const sellerRequirementSeeds = [
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.food_handler_certificate, title: "Food handler certificate", description: "Upload a current food handler certificate where required.", sortOrder: 20 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.local_permit, title: "Local permit or cottage-food license", description: "Upload any local permit or cottage-food license that applies to your region.", sortOrder: 30, isRequired: false },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.kitchen_photos, title: "Kitchen safety photos", description: "Upload private kitchen safety photos for admin review.", sortOrder: 40 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.background_check, title: "Background check consent", description: "Accept background-check consent for future provider review.", sortOrder: 50 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.food_handler_certificate, title: "Food handler certificate", description: "Upload a current food handler certificate where required.", sortOrder: 20 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.background_check, title: "Background check consent", description: "Accept background-check consent for future provider review.", sortOrder: 30 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.business_info, title: "Business information", description: "Provide business details for admin review.", sortOrder: 10 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.local_permit, title: "Restaurant permit or license", description: "Upload restaurant license or permit documentation.", sortOrder: 20 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.payout_onboarding, title: "Payout onboarding", description: "Complete payout setup before receiving marketplace payments.", sortOrder: 30 },
+  ];
+  for (const requirement of sellerRequirementSeeds) {
+    await ensureSellerRequirement(requirement);
+  }
 
   // ─── Billing Plans ──────────────────────────────────────────────────────────
   const billingPlanSeeds = [
