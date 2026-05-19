@@ -6,11 +6,17 @@ import { requireMembership, requirePlatformRole, getRequestMetadata } from "@/li
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
   acceptSellerAttestation,
+  reviewFoodSafetyCertificate,
+  reviewKitchenSafetyChecklist,
+  reviewSellerPermit,
   reviewSellerVerificationItem,
   reviewSellerVerificationProfile,
   submitKitchenSafetyPhoto,
+  submitFoodSafetyCertificate,
+  submitSellerPermit,
   submitSellerVerificationDocument,
   submitSellerVerificationForReview,
+  upsertSellerTrialReview,
   upsertSellerVerificationRequirement,
 } from "@/server/seller-verifications";
 
@@ -36,6 +42,34 @@ export async function submitSellerDocumentAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`${redirectPath}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to submit document."))}`);
+  }
+}
+
+export async function submitFoodSafetyCertificateAction(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const redirectPath = returnTo || sellerPathForCurrent(returnTo);
+  try {
+    const session = await requireMembership();
+    await submitFoodSafetyCertificate(session, Object.fromEntries(formData.entries()));
+    revalidatePath(redirectPath);
+    redirect(`${redirectPath}?message=Food safety certificate submitted.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`${redirectPath}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to submit certificate."))}`);
+  }
+}
+
+export async function submitSellerPermitAction(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const redirectPath = returnTo || sellerPathForCurrent(returnTo);
+  try {
+    const session = await requireMembership();
+    await submitSellerPermit(session, Object.fromEntries(formData.entries()));
+    revalidatePath(redirectPath);
+    redirect(`${redirectPath}?message=Permit submitted.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`${redirectPath}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to submit permit."))}`);
   }
 }
 
@@ -125,5 +159,57 @@ export async function reviewVerificationProfileAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to review profile."))}`);
+  }
+}
+
+export async function reviewFoodSafetyCertificateAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await reviewFoodSafetyCertificate(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Certificate reviewed.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to review certificate."))}`);
+  }
+}
+
+export async function reviewSellerPermitAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await reviewSellerPermit(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Permit reviewed.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to review permit."))}`);
+  }
+}
+
+export async function reviewKitchenChecklistAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await reviewKitchenSafetyChecklist(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Kitchen review updated.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update kitchen review."))}`);
+  }
+}
+
+export async function upsertTrialReviewAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await upsertSellerTrialReview(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Trial review updated.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update trial review."))}`);
   }
 }

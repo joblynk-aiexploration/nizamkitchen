@@ -12,7 +12,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
-import { getPublicSellerVerificationBadge } from "@/server/seller-verifications";
+import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +27,12 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
     select: { id: true, name: true, countryCode: true, logoFileId: true, coverPhotoFileId: true },
   });
   if (!restaurant) notFound();
-  const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadge] = await Promise.all([
+  const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadges] = await Promise.all([
     listPublicMenuItemsForOrganization(restaurant.id),
     listPublicBusinessSocialLinks(restaurant.id, "restaurant"),
     getStorageImageUrl(session, restaurant.logoFileId),
     getStorageImageUrl(session, restaurant.coverPhotoFileId),
-    getPublicSellerVerificationBadge(restaurant.id),
+    getPublicSellerVerificationBadges(restaurant.id),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
@@ -46,7 +46,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
         headline="Restaurant partner serving public menu items through manual order requests."
         location={restaurant.countryCode}
         initials={initialsFromName(restaurant.name)}
-        badges={[<SellerVerificationBadge key="seller-verification" label={sellerBadge.label} tone={sellerBadge.tone} />]}
+        badges={sellerBadges.map((badge) => <SellerVerificationBadge key={`seller-verification-${badge.label}`} label={badge.label} tone={badge.tone} />)}
         actions={<ContactActions href="/orders" label="View my orders" />}
       />
       <ProfileSection title="Social links">

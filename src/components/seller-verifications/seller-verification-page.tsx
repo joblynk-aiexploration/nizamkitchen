@@ -22,8 +22,11 @@ type Requirement = {
 
 type VerificationProfile = SellerVerificationProfile & {
   items: Array<{ id: string; requirementId: string | null; requirementType: SellerRequirementType; status: string; documentFileId: string | null; rejectionReason: string | null; expiresAt: Date | null }>;
+  foodSafetyCertificates: Array<{ id: string; status: string; providerName: string | null; expiresAt: Date | null; rejectionReason: string | null }>;
+  permits: Array<{ id: string; status: string; permitType: string; expiresAt: Date | null; rejectionReason: string | null }>;
   attestations: Array<{ id: string; attestationType: string; acceptedAt: Date }>;
   kitchenReviews: Array<{ id: string; status: string; photos: Array<{ id: string; category: string; fileId: string }> }>;
+  trialReviews: Array<{ id: string; status: string; scheduledAt: Date | null; dishName: string | null; notes: string | null }>;
 };
 
 export function SellerVerificationPage({
@@ -32,6 +35,8 @@ export function SellerVerificationPage({
   profile,
   requirements,
   uploadAction,
+  foodCertificateAction,
+  permitAction,
   attestationAction,
   kitchenPhotoAction,
   submitAction,
@@ -42,6 +47,8 @@ export function SellerVerificationPage({
   profile: VerificationProfile | null;
   requirements: Requirement[];
   uploadAction: (formData: FormData) => Promise<void>;
+  foodCertificateAction: (formData: FormData) => Promise<void>;
+  permitAction: (formData: FormData) => Promise<void>;
   attestationAction: (formData: FormData) => Promise<void>;
   kitchenPhotoAction: (formData: FormData) => Promise<void>;
   submitAction: (formData: FormData) => Promise<void>;
@@ -72,6 +79,8 @@ export function SellerVerificationPage({
             const item = itemByRequirement.get(requirement.id) ?? itemByRequirement.get(requirement.requirementType);
             const isKitchen = requirement.requirementType === "kitchen_photos";
             const isAttestation = requirement.requirementType === "platform_attestation" || requirement.requirementType === "background_check";
+            const isFoodCertificate = requirement.requirementType === "food_handler_certificate";
+            const isPermit = requirement.requirementType === "local_permit";
             return (
               <div key={requirement.id} className="rounded-3xl border border-[var(--color-border)] p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -86,10 +95,34 @@ export function SellerVerificationPage({
                     {item?.rejectionReason ? <p className="mt-3 text-sm text-red-700">{item.rejectionReason}</p> : null}
                   </div>
                 </div>
-                {isKitchen ? (
+                {isFoodCertificate ? (
+                  <form action={foodCertificateAction} className="mt-5 grid gap-4 md:grid-cols-3">
+                    <input type="hidden" name="returnTo" value={returnTo} />
+                    <DocumentUploadField label="Private certificate file" name="fileId" module="organizations" purpose="food_handler_certificate" visibility="private" entityType="food_safety_certificate" entityId={profile.id} />
+                    <TextInput label="Provider name" name="providerName" placeholder="ServSafe, local agency, etc." />
+                    <TextInput label="Certificate number (optional)" name="certificateNumber" />
+                    <TextInput label="Issued date" name="issuedAt" type="date" />
+                    <TextInput label="Expiration date" name="expiresAt" type="date" />
+                    <TextInput label="Country" name="countryCode" defaultValue={profile.countryCode} maxLength={2} />
+                    <TextInput label="Region/state" name="region" defaultValue={profile.region ?? ""} />
+                    <TextArea label="Notes" name="notes" />
+                    <div className="flex items-end"><Button type="submit">Submit certificate</Button></div>
+                  </form>
+                ) : isPermit ? (
+                  <form action={permitAction} className="mt-5 grid gap-4 md:grid-cols-3">
+                    <input type="hidden" name="returnTo" value={returnTo} />
+                    <SelectInput label="Permit type" name="permitType" options={["food_establishment_permit", "cottage_food_registration", "business_license", "tax_registration", "health_department_permit", "other"].map((value) => ({ value, label: value.replace(/_/g, " ") }))} />
+                    <DocumentUploadField label="Private permit/license file" name="fileId" module="organizations" purpose="business_license_document" visibility="private" entityType="seller_permit" entityId={profile.id} />
+                    <TextInput label="Issuing authority" name="issuingAuthority" />
+                    <TextInput label="Permit number (optional)" name="permitNumber" />
+                    <TextInput label="Issued date" name="issuedAt" type="date" />
+                    <TextInput label="Expiration date" name="expiresAt" type="date" />
+                    <div className="flex items-end"><Button type="submit">Submit permit</Button></div>
+                  </form>
+                ) : isKitchen ? (
                   <form action={kitchenPhotoAction} className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
                     <input type="hidden" name="returnTo" value={returnTo} />
-                    <SelectInput label="Photo category" name="category" options={["cooking_area", "sink_sanitation", "refrigerator_storage", "dry_storage", "prep_surface", "packaging_area", "handwashing", "other"].map((value) => ({ value, label: value.replace(/_/g, " ") }))} />
+                    <SelectInput label="Photo category" name="category" options={["cooking_area", "sink_sanitation", "refrigerator_storage", "dry_storage", "prep_surface", "packaging_area", "waste_trash_area", "pet_separation", "handwashing", "other"].map((value) => ({ value, label: value.replace(/_/g, " ") }))} />
                     <ImageUploadField label="Private kitchen photo" name="fileId" module="home_catering" purpose="kitchen_photo" visibility="private" entityType="kitchen_safety_review" entityId={profile.id} />
                     <div className="flex items-end"><Button type="submit">Upload photo</Button></div>
                   </form>
@@ -117,6 +150,12 @@ export function SellerVerificationPage({
         </div>
       </Card>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        <SummaryCard title="Food certificates" rows={profile.foodSafetyCertificates.map((certificate) => `${certificate.providerName ?? "Certificate"} · ${certificate.status.replace(/_/g, " ")}${certificate.expiresAt ? ` · expires ${certificate.expiresAt.toLocaleDateString()}` : ""}`)} />
+        <SummaryCard title="Permits and licenses" rows={profile.permits.map((permit) => `${permit.permitType.replace(/_/g, " ")} · ${permit.status.replace(/_/g, " ")}${permit.expiresAt ? ` · expires ${permit.expiresAt.toLocaleDateString()}` : ""}`)} />
+        <SummaryCard title="Trial/taste test" rows={profile.trialReviews.map((trial) => `${trial.dishName ?? "Trial review"} · ${trial.status.replace(/_/g, " ")}${trial.scheduledAt ? ` · ${trial.scheduledAt.toLocaleDateString()}` : ""}`)} empty="No trial/taste test has been requested." />
+      </section>
+
       <Card>
         <form action={submitAction} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <input type="hidden" name="returnTo" value={returnTo} />
@@ -128,6 +167,17 @@ export function SellerVerificationPage({
         </form>
       </Card>
     </div>
+  );
+}
+
+function SummaryCard({ title, rows, empty = "Nothing submitted yet." }: { title: string; rows: string[]; empty?: string }) {
+  return (
+    <Card>
+      <h2 className="font-semibold text-[var(--color-ink)]">{title}</h2>
+      <div className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
+        {rows.length ? rows.map((row) => <p key={row}>{row}</p>) : <p>{empty}</p>}
+      </div>
+    </Card>
   );
 }
 

@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SellerVerificationPage } from "@/components/seller-verifications/seller-verification-page";
 import { requireMembership } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { acceptSellerAttestationAction, submitKitchenPhotoAction, submitSellerDocumentAction, submitSellerVerificationAction } from "../../seller-verification-actions";
+import { acceptSellerAttestationAction, submitFoodSafetyCertificateAction, submitKitchenPhotoAction, submitSellerDocumentAction, submitSellerPermitAction, submitSellerVerificationAction } from "../../seller-verification-actions";
 import { getOrCreateSellerVerificationProfile, listRequirementsForSeller } from "@/server/seller-verifications";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,8 @@ export default async function ChefVerificationPage({ searchParams }: { searchPar
         profile={profile}
         requirements={requirements}
         uploadAction={submitSellerDocumentAction}
+        foodCertificateAction={submitFoodSafetyCertificateAction}
+        permitAction={submitSellerPermitAction}
         attestationAction={acceptSellerAttestationAction}
         kitchenPhotoAction={submitKitchenPhotoAction}
         submitAction={submitSellerVerificationAction}

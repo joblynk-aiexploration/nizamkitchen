@@ -1,4 +1,4 @@
-import { SellerVerificationItemStatus, SellerVerificationLevel, SellerVerificationStatus } from "@prisma/client";
+import { SellerTrialReviewStatus, SellerVerificationItemStatus, SellerVerificationLevel, SellerVerificationStatus } from "@prisma/client";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { getAdminVerificationProfile } from "@/server/seller-verifications";
-import { reviewVerificationItemAction, reviewVerificationProfileAction } from "../../../seller-verification-actions";
+import { reviewFoodSafetyCertificateAction, reviewKitchenChecklistAction, reviewSellerPermitAction, reviewVerificationItemAction, reviewVerificationProfileAction, upsertTrialReviewAction } from "../../../seller-verification-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +28,33 @@ export default async function AdminVerificationDetailPage({ params, searchParams
       <section className="grid gap-4 md:grid-cols-4">
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p><p className="mt-3"><Badge tone={profile.status === "verified" ? "success" : profile.status === "rejected" ? "danger" : "warning"}>{profile.status}</Badge></p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Level</p><p className="mt-3 text-sm font-semibold">{profile.verificationLevel.replace(/_/g, " ")}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Items</p><p className="mt-3 text-3xl font-semibold">{profile.items.length}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Certificates</p><p className="mt-3 text-3xl font-semibold">{profile.foodSafetyCertificates.length}</p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Kitchen reviews</p><p className="mt-3 text-3xl font-semibold">{profile.kitchenReviews.length}</p></Card>
       </section>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          <AdminDataTable
+            data={profile.foodSafetyCertificates}
+            emptyMessage="No food safety certificates submitted."
+            columns={[
+              { key: "provider", header: "Certificate", render: (item) => item.providerName ?? "Food safety certificate" },
+              { key: "status", header: "Status", render: (item) => <Badge tone={item.status === "approved" ? "success" : item.status === "rejected" ? "danger" : "warning"}>{item.status.replace(/_/g, " ")}</Badge> },
+              { key: "file", header: "Private file", render: (item) => item.fileId },
+              { key: "expires", header: "Expires", render: (item) => item.expiresAt?.toLocaleDateString() ?? "Not set" },
+              { key: "actions", header: "Review", render: (item) => canMutate ? <ReviewDocumentForm profileId={profile.id} idName="certificateId" id={item.id} expiresAt={item.expiresAt} action={reviewFoodSafetyCertificateAction} /> : "Read only" },
+            ]}
+          />
+          <AdminDataTable
+            data={profile.permits}
+            emptyMessage="No local permits or licenses submitted."
+            columns={[
+              { key: "type", header: "Permit", render: (item) => item.permitType.replace(/_/g, " ") },
+              { key: "authority", header: "Authority", render: (item) => item.issuingAuthority ?? "Not provided" },
+              { key: "status", header: "Status", render: (item) => <Badge tone={item.status === "approved" ? "success" : item.status === "rejected" ? "danger" : "warning"}>{item.status.replace(/_/g, " ")}</Badge> },
+              { key: "file", header: "Private file", render: (item) => item.fileId },
+              { key: "actions", header: "Review", render: (item) => canMutate ? <ReviewDocumentForm profileId={profile.id} idName="permitId" id={item.id} expiresAt={item.expiresAt} action={reviewSellerPermitAction} /> : "Read only" },
+            ]}
+          />
           <AdminDataTable
             data={profile.items}
             emptyMessage="No submitted verification items."
@@ -52,6 +75,25 @@ export default async function AdminVerificationDetailPage({ params, searchParams
               { key: "accepted", header: "Accepted", render: (item) => item.acceptedAt.toLocaleDateString() },
             ]}
           />
+          <AdminDataTable
+            data={profile.kitchenReviews}
+            emptyMessage="No kitchen safety photos submitted."
+            columns={[
+              { key: "status", header: "Status", render: (item) => <Badge tone={item.status === "approved" ? "success" : item.status === "rejected" ? "danger" : "warning"}>{item.status.replace(/_/g, " ")}</Badge> },
+              { key: "photos", header: "Photos", render: (item) => item.photos.length },
+              { key: "notes", header: "Notes", render: (item) => item.notes ?? "No notes" },
+              { key: "actions", header: "Checklist", render: (item) => canMutate ? <KitchenChecklistForm profileId={profile.id} reviewId={item.id} /> : "Read only" },
+            ]}
+          />
+          <AdminDataTable
+            data={profile.trialReviews}
+            emptyMessage="No trial/taste test requested."
+            columns={[
+              { key: "dish", header: "Dish", render: (item) => item.dishName ?? "Not set" },
+              { key: "status", header: "Status", render: (item) => <Badge tone={item.status === "approved" || item.status === "waived" ? "success" : item.status === "rejected" ? "danger" : "warning"}>{item.status.replace(/_/g, " ")}</Badge> },
+              { key: "scheduled", header: "Scheduled", render: (item) => item.scheduledAt?.toLocaleDateString() ?? "Not scheduled" },
+            ]}
+          />
         </div>
         <div className="space-y-6">
           {canMutate ? (
@@ -67,6 +109,7 @@ export default async function AdminVerificationDetailPage({ params, searchParams
               </form>
             </Card>
           ) : null}
+          {canMutate ? <TrialReviewCard profileId={profile.id} trialReviewId={profile.trialReviews[0]?.id ?? null} /> : null}
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Privacy guardrails</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">Identity documents, certificates, kitchen photos, and background status are private. Public profiles only show safe status badges, never document numbers or background-check details.</p>
@@ -74,6 +117,74 @@ export default async function AdminVerificationDetailPage({ params, searchParams
         </div>
       </div>
     </AdminShell>
+  );
+}
+
+function ReviewDocumentForm({ profileId, idName, id, expiresAt, action }: { profileId: string; idName: "certificateId" | "permitId"; id: string; expiresAt: Date | null; action: (formData: FormData) => Promise<void> }) {
+  return (
+    <form action={action} className="grid gap-2">
+      <input type="hidden" name="profileId" value={profileId} />
+      <input type="hidden" name={idName} value={id} />
+      <select name="status" defaultValue="approved" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs">
+        <option value="approved">approve</option>
+        <option value="needs_more_info">needs more info</option>
+        <option value="rejected">reject</option>
+        <option value="expired">expire</option>
+      </select>
+      <input type="date" name="expiresAt" defaultValue={expiresAt ? expiresAt.toISOString().slice(0, 10) : ""} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <input name="rejectionReason" placeholder="Reason / note" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <Button type="submit">Save</Button>
+    </form>
+  );
+}
+
+function KitchenChecklistForm({ profileId, reviewId }: { profileId: string; reviewId: string }) {
+  const checks = [
+    ["cleanPrepSurfaces", "Clean prep surfaces"],
+    ["handwashingSanitation", "Handwashing/sanitation"],
+    ["safeFoodStorage", "Safe food storage"],
+    ["organizedDryStorage", "Organized dry storage"],
+    ["properPackagingArea", "Proper packaging area"],
+    ["noPetsInPrepArea", "Pet separation attestation"],
+  ] as const;
+  return (
+    <form action={reviewKitchenChecklistAction} className="grid gap-2">
+      <input type="hidden" name="profileId" value={profileId} />
+      <input type="hidden" name="reviewId" value={reviewId} />
+      <select name="status" defaultValue="approved" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs">
+        <option value="approved">approve</option>
+        <option value="needs_more_info">needs more info</option>
+        <option value="rejected">reject</option>
+        <option value="under_review">under review</option>
+      </select>
+      {checks.map(([name, label]) => <label key={name} className="text-xs"><input type="checkbox" name={name} className="mr-2" />{label}</label>)}
+      <input name="cleanlinessScore" placeholder="Cleanliness 1-5" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <input name="storageScore" placeholder="Storage 1-5" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <input name="sanitationScore" placeholder="Sanitation 1-5" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <input name="packagingScore" placeholder="Packaging 1-5" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <textarea name="notes" placeholder="Review notes" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <Button type="submit">Save checklist</Button>
+    </form>
+  );
+}
+
+function TrialReviewCard({ profileId, trialReviewId }: { profileId: string; trialReviewId: string | null }) {
+  return (
+    <Card className="space-y-4">
+      <h2 className="font-semibold text-[var(--color-ink)]">Trial/taste test</h2>
+      <form action={upsertTrialReviewAction} className="space-y-3">
+        <input type="hidden" name="profileId" value={profileId} />
+        <input type="hidden" name="trialReviewId" value={trialReviewId ?? ""} />
+        <SelectInput label="Trial status" name="status" defaultValue={SellerTrialReviewStatus.requested} options={Object.values(SellerTrialReviewStatus).map((value) => ({ value, label: value.replace(/_/g, " ") }))} />
+        <TextInput label="Scheduled date" name="scheduledAt" type="date" />
+        <TextInput label="Dish name" name="dishName" />
+        <TextInput label="Taste score" name="tasteScore" />
+        <TextInput label="Packaging score" name="packagingScore" />
+        <TextInput label="Presentation score" name="presentationScore" />
+        <TextArea label="Notes" name="notes" />
+        <Button type="submit" className="w-full justify-center">Save trial review</Button>
+      </form>
+    </Card>
   );
 }
 

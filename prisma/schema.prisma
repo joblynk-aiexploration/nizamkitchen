@@ -178,62 +178,65 @@ enum StorageFileAction {
 }
 
 model User {
-  id                           String                         @id @default(cuid())
-  email                        String                         @unique
-  passwordHash                 String
-  fullName                     String
-  status                       UserStatus                     @default(active)
-  platformRole                 PlatformRole?
-  profilePhotoFileId           String?
-  coverPhotoFileId             String?
-  headline                     String?
-  bio                          String?
-  location                     String?
-  locationText                 String?
-  phone                        String?
-  preferredLanguage            String?
-  publicProfileEnabled         Boolean                        @default(false)
-  preferredLocale              String?                        @default("en-US")
-  preferredTimezone            String?                        @default("UTC")
-  lastLoginAt                  DateTime?
-  createdAt                    DateTime                       @default(now())
-  updatedAt                    DateTime                       @updatedAt
-  sessions                     Session[]
-  memberships                  Membership[]
-  countryAssignments           CountryAssignment[]
-  auditLogs                    AuditLog[]
-  emailLogs                    EmailLog[]
-  apiKeys                      ApiKey[]
-  groceryLists                 GroceryList[]
-  groceryListShares            GroceryListShare[]             @relation("GroceryListShareCreatedBy")
-  groceryListExports           GroceryListExport[]            @relation("GroceryListExportCreatedBy")
-  createdMealPlans             MealPlan[]                     @relation("MealPlanCreatedBy")
-  discoveryRuns                YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates           YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
-  favoriteRecipesCreated       FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated      HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent         HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges        HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews                  ChefReview[]
-  restaurantFallbackSearches   RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
-  notifications                Notification[]
-  notificationPreference       NotificationPreference?
-  supportTicketsCreated        SupportTicket[]                @relation("SupportTicketCreatedBy")
-  supportTicketsAssigned       SupportTicket[]                @relation("SupportTicketAssignedTo")
-  supportTicketComments        SupportTicketComment[]
-  foodOrders                   FoodOrder[]                    @relation("FoodOrderCustomerUser")
-  foodOrderMessages            FoodOrderMessage[]             @relation("FoodOrderMessageSender")
-  foodOrderStatusChanges       FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
-  storageConfigurationsCreated StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
-  storageConfigurationsUpdated StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
-  storageFilesUploaded         StorageFile[]                  @relation("StorageFileUploadedBy")
-  storageFileAccessLogs        StorageFileAccessLog[]
-  storageFileVersions          StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
-  reviewedSellerProfiles       SellerVerificationProfile[]    @relation("SellerVerificationProfileReviewedBy")
-  reviewedVerificationItems    SellerVerificationItem[]       @relation("SellerVerificationItemReviewedBy")
-  acceptedSellerAttestations   SellerAttestation[]            @relation("SellerAttestationAcceptedBy")
-  requestedBackgroundChecks    SellerBackgroundCheck[]        @relation("SellerBackgroundCheckRequestedBy")
-  reviewedKitchenSafety        KitchenSafetyReview[]          @relation("KitchenSafetyReviewReviewedBy")
+  id                             String                         @id @default(cuid())
+  email                          String                         @unique
+  passwordHash                   String
+  fullName                       String
+  status                         UserStatus                     @default(active)
+  platformRole                   PlatformRole?
+  profilePhotoFileId             String?
+  coverPhotoFileId               String?
+  headline                       String?
+  bio                            String?
+  location                       String?
+  locationText                   String?
+  phone                          String?
+  preferredLanguage              String?
+  publicProfileEnabled           Boolean                        @default(false)
+  preferredLocale                String?                        @default("en-US")
+  preferredTimezone              String?                        @default("UTC")
+  lastLoginAt                    DateTime?
+  createdAt                      DateTime                       @default(now())
+  updatedAt                      DateTime                       @updatedAt
+  sessions                       Session[]
+  memberships                    Membership[]
+  countryAssignments             CountryAssignment[]
+  auditLogs                      AuditLog[]
+  emailLogs                      EmailLog[]
+  apiKeys                        ApiKey[]
+  groceryLists                   GroceryList[]
+  groceryListShares              GroceryListShare[]             @relation("GroceryListShareCreatedBy")
+  groceryListExports             GroceryListExport[]            @relation("GroceryListExportCreatedBy")
+  createdMealPlans               MealPlan[]                     @relation("MealPlanCreatedBy")
+  discoveryRuns                  YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates             YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
+  favoriteRecipesCreated         FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
+  homeChefRequestsCreated        HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent           HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges          HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews                    ChefReview[]
+  restaurantFallbackSearches     RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
+  notifications                  Notification[]
+  notificationPreference         NotificationPreference?
+  supportTicketsCreated          SupportTicket[]                @relation("SupportTicketCreatedBy")
+  supportTicketsAssigned         SupportTicket[]                @relation("SupportTicketAssignedTo")
+  supportTicketComments          SupportTicketComment[]
+  foodOrders                     FoodOrder[]                    @relation("FoodOrderCustomerUser")
+  foodOrderMessages              FoodOrderMessage[]             @relation("FoodOrderMessageSender")
+  foodOrderStatusChanges         FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
+  storageConfigurationsCreated   StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
+  storageConfigurationsUpdated   StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
+  storageFilesUploaded           StorageFile[]                  @relation("StorageFileUploadedBy")
+  storageFileAccessLogs          StorageFileAccessLog[]
+  storageFileVersions            StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
+  reviewedSellerProfiles         SellerVerificationProfile[]    @relation("SellerVerificationProfileReviewedBy")
+  reviewedVerificationItems      SellerVerificationItem[]       @relation("SellerVerificationItemReviewedBy")
+  reviewedFoodSafetyCertificates FoodSafetyCertificate[]        @relation("FoodSafetyCertificateReviewedBy")
+  reviewedSellerPermits          SellerPermit[]                 @relation("SellerPermitReviewedBy")
+  acceptedSellerAttestations     SellerAttestation[]            @relation("SellerAttestationAcceptedBy")
+  requestedBackgroundChecks      SellerBackgroundCheck[]        @relation("SellerBackgroundCheckRequestedBy")
+  reviewedKitchenSafety          KitchenSafetyReview[]          @relation("KitchenSafetyReviewReviewedBy")
+  reviewedSellerTrials           SellerTrialReview[]            @relation("SellerTrialReviewReviewedBy")
 }
 
 model Session {
@@ -315,9 +318,12 @@ model Organization {
   sellerPayoutAccounts       SellerPayoutAccount[]
   sellerPayouts              SellerPayout[]
   sellerVerificationProfile  SellerVerificationProfile?
+  foodSafetyCertificates     FoodSafetyCertificate[]
+  sellerPermits              SellerPermit[]
   sellerAttestations         SellerAttestation[]
   sellerBackgroundChecks     SellerBackgroundCheck[]
   kitchenSafetyReviews       KitchenSafetyReview[]
+  sellerTrialReviews         SellerTrialReview[]
 
   @@index([countryCode])
   @@index([status])
@@ -1237,6 +1243,8 @@ enum KitchenSafetyPhotoCategory {
   dry_storage
   prep_surface
   packaging_area
+  waste_trash_area
+  pet_separation
   handwashing
   other
 }
@@ -1249,6 +1257,41 @@ enum AttestationType {
   tax_responsibility
   kitchen_safety_attestation
   local_law_acknowledgement
+}
+
+enum FoodSafetyCertificateStatus {
+  submitted
+  approved
+  rejected
+  expired
+  needs_more_info
+}
+
+enum SellerPermitType {
+  food_establishment_permit
+  cottage_food_registration
+  business_license
+  tax_registration
+  health_department_permit
+  other
+}
+
+enum SellerPermitStatus {
+  submitted
+  approved
+  rejected
+  expired
+  needs_more_info
+}
+
+enum SellerTrialReviewStatus {
+  not_required
+  requested
+  scheduled
+  submitted
+  approved
+  rejected
+  waived
 }
 
 enum ChefVerificationStatus {
@@ -2550,26 +2593,29 @@ model ChefVerificationDocument {
 }
 
 model SellerVerificationProfile {
-  id                String                   @id @default(cuid())
-  organizationId    String                   @unique
-  countryCode       String
-  region            String?
-  sellerType        SellerType
-  status            SellerVerificationStatus @default(not_started)
-  verificationLevel SellerVerificationLevel  @default(unverified)
-  submittedAt       DateTime?
-  reviewedAt        DateTime?
-  reviewedById      String?
-  rejectionReason   String?
-  adminNotes        String?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviewedBy        User?                    @relation("SellerVerificationProfileReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  items             SellerVerificationItem[]
-  attestations      SellerAttestation[]
-  backgroundChecks  SellerBackgroundCheck[]
-  kitchenReviews    KitchenSafetyReview[]
+  id                     String                   @id @default(cuid())
+  organizationId         String                   @unique
+  countryCode            String
+  region                 String?
+  sellerType             SellerType
+  status                 SellerVerificationStatus @default(not_started)
+  verificationLevel      SellerVerificationLevel  @default(unverified)
+  submittedAt            DateTime?
+  reviewedAt             DateTime?
+  reviewedById           String?
+  rejectionReason        String?
+  adminNotes             String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy             User?                    @relation("SellerVerificationProfileReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  items                  SellerVerificationItem[]
+  foodSafetyCertificates FoodSafetyCertificate[]
+  permits                SellerPermit[]
+  attestations           SellerAttestation[]
+  backgroundChecks       SellerBackgroundCheck[]
+  kitchenReviews         KitchenSafetyReview[]
+  trialReviews           SellerTrialReview[]
 
   @@index([organizationId])
   @@index([countryCode])
@@ -2577,6 +2623,65 @@ model SellerVerificationProfile {
   @@index([sellerType])
   @@index([status])
   @@index([verificationLevel])
+}
+
+model FoodSafetyCertificate {
+  id                    String                      @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  fileId                String
+  providerName          String?
+  certificateNumber     String?
+  issuedAt              DateTime?
+  expiresAt             DateTime?
+  countryCode           String
+  region                String?
+  notes                 String?
+  status                FoodSafetyCertificateStatus @default(submitted)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  rejectionReason       String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile   @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                       @relation("FoodSafetyCertificateReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([fileId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([countryCode])
+  @@index([region])
+}
+
+model SellerPermit {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  permitType            SellerPermitType
+  fileId                String
+  issuingAuthority      String?
+  permitNumber          String?
+  issuedAt              DateTime?
+  expiresAt             DateTime?
+  status                SellerPermitStatus        @default(submitted)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  rejectionReason       String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("SellerPermitReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([permitType])
+  @@index([fileId])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 model SellerVerificationRequirement {
@@ -2694,6 +2799,7 @@ model KitchenSafetyReview {
   storageScore          Int?
   sanitationScore       Int?
   packagingScore        Int?
+  checklistJson         Json?
   notes                 String?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
@@ -2719,6 +2825,31 @@ model KitchenSafetyPhoto {
   @@index([kitchenSafetyReviewId])
   @@index([fileId])
   @@index([category])
+}
+
+model SellerTrialReview {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  status                SellerTrialReviewStatus   @default(requested)
+  scheduledAt           DateTime?
+  reviewedById          String?
+  dishName              String?
+  tasteScore            Int?
+  packagingScore        Int?
+  presentationScore     Int?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("SellerTrialReviewReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([reviewedById])
 }
 
 model HomeChefRequest {

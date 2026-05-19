@@ -7,10 +7,15 @@ const { mockPrisma, mockAudit } = vi.hoisted(() => ({
     sellerVerificationProfile: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     sellerVerificationRequirement: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     sellerVerificationItem: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    foodSafetyCertificate: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    sellerPermit: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     sellerAttestation: { create: vi.fn() },
     sellerBackgroundCheck: { findMany: vi.fn() },
-    kitchenSafetyReview: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    kitchenSafetyReview: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     kitchenSafetyPhoto: { create: vi.fn() },
+    sellerTrialReview: { create: vi.fn(), update: vi.fn() },
+    notification: { create: vi.fn() },
+    user: { findUnique: vi.fn() },
     storageFile: { findFirst: vi.fn() },
   },
   mockAudit: vi.fn(),
@@ -21,15 +26,23 @@ vi.mock("@/server/audit", () => ({ createAuditEvent: mockAudit }));
 
 import {
   acceptSellerAttestation,
+  createVerificationExpiryReminders,
   getOrCreateSellerVerificationProfile,
   getPublicSellerVerificationBadge,
+  getPublicSellerVerificationBadges,
   listRequirementsForSeller,
+  reviewFoodSafetyCertificate,
+  reviewKitchenSafetyChecklist,
+  reviewSellerPermit,
   reviewSellerVerificationItem,
   reviewSellerVerificationProfile,
   safeVerificationBadge,
+  submitFoodSafetyCertificate,
   submitKitchenSafetyPhoto,
+  submitSellerPermit,
   submitSellerVerificationForReview,
   submitSellerVerificationDocument,
+  upsertSellerTrialReview,
   upsertSellerVerificationRequirement,
 } from "@/server/seller-verifications";
 import { canAccessStorageFile } from "@/server/storage/storage-permissions";
@@ -62,7 +75,17 @@ describe("seller verification infrastructure", () => {
     mockPrisma.sellerVerificationItem.findUnique.mockResolvedValue({ id: "item-1", verificationProfileId: "profile-1", verificationProfile: { id: "profile-1", organizationId: "seller-org", countryCode: "US" } });
     mockPrisma.sellerVerificationItem.create.mockImplementation(async ({ data }) => ({ id: "item-1", ...data }));
     mockPrisma.sellerVerificationItem.update.mockImplementation(async ({ data }) => ({ id: "item-1", verificationProfileId: "profile-1", ...data }));
+    mockPrisma.foodSafetyCertificate.create.mockImplementation(async ({ data }) => ({ id: "cert-1", ...data }));
+    mockPrisma.foodSafetyCertificate.findUnique.mockResolvedValue({ id: "cert-1", organizationId: "seller-org", verificationProfileId: "profile-1", fileId: "file-1", expiresAt: new Date("2027-01-01"), verificationProfile: { id: "profile-1", organizationId: "seller-org", countryCode: "US" } });
+    mockPrisma.foodSafetyCertificate.update.mockImplementation(async ({ data }) => ({ id: "cert-1", organizationId: "seller-org", verificationProfileId: "profile-1", fileId: "file-1", ...data }));
+    mockPrisma.foodSafetyCertificate.findMany.mockResolvedValue([]);
+    mockPrisma.sellerPermit.create.mockImplementation(async ({ data }) => ({ id: "permit-1", ...data }));
+    mockPrisma.sellerPermit.findUnique.mockResolvedValue({ id: "permit-1", organizationId: "seller-org", verificationProfileId: "profile-1", permitType: "business_license", fileId: "file-1", expiresAt: new Date("2027-01-01"), verificationProfile: { id: "profile-1", organizationId: "seller-org", countryCode: "US" } });
+    mockPrisma.sellerPermit.update.mockImplementation(async ({ data }) => ({ id: "permit-1", organizationId: "seller-org", verificationProfileId: "profile-1", permitType: "business_license", fileId: "file-1", ...data }));
+    mockPrisma.sellerPermit.findMany.mockResolvedValue([]);
     mockPrisma.storageFile.findFirst.mockResolvedValue({ id: "file-1", organizationId: "seller-org", status: "active" });
+    mockPrisma.notification.create.mockImplementation(async ({ data }) => ({ id: "notification-1", ...data }));
+    mockPrisma.user.findUnique.mockResolvedValue(null);
   });
 
   it("creates verification profiles for home catering, chef, and restaurant sellers", async () => {
@@ -85,6 +108,48 @@ describe("seller verification infrastructure", () => {
     expect(mockPrisma.storageFile.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "file-1", organizationId: "seller-org" }) }));
     expect(mockPrisma.sellerVerificationItem.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ documentFileId: "file-1", status: "submitted" }) }));
     expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "seller_verification_item.submitted" }));
+  });
+
+  it("submits and approves first-class food safety certificates", async () => {
+    await submitFoodSafetyCertificate(sellerSession("home_catering"), {
+      fileId: "file-1",
+      providerName: "Local food safety course",
+      certificateNumber: "CERT-123",
+      issuedAt: "2026-01-01",
+      expiresAt: "2027-01-01",
+      countryCode: "US",
+      region: "TX",
+      notes: "Uploaded by seller.",
+    });
+    await reviewFoodSafetyCertificate(adminSession(), { certificateId: "cert-1", status: "approved", expiresAt: "2027-01-01" });
+
+    expect(mockPrisma.foodSafetyCertificate.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ fileId: "file-1", status: "submitted" }) }));
+    expect(mockPrisma.foodSafetyCertificate.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "approved", reviewedById: "admin-1" }) }));
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "food_safety_certificate.submitted" }));
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "food_safety_certificate.approved" }));
+  });
+
+  it("marks expired certificates as incomplete verification", async () => {
+    await reviewFoodSafetyCertificate(adminSession(), { certificateId: "cert-1", status: "expired" });
+    expect(mockPrisma.sellerVerificationProfile.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "profile-1" },
+      data: expect.objectContaining({ status: "expired", verificationLevel: "unverified" }),
+    }));
+  });
+
+  it("submits and reviews local permits or business licenses", async () => {
+    await submitSellerPermit(sellerSession("restaurant"), {
+      permitType: "business_license",
+      fileId: "file-1",
+      issuingAuthority: "City office",
+      permitNumber: "LIC-7",
+      issuedAt: "2026-01-01",
+      expiresAt: "2027-01-01",
+    });
+    await reviewSellerPermit(adminSession(), { permitId: "permit-1", status: "needs_more_info", rejectionReason: "Need clearer scan." });
+
+    expect(mockPrisma.sellerPermit.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ permitType: "business_license", fileId: "file-1" }) }));
+    expect(mockPrisma.sellerPermit.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "needs_more_info", rejectionReason: "Need clearer scan." }) }));
   });
 
   it("resubmits a rejected verification item instead of creating a duplicate", async () => {
@@ -124,6 +189,42 @@ describe("seller verification infrastructure", () => {
     expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "background_check.consent_collected" }));
     expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "kitchen_safety_review.submitted" }));
     expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "seller_verification.submitted" }));
+  });
+
+  it("reviews kitchen safety checklist and optional trial/taste test", async () => {
+    mockPrisma.kitchenSafetyReview.findUnique.mockResolvedValue({ id: "review-1", organizationId: "seller-org", verificationProfileId: "profile-1", verificationProfile: { id: "profile-1", organizationId: "seller-org", countryCode: "US" } });
+    mockPrisma.kitchenSafetyReview.update.mockImplementation(async ({ data }) => ({ id: "review-1", ...data }));
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ id: "profile-1", organizationId: "seller-org", countryCode: "US" });
+    mockPrisma.sellerTrialReview.create.mockImplementation(async ({ data }) => ({ id: "trial-1", ...data }));
+
+    await reviewKitchenSafetyChecklist(adminSession(), {
+      reviewId: "review-1",
+      status: "approved",
+      cleanlinessScore: "5",
+      storageScore: "4",
+      sanitationScore: "5",
+      packagingScore: "4",
+      cleanPrepSurfaces: "true",
+      handwashingSanitation: "true",
+      safeFoodStorage: "true",
+      organizedDryStorage: "true",
+      properPackagingArea: "true",
+      noPetsInPrepArea: "true",
+      notes: "Kitchen photos meet review checklist.",
+    });
+    await upsertSellerTrialReview(adminSession(), {
+      profileId: "profile-1",
+      status: "approved",
+      scheduledAt: "2026-08-01",
+      dishName: "Chicken biryani",
+      tasteScore: "5",
+      packagingScore: "4",
+      presentationScore: "5",
+      notes: "Optional trial approved.",
+    });
+
+    expect(mockPrisma.kitchenSafetyReview.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "approved", checklistJson: expect.objectContaining({ noPetsInPrepArea: true }) }) }));
+    expect(mockPrisma.sellerTrialReview.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "approved", dishName: "Chicken biryani" }) }));
   });
 
   it("blocks household access to private verification documents by storage permission", () => {
@@ -176,6 +277,25 @@ describe("seller verification infrastructure", () => {
     mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "verified", verificationLevel: "fully_verified" });
     await expect(getPublicSellerVerificationBadge("seller-org")).resolves.toEqual({ label: "Fully verified", tone: "success" });
     expect(safeVerificationBadge({ status: "under_review", verificationLevel: "background_checked" })).toEqual({ label: "Unverified", tone: "neutral" });
+  });
+
+  it("creates expiry notifications and hides sensitive public badge details", async () => {
+    mockPrisma.foodSafetyCertificate.findMany.mockResolvedValue([{ id: "cert-expiring", organizationId: "seller-org", verificationProfileId: "profile-1", expiresAt: new Date("2026-06-01"), verificationProfile: { countryCode: "US" } }]);
+    mockPrisma.sellerPermit.findMany.mockResolvedValue([{ id: "permit-expired", organizationId: "seller-org", verificationProfileId: "profile-1", expiresAt: new Date("2026-05-01"), verificationProfile: { countryCode: "US" } }]);
+    await expect(createVerificationExpiryReminders(new Date("2026-05-19"))).resolves.toEqual({ count: 2 });
+    expect(mockPrisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ type: "verification_document_expiring" }) }));
+    expect(mockPrisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ type: "verification_document_expired" }) }));
+
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({
+      status: "verified",
+      verificationLevel: "fully_verified",
+      foodSafetyCertificates: [{ status: "approved" }],
+      kitchenReviews: [{ status: "approved" }],
+      backgroundChecks: [{ status: "clear" }],
+    });
+    const badges = await getPublicSellerVerificationBadges("seller-org");
+    expect(badges.map((badge) => badge.label)).toEqual(expect.arrayContaining(["Food safety certificate verified", "Kitchen reviewed", "Background check complete"]));
+    expect(JSON.stringify(badges)).not.toMatch(/CERT-|LIC-|file-1/);
   });
 
   it("does not add raw SSN fields or public document exposure in source", () => {

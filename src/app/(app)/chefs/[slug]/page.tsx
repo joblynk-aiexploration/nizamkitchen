@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
-import { getPublicSellerVerificationBadge } from "@/server/seller-verifications";
+import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +25,11 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
-  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadge] = await Promise.all([
+  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadges] = await Promise.all([
     listPublicBusinessSocialLinks(chef.organizationId, "chef_business"),
     getStorageImageUrl(session, chef.profilePhotoFileId, chef.profilePhotoUrl),
     getStorageImageUrl(session, chef.coverPhotoFileId),
-    getPublicSellerVerificationBadge(chef.organizationId),
+    getPublicSellerVerificationBadges(chef.organizationId),
   ]);
 
   return (
@@ -45,7 +45,7 @@ export default async function ChefPublicProfilePage({
         badges={[
           <Badge key="public" tone="success">Approved public profile</Badge>,
           <VerificationBadge key="verified" status={chef.verificationStatus} />,
-          <SellerVerificationBadge key="seller-verification" label={sellerBadge.label} tone={sellerBadge.tone} />,
+          ...sellerBadges.map((badge) => <SellerVerificationBadge key={`seller-verification-${badge.label}`} label={badge.label} tone={badge.tone} />),
           chef.yearsExperience ? <Badge key="exp" tone="neutral">{chef.yearsExperience} years experience</Badge> : null,
         ].filter(Boolean)}
         actions={<ContactActions href={`/chefs/${chef.slug}/request`} label="Request this chef" />}

@@ -78,6 +78,71 @@ export const sellerVerificationProfileReviewSchema = z.object({
 
 export const kitchenPhotoSchema = z.object({
   fileId: z.string().trim().min(1).max(120),
-  category: z.enum(["cooking_area", "sink_sanitation", "refrigerator_storage", "dry_storage", "prep_surface", "packaging_area", "handwashing", "other"]),
+  category: z.enum(["cooking_area", "sink_sanitation", "refrigerator_storage", "dry_storage", "prep_surface", "packaging_area", "waste_trash_area", "pet_separation", "handwashing", "other"]),
   caption: nullableString(500).optional(),
+});
+
+const dateString = nullableString(80).optional();
+const reviewScore = z.preprocess((value) => (value === "" || value === null || value === undefined ? null : Number(value)), z.number().int().min(1).max(5).nullable()).optional();
+
+export const foodSafetyCertificateSchema = z.object({
+  fileId: z.string().trim().min(1).max(120),
+  providerName: nullableString(160).optional(),
+  certificateNumber: nullableString(120).optional(),
+  issuedAt: dateString,
+  expiresAt: dateString,
+  countryCode: z.string().trim().min(2).max(2),
+  region: nullableString(120).optional(),
+  notes: nullableString(1000).optional(),
+});
+
+export const foodSafetyCertificateReviewSchema = z.object({
+  certificateId: z.string().trim().min(1).max(120),
+  status: z.enum(["approved", "rejected", "expired", "needs_more_info"]),
+  expiresAt: dateString,
+  rejectionReason: nullableString(1000).optional(),
+});
+
+export const sellerPermitSchema = z.object({
+  permitType: z.enum(["food_establishment_permit", "cottage_food_registration", "business_license", "tax_registration", "health_department_permit", "other"]),
+  fileId: z.string().trim().min(1).max(120),
+  issuingAuthority: nullableString(160).optional(),
+  permitNumber: nullableString(120).optional(),
+  issuedAt: dateString,
+  expiresAt: dateString,
+});
+
+export const sellerPermitReviewSchema = z.object({
+  permitId: z.string().trim().min(1).max(120),
+  status: z.enum(["approved", "rejected", "expired", "needs_more_info"]),
+  expiresAt: dateString,
+  rejectionReason: nullableString(1000).optional(),
+});
+
+export const kitchenSafetyReviewSchema = z.object({
+  reviewId: z.string().trim().min(1).max(120),
+  status: z.enum(["approved", "rejected", "needs_more_info", "under_review"]),
+  cleanlinessScore: reviewScore,
+  storageScore: reviewScore,
+  sanitationScore: reviewScore,
+  packagingScore: reviewScore,
+  cleanPrepSurfaces: z.coerce.boolean().default(false),
+  handwashingSanitation: z.coerce.boolean().default(false),
+  safeFoodStorage: z.coerce.boolean().default(false),
+  organizedDryStorage: z.coerce.boolean().default(false),
+  properPackagingArea: z.coerce.boolean().default(false),
+  noPetsInPrepArea: z.coerce.boolean().default(false),
+  notes: nullableString(2000).optional(),
+});
+
+export const sellerTrialReviewSchema = z.object({
+  trialReviewId: nullableString(120).optional(),
+  profileId: z.string().trim().min(1).max(120),
+  status: z.enum(["not_required", "requested", "scheduled", "submitted", "approved", "rejected", "waived"]),
+  scheduledAt: dateString,
+  dishName: nullableString(180).optional(),
+  tasteScore: reviewScore,
+  packagingScore: reviewScore,
+  presentationScore: reviewScore,
+  notes: nullableString(2000).optional(),
 });
