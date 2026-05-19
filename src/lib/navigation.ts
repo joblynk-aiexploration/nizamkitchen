@@ -32,6 +32,7 @@ const platformAdminHrefs = [
   "/admin/chefs",
   "/admin/home-catering",
   "/admin/menu-items",
+  "/admin/food-orders",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
   "/admin/system",
@@ -50,6 +51,7 @@ const countryManagerHrefs = [
   "/admin/home-chef-requests",
   "/admin/chefs",
   "/admin/home-catering",
+  "/admin/food-orders",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
 ] as const;
@@ -97,6 +99,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/restaurant", label: "Restaurant Dashboard" },
       { href: "/restaurant/menu", label: "Menus" },
       { href: "/restaurant/menu-items", label: "Menu Items" },
+      { href: "/restaurant/orders", label: "Order Requests" },
       { href: "/settings", label: "Settings" },
     ];
   }
@@ -107,6 +110,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/catering/profile", label: "Profile" },
       { href: "/catering/menu", label: "Menus" },
       { href: "/catering/menu-items", label: "Menu Items" },
+      { href: "/catering/orders", label: "Order Requests" },
       { href: "/catering/settings", label: "Settings" },
     ];
   }
@@ -128,6 +132,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/chefs", label: "Browse Chefs" },
     { href: "/caterers", label: "Browse Caterers" },
     { href: "/restaurants", label: "Restaurant Menus" },
+    { href: "/orders", label: "My Orders" },
     { href: "/order-instead", label: "Order Instead" },
     { href: "/saved-restaurants", label: "Saved Restaurants" },
     { href: "/reports", label: "Reports" },
@@ -188,6 +193,7 @@ function labelForHref(href: string) {
     "/admin/home-catering": "Home Catering",
     "/admin/restaurant-fallback": "Restaurant Fallback",
     "/admin/menu-items": "Menu Items",
+    "/admin/food-orders": "Food Orders",
     "/admin/grocery-partners": "Grocery Partners",
     "/admin/system": "System Status",
     "/admin/system-settings": "System Settings",

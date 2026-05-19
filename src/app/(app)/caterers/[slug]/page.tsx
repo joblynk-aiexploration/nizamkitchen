@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,10 +45,10 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Request flow</h2>
           <p className="mt-3 text-sm text-[var(--color-muted)]">
-            Request order is a placeholder for now. No checkout, payment collection, or delivery tracking is connected.
+            Request dishes from this seller as a manual inquiry. Payment is handled directly with the seller for now.
           </p>
-          <Button className="mt-5 w-full justify-center" variant="secondary" disabled>
-            Request order coming soon
+          <Button className="mt-5 w-full justify-center" variant="secondary" asChild>
+            <Link href="/orders">View my orders</Link>
           </Button>
         </Card>
       </div>
@@ -73,7 +74,11 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
               </div>
               <div className="mt-4 flex items-center justify-between">
                 <p className="font-semibold">{item.priceAmount ? `${item.currencyCode} ${item.priceAmount}` : "Price TBD"}</p>
-                <Button variant="secondary" disabled>Request order</Button>
+                {item.status === "active" ? (
+                  <Button variant="secondary" asChild><Link href={`/orders/new?menuItemId=${item.id}`}>Request order</Link></Button>
+                ) : (
+                  <Button variant="secondary" disabled>Sold out</Button>
+                )}
               </div>
             </div>
           ))}

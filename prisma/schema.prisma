@@ -133,6 +133,9 @@ model User {
   supportTicketsCreated      SupportTicket[]                @relation("SupportTicketCreatedBy")
   supportTicketsAssigned     SupportTicket[]                @relation("SupportTicketAssignedTo")
   supportTicketComments      SupportTicketComment[]
+  foodOrders                 FoodOrder[]                    @relation("FoodOrderCustomerUser")
+  foodOrderMessages          FoodOrderMessage[]             @relation("FoodOrderMessageSender")
+  foodOrderStatusChanges     FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
 }
 
 model Session {
@@ -200,6 +203,9 @@ model Organization {
   savedRestaurants           SavedRestaurant[]
   notifications              Notification[]
   supportTickets             SupportTicket[]
+  foodOrders                 FoodOrder[]                    @relation("FoodOrderTenantOrganization")
+  customerFoodOrders         FoodOrder[]                    @relation("FoodOrderCustomerOrganization")
+  sellerFoodOrders           FoodOrder[]                    @relation("FoodOrderSellerOrganization")
 
   @@index([countryCode])
   @@index([status])
@@ -757,6 +763,30 @@ enum MenuItemCategory {
   catering_tray
   special
   other
+}
+
+enum FoodOrderSellerType {
+  home_catering
+  restaurant
+}
+
+enum FoodOrderStatus {
+  draft
+  submitted
+  accepted
+  declined
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  completed
+  cancelled
+}
+
+enum FoodOrderFulfillmentType {
+  pickup
+  delivery
+  preorder
+  inquiry_only
 }
 
 enum ChefVerificationStatus {
@@ -1493,6 +1523,7 @@ model MenuItem {
   organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   menu                   Menu?                  @relation(fields: [menuId], references: [id], onDelete: SetNull)
   availability           MenuItemAvailability[]
+  orderItems             FoodOrderItem[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1517,6 +1548,102 @@ model MenuItemAvailability {
   @@unique([menuItemId, dayOfWeek])
   @@index([menuItemId])
   @@index([dayOfWeek])
+}
+
+model FoodOrder {
+  id                     String                     @id @default(cuid())
+  organizationId         String
+  countryCode            String
+  customerOrganizationId String
+  customerUserId         String
+  sellerOrganizationId   String
+  sellerType             FoodOrderSellerType
+  status                 FoodOrderStatus            @default(submitted)
+  fulfillmentType        FoodOrderFulfillmentType
+  requestedDate          DateTime?
+  requestedTimeWindow    String?
+  subtotalAmount         Float?
+  currencyCode           String
+  customerName           String?
+  customerPhone          String?
+  customerEmail          String?
+  pickupAddressSnapshot  String?
+  deliveryAddressLine1   String?
+  deliveryAddressLine2   String?
+  deliveryCity           String?
+  deliveryRegion         String?
+  deliveryPostalCode     String?
+  customerNotes          String?
+  sellerNotes            String?
+  adminNotes             String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  cancelledAt            DateTime?
+  completedAt            DateTime?
+  organization           Organization               @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  customerOrganization   Organization               @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  customerUser           User                       @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
+  sellerOrganization     Organization               @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  items                  FoodOrderItem[]
+  messages               FoodOrderMessage[]
+  statusHistory          FoodOrderStatusHistory[]
+
+  @@index([organizationId])
+  @@index([customerOrganizationId])
+  @@index([customerUserId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([sellerType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model FoodOrderItem {
+  id              String    @id @default(cuid())
+  orderId         String
+  menuItemId      String
+  nameSnapshot    String
+  quantity        Int
+  unitPriceAmount Float?
+  totalAmount     Float?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  order           FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem        MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model FoodOrderMessage {
+  id           String    @id @default(cuid())
+  orderId      String
+  senderUserId String
+  message      String
+  isInternal   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  order        FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sender       User      @relation("FoodOrderMessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([senderUserId])
+  @@index([isInternal])
+}
+
+model FoodOrderStatusHistory {
+  id          String          @id @default(cuid())
+  orderId     String
+  oldStatus   FoodOrderStatus?
+  newStatus   FoodOrderStatus
+  changedById String
+  note        String?
+  createdAt   DateTime        @default(now())
+  order       FoodOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   User            @relation("FoodOrderStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([changedById])
+  @@index([newStatus])
 }
 
 model ChefProfile {

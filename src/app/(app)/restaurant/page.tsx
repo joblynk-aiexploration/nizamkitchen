@@ -41,7 +41,8 @@ export default async function RestaurantDashboardPage() {
         </Card>
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Ordering</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">No payments, checkout, or ordering integration has been added.</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Review manual order requests. No checkout or payment processing is connected.</p>
+          <Button asChild variant="secondary" className="mt-5"><Link href="/restaurant/orders">View orders</Link></Button>
         </Card>
       </section>
     </div>

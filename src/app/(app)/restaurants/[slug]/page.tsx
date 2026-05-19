@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,7 +25,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Restaurant menu browsing foundation. Live ordering is not connected." />
+      <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and submit manual order requests. Payment is handled directly with the restaurant for now." />
       <Card>
         <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
         {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active public menu items have been published yet.</p> : null}
@@ -41,7 +42,11 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
               {item.description ? <p className="mt-3 text-sm text-[var(--color-muted)]">{item.description}</p> : null}
               <div className="mt-4 flex items-center justify-between">
                 <p className="font-semibold">{item.priceAmount ? `${item.currencyCode} ${item.priceAmount}` : "Price TBD"}</p>
-                <Button variant="secondary" disabled>Request order</Button>
+                {item.status === "active" ? (
+                  <Button variant="secondary" asChild><Link href={`/orders/new?menuItemId=${item.id}`}>Request order</Link></Button>
+                ) : (
+                  <Button variant="secondary" disabled>Sold out</Button>
+                )}
               </div>
             </div>
           ))}
