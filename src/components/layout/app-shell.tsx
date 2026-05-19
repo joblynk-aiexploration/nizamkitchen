@@ -14,7 +14,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   if (!session) {
     redirect("/login");
   }
-  const unreadNotifications = await getUnreadNotificationCount(session);
+  const unreadNotifications = await getUnreadNotificationCount(session).catch((err: unknown) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[AppShell] notification count failed:", err instanceof Error ? err.message : err);
+    }
+    return 0;
+  });
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">

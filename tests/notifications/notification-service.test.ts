@@ -198,3 +198,60 @@ describe("notification service", () => {
     );
   });
 });
+
+// ─── Hardened safety behaviors ────────────────────────────────────────────────
+
+describe("notification safety: AppShell never crashes", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("getUnreadNotificationCount returns 0 when Prisma throws", async () => {
+    mockPrisma.notification.findMany.mockRejectedValue(new Error("DB unavailable"));
+    const count = await getUnreadNotificationCount(householdSession as never);
+    expect(count).toBe(0);
+  });
+
+  it("getUnreadNotificationCount handles session with no active organization", async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+    const sessionNoOrg = { ...householdSession, activeOrganization: null };
+    const count = await getUnreadNotificationCount(sessionNoOrg as never);
+    expect(count).toBe(0);
+  });
+
+  it("getNotificationInbox with no organization only queries by userId", async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+    const sessionNoOrg = { ...householdSession, activeOrganization: null };
+    await getNotificationInbox(sessionNoOrg as never);
+
+    const call = mockPrisma.notification.findMany.mock.calls[0]![0] as {
+      where: { OR: Array<Record<string, unknown>> };
+    };
+    expect(call.where.OR).toHaveLength(1);
+    expect(call.where.OR[0]).toEqual({ userId: "user-1" });
+  });
+
+  it("country manager with no assignments does not add empty countryCode IN clause", async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+    const cmSession = {
+      ...householdSession,
+      user: { ...householdSession.user, platformRole: "country_manager" },
+      countryAssignments: [],
+    };
+    await getNotificationInbox(cmSession as never);
+
+    const call = mockPrisma.notification.findMany.mock.calls[0]![0] as {
+      where: { OR: Array<Record<string, unknown>> };
+    };
+    // Must not add { countryCode: { in: [] } } — an IN clause with empty array matches nothing
+    const hasEmptyInClause = call.where.OR.some(
+      (c) => c.countryCode !== null && typeof c.countryCode === "object" && c.countryCode !== undefined,
+    );
+    expect(hasEmptyInClause).toBe(false);
+  });
+
+  it("createNotification never throws even when Prisma fails", async () => {
+    mockPrisma.user.findUnique.mockRejectedValue(new Error("DB error"));
+    await expect(
+      createNotification({ userId: "user-1", type: "test", title: "T", body: "B" }),
+    ).resolves.toBeNull();
+  });
+});

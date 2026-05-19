@@ -112,27 +112,36 @@ export async function createAdminNotification(input: Omit<NotificationInput, "us
 }
 
 export async function getNotificationInbox(session: Session, limit = 50) {
-  const organizationId = session.activeOrganization?.id;
-  const platformRole = session.user.platformRole;
-  const platformCountryCodes = session.countryAssignments.map((assignment) => assignment.countryCode);
+  const organizationId = session.activeOrganization?.id ?? null;
+  const platformRole = session.user.platformRole ?? null;
+  const platformCountryCodes = (session.countryAssignments ?? []).map((a) => a.countryCode);
+
+  const orClauses: Prisma.NotificationWhereInput[] = [{ userId: session.user.id }];
+
+  if (organizationId) {
+    orClauses.push({ organizationId, userId: null });
+  }
+  if (platformRole) {
+    orClauses.push({ organizationId: null, userId: null, countryCode: null });
+  }
+  if (platformRole === "country_manager" && platformCountryCodes.length > 0) {
+    orClauses.push({ countryCode: { in: platformCountryCodes }, userId: null });
+  }
 
   return prisma.notification.findMany({
-    where: {
-      OR: [
-        { userId: session.user.id },
-        organizationId ? { organizationId, userId: null } : {},
-        platformRole ? { organizationId: null, userId: null, countryCode: null } : {},
-        platformRole === "country_manager" ? { countryCode: { in: platformCountryCodes }, userId: null } : {},
-      ].filter((clause) => Object.keys(clause).length > 0) as Prisma.NotificationWhereInput[],
-    },
+    where: { OR: orClauses },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: limit,
   });
 }
 
-export async function getUnreadNotificationCount(session: Session) {
-  const inbox = await getNotificationInbox(session, 100);
-  return inbox.filter((notification) => notification.status === "unread").length;
+export async function getUnreadNotificationCount(session: Session): Promise<number> {
+  try {
+    const inbox = await getNotificationInbox(session, 100);
+    return inbox.filter((n) => n.status === "unread").length;
+  } catch {
+    return 0;
+  }
 }
 
 export async function markNotificationRead(session: Session, notificationId: string) {
