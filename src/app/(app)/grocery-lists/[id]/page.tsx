@@ -81,38 +81,44 @@ export default async function GroceryListPage({
         <Badge tone={STATUS_TONE[list.status] ?? "neutral"}>{list.status}</Badge>
         <Link
           href={`/grocery-lists/${list.id}/edit`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
         >
           Edit
         </Link>
         <Link
+          href={`/grocery-lists/${list.id}/shopping`}
+          className="inline-flex min-h-11 items-center rounded-2xl bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--color-primary-strong)]"
+        >
+          Shopping Mode
+        </Link>
+        <Link
           href={`/grocery-lists/${list.id}/print`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
           target="_blank"
         >
           Print
         </Link>
         <a
           href={`/api/grocery-lists/${list.id}/export/pdf`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
         >
           Export PDF
         </a>
         <a
           href={`/api/grocery-lists/${list.id}/export/csv`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
         >
           Export CSV
         </a>
         <Link
           href={`/grocery-lists/${list.id}/share`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
         >
           Share link
         </Link>
         <Link
           href={`/grocery-lists/${list.id}/export`}
-          className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50"
         >
           Partner options
         </Link>
@@ -213,7 +219,7 @@ export default async function GroceryListPage({
                             aria-label={item.isChecked
                               ? `Mark ${item.canonicalIngredientName} as pending`
                               : `Mark ${item.canonicalIngredientName} as complete`}
-                            className="mt-0.5 h-5 w-5 rounded-full border-2 border-[var(--color-border)] bg-white hover:border-[var(--color-primary)] flex items-center justify-center"
+                            className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]"
                           >
                             {item.isChecked && (
                               <span className="block h-2.5 w-2.5 rounded-full bg-[var(--color-primary)]" />

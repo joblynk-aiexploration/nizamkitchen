@@ -98,6 +98,11 @@ export default async function RecipeDetailPage({
         eyebrow={recipe.cuisine.name}
         title={recipe.name}
         description={recipe.description ?? ""}
+        actions={
+          <Button asChild variant="secondary">
+            <Link href={`/recipes/${recipe.id}/cooking`}>Cooking Mode</Link>
+          </Button>
+        }
       />
 
       <div className="flex flex-wrap gap-2">
@@ -183,7 +188,7 @@ export default async function RecipeDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
         <div className="space-y-6">
-          <Card>
+          <Card className="touch-manipulation">
             <h2 className="font-semibold text-[var(--color-ink)]">Ingredients</h2>
             {Array.from(sections.entries()).map(([section, items]) => (
               <div key={section} className="mt-4">
@@ -194,7 +199,7 @@ export default async function RecipeDetailPage({
                 )}
                 <ul className="space-y-2">
                   {items.map((ri) => (
-                    <li key={ri.id} className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                    <li key={ri.id} className="flex min-h-12 items-start gap-3 rounded-xl bg-slate-50 px-3 py-3 text-base sm:text-sm">
                       <span className="font-medium text-[var(--color-ink)]">
                         {formatQuantity(ri.quantity, ri.unit)}
                       </span>
@@ -220,7 +225,7 @@ export default async function RecipeDetailPage({
         <div className="space-y-4">
           <h2 className="font-semibold text-[var(--color-ink)]">Steps</h2>
           {recipe.steps.map((step) => (
-            <Card key={step.id}>
+            <Card key={step.id} className="touch-manipulation">
               <div className="flex items-start gap-4">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-bold text-white">
                   {step.stepNumber}
@@ -229,7 +234,7 @@ export default async function RecipeDetailPage({
                   {step.title && (
                     <p className="font-semibold text-[var(--color-ink)]">{step.title}</p>
                   )}
-                  <p className="mt-1 text-sm text-[var(--color-ink)]">{step.instruction}</p>
+                  <p className="mt-1 text-base leading-7 text-[var(--color-ink)] sm:text-sm sm:leading-6">{step.instruction}</p>
                   {step.durationMinutes && (
                     <p className="mt-2 text-xs text-[var(--color-muted)]">
                       ~{step.durationMinutes} min
