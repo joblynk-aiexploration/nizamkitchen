@@ -19,6 +19,7 @@ const platformAdminHrefs = [
   "/admin/users",
   "/admin/feature-flags",
   "/admin/audit-logs",
+  "/admin/reports",
   "/admin/billing",
   "/admin/billing/plans",
   "/admin/billing/subscriptions",
@@ -41,6 +42,7 @@ const countryManagerHrefs = [
   "/admin/organizations",
   "/admin/users",
   "/admin/audit-logs",
+  "/admin/reports",
   "/admin/home-chef-requests",
   "/admin/chefs",
   "/admin/restaurant-fallback",
@@ -109,6 +111,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/chefs", label: "Browse Chefs" },
     { href: "/order-instead", label: "Order Instead" },
     { href: "/saved-restaurants", label: "Saved Restaurants" },
+    { href: "/reports", label: "Reports" },
     { href: "/billing", label: "Billing" },
     { href: "/settings", label: "Settings" },
   ];
@@ -169,6 +172,8 @@ function labelForHref(href: string) {
     "/admin/billing": "Billing",
     "/admin/billing/plans": "Plans",
     "/admin/billing/subscriptions": "Subscriptions",
+    "/admin/reports": "Reports",
+    "/reports": "Reports",
   };
 
   return labels[href] ?? href;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  BarChart3,
   BookOpen,
   Building2,
   CalendarDays,
@@ -73,6 +74,12 @@ const adminNavGroups = [
     ],
   },
   {
+    title: "Analytics",
+    items: [
+      { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
     title: "Configuration",
     items: [
       { href: "/admin/feature-flags", label: "Feature flags", icon: Flag },
@@ -102,6 +109,7 @@ function canSeeLink(session: Session, href: string) {
       "/admin/organizations",
       "/admin/users",
       "/admin/audit-logs",
+      "/admin/reports",
       "/admin/home-chef-requests",
       "/admin/chefs",
       "/admin/restaurant-fallback",
