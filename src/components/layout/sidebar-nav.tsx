@@ -17,6 +17,7 @@ const iconByHref = {
   "/order-instead": Search,
   "/saved-restaurants": Store,
   "/billing": CircleDollarSign,
+  "/support": Inbox,
   "/admin/billing": CircleDollarSign,
   "/admin/billing/plans": CircleDollarSign,
   "/admin/billing/subscriptions": CircleDollarSign,

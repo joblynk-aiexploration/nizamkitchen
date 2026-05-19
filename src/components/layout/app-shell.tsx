@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, Sparkles } from "lucide-react";
+import { ChevronLeft, MessageSquarePlus, Sparkles } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { LogoutForm } from "@/components/layout/logout-form";
@@ -47,6 +47,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className="border-t border-white/10 pt-4 space-y-1">
+          <Link href="/support/new" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white">
+            <MessageSquarePlus className="h-4 w-4" />
+            Send Feedback
+          </Link>
           <Link href="/" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white">
             <ChevronLeft className="h-4 w-4" />
             Public site

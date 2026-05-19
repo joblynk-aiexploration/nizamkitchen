@@ -73,6 +73,30 @@ enum NotificationPriority {
   urgent
 }
 
+enum SupportTicketType {
+  bug
+  feedback
+  feature_request
+  account_help
+  billing
+  other
+}
+
+enum SupportTicketStatus {
+  open
+  in_review
+  waiting_on_user
+  resolved
+  closed
+}
+
+enum SupportTicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
 model User {
   id                         String                         @id @default(cuid())
   email                      String                         @unique
@@ -105,6 +129,9 @@ model User {
   restaurantFallbackSearches RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
   notifications              Notification[]
   notificationPreference     NotificationPreference?
+  supportTicketsCreated      SupportTicket[]                @relation("SupportTicketCreatedBy")
+  supportTicketsAssigned     SupportTicket[]                @relation("SupportTicketAssignedTo")
+  supportTicketComments      SupportTicketComment[]
 }
 
 model Session {
@@ -168,6 +195,7 @@ model Organization {
   restaurantFallbackSearches RestaurantFallbackSearch[]
   savedRestaurants           SavedRestaurant[]
   notifications              Notification[]
+  supportTickets             SupportTicket[]
 
   @@index([countryCode])
   @@index([status])
@@ -209,6 +237,7 @@ model Country {
   mealPlans          MealPlan[]
   groceryPartners    GroceryPartner[]
   notifications      Notification[]
+  supportTickets     SupportTicket[]
 }
 
 model Notification {
@@ -251,6 +280,55 @@ model NotificationPreference {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id             String                 @id @default(cuid())
+  organizationId String?
+  createdById    String?
+  assignedToId   String?
+  countryCode    String?
+  type           SupportTicketType
+  status         SupportTicketStatus    @default(open)
+  priority       SupportTicketPriority  @default(normal)
+  title          String
+  description    String
+  pageUrl        String?
+  browserInfo    String?
+  adminNotes     String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  closedAt       DateTime?
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy      User?                  @relation("SupportTicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo     User?                  @relation("SupportTicketAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  country        Country?               @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  comments       SupportTicketComment[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([countryCode])
+  @@index([type])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model SupportTicketComment {
+  id         String        @id @default(cuid())
+  ticketId   String
+  authorId   String
+  body       String
+  isInternal Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([isInternal])
 }
 
 model CountryAssignment {

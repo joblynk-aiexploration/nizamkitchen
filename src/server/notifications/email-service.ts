@@ -7,7 +7,10 @@ export type EmailTemplateKey =
   | "home_chef_new_message"
   | "chef_profile_approved"
   | "chef_profile_suspended"
-  | "grocery_list_shared";
+  | "grocery_list_shared"
+  | "support_ticket_created"
+  | "support_ticket_reply"
+  | "support_ticket_status_changed";
 
 type EmailInput = {
   to: string;
@@ -32,6 +35,9 @@ export function renderEmailTemplate(templateKey: EmailTemplateKey, data: Record<
     chef_profile_approved: "Your chef profile was approved",
     chef_profile_suspended: "Your chef profile needs attention",
     grocery_list_shared: "A grocery list was shared",
+    support_ticket_created: "New support ticket received",
+    support_ticket_reply: "New reply on your support ticket",
+    support_ticket_status_changed: "Your support ticket status changed",
   };
 
   return {

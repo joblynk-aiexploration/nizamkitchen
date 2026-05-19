@@ -115,6 +115,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/saved-restaurants", label: "Saved Restaurants" },
     { href: "/reports", label: "Reports" },
     { href: "/billing", label: "Billing" },
+    { href: "/support", label: "Support" },
     { href: "/settings", label: "Settings" },
   ];
 
