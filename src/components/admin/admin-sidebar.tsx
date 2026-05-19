@@ -94,6 +94,7 @@ const adminNavGroups = [
       { href: "/admin/storage", label: "Storage", icon: ServerCog },
       { href: "/admin/storage/configuration", label: "Storage config", icon: Settings },
       { href: "/admin/storage/files", label: "Storage files", icon: Inbox },
+      { href: "/admin/storage/maintenance", label: "Storage maintenance", icon: ServerCog },
       { href: "/admin/dropbox", label: "Drop Box", icon: FolderOpen },
       { href: "/admin/dropbox/files", label: "Dropbox files", icon: Inbox },
       { href: "/admin/dropbox/uploads", label: "Upload files", icon: FolderOpen },

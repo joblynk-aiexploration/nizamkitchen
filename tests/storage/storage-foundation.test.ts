@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UserStatus, type PlatformRole } from "@prisma/client";
 
@@ -10,7 +12,7 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
-    storageFile: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    storageFile: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
     storageFileAccessLog: { create: vi.fn() },
     auditLog: { create: vi.fn() },
   },
@@ -30,7 +32,7 @@ import { decryptGatewayCredential } from "@/server/payments/credentials";
 import { validateFileInput } from "@/server/storage/file-validation";
 import { buildStorageObjectKey } from "@/server/storage/storage-keys";
 import { canAccessStorageFile } from "@/server/storage/storage-permissions";
-import { listStorageConfigurations, saveStorageConfiguration } from "@/server/storage/storage-service";
+import { archiveDeletedStorageFiles, getStorageMaintenanceReport, listStorageConfigurations, saveStorageConfiguration } from "@/server/storage/storage-service";
 
 function adminSession(role: PlatformRole | null = "platform_owner") {
   return {
@@ -46,6 +48,7 @@ describe("storage foundation", () => {
     vi.resetAllMocks();
     mockPrisma.storageConfiguration.create.mockImplementation(async ({ data }) => ({ id: "storage-1", ...data }));
     mockPrisma.storageConfiguration.findMany.mockResolvedValue([]);
+    mockPrisma.storageFile.updateMany.mockResolvedValue({ count: 0 });
   });
 
   it("encrypts S3 credentials and never returns full secrets in configuration listings", async () => {
@@ -106,5 +109,81 @@ describe("storage foundation", () => {
     expect(canAccessStorageFile({ ...adminSession(null), user: { id: "user-1", status: UserStatus.active, platformRole: null } }, file)).toBe(true);
     expect(canAccessStorageFile({ ...adminSession(null), user: { id: "user-2", status: UserStatus.active, platformRole: null }, activeOrganization: { id: "org-2", countryCode: "US", organizationType: "household" } }, file)).toBe(false);
     expect(canAccessStorageFile(adminSession("platform_admin"), file)).toBe(true);
+  });
+
+  it("builds a storage maintenance report for orphaned records, private docs, and usage", async () => {
+    mockPrisma.storageFile.findMany.mockResolvedValue([
+      {
+        id: "file-1",
+        organizationId: null,
+        uploadedById: "admin-1",
+        countryCode: "US",
+        module: "menus",
+        purpose: "menu_item_photo",
+        status: "active",
+        visibility: "public",
+        mimeType: "image/jpeg",
+        sizeBytes: 1000,
+        objectKey: "nizamkitchen/test/system/file-1.jpg",
+        originalFilename: "dish.jpg",
+      },
+      {
+        id: "file-2",
+        organizationId: "org-1",
+        uploadedById: "seller-1",
+        countryCode: "US",
+        module: "home_chefs",
+        purpose: "verification_document",
+        status: "active",
+        visibility: "private",
+        mimeType: "application/pdf",
+        sizeBytes: 2000,
+        objectKey: "nizamkitchen/test/org-1/file-2.pdf",
+        originalFilename: "license.pdf",
+      },
+      {
+        id: "file-3",
+        organizationId: "org-1",
+        uploadedById: "seller-1",
+        countryCode: "US",
+        module: "support",
+        purpose: "support_attachment",
+        status: "deleted",
+        visibility: "private",
+        mimeType: "image/png",
+        sizeBytes: 3000,
+        objectKey: "nizamkitchen/test/org-1/file-3.png",
+        originalFilename: "bug.png",
+      },
+    ]);
+
+    const report = await getStorageMaintenanceReport(adminSession("platform_admin"));
+
+    expect(report.totalFiles).toBe(3);
+    expect(report.orphanedMetadataCandidates).toHaveLength(1);
+    expect(report.privateDocuments).toHaveLength(1);
+    expect(report.usageByOrganization.find((item) => item.organizationId === "org-1")?.totalBytes).toBe(5000);
+    expect(report.unreferencedS3ObjectsStatus).toContain("placeholder");
+  });
+
+  it("archives deleted file metadata through an admin-only utility", async () => {
+    mockPrisma.storageFile.updateMany.mockResolvedValue({ count: 2 });
+    const result = await archiveDeletedStorageFiles(adminSession("platform_admin"));
+    expect(result.count).toBe(2);
+    expect(mockPrisma.storageFile.updateMany).toHaveBeenCalledWith({
+      where: { status: "deleted" },
+      data: { status: "archived" },
+    });
+    await expect(archiveDeletedStorageFiles(adminSession("support_admin"))).rejects.toThrow();
+  });
+
+  it("exposes admin bucket test routes and storage maintenance UI without secrets", () => {
+    const testsPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/storage/tests/page.tsx"), "utf8");
+    const maintenancePage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/storage/maintenance/page.tsx"), "utf8");
+    const testRoute = fs.readFileSync(path.join(process.cwd(), "src/app/api/admin/storage/test-connection/route.ts"), "utf8");
+    expect(testsPage).toContain("test-${kind}");
+    expect(testRoute).toContain("runStorageTest");
+    expect(maintenancePage).toContain("Storage maintenance");
+    expect(maintenancePage).not.toContain("secretAccessKey");
   });
 });

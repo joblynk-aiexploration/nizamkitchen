@@ -10,7 +10,7 @@ import { S3StorageProvider } from "@/server/storage/providers/s3-provider";
 import { LocalDevStorageProvider } from "@/server/storage/providers/local-provider";
 import type { StorageConfigurationWithSecrets, StorageProviderClient } from "@/server/storage/storage-provider";
 import type { StorageSession } from "@/server/storage/storage-permissions";
-import { assertStorageAdmin, canAccessAdminDropboxFile, canAccessStorageFile } from "@/server/storage/storage-permissions";
+import { assertStorageAdmin, assertStorageMetadataViewer, canAccessAdminDropboxFile, canAccessStorageFile } from "@/server/storage/storage-permissions";
 
 export async function getActiveStorageConfiguration() {
   const config = await prisma.storageConfiguration.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" } });
@@ -232,6 +232,59 @@ export async function getStorageUsageDashboard(session: StorageSession) {
     storageConfigured: configurations.some((config) => config.status === "active"),
     storageHealth: configurations.find((config) => config.status === "active")?.lastTestStatus ?? "not_tested",
   };
+}
+
+export async function getStorageMaintenanceReport(session: StorageSession) {
+  assertStorageMetadataViewer(session);
+  const files = await prisma.storageFile.findMany({ where: storageFileWhere(session), orderBy: { updatedAt: "desc" }, take: 2000 });
+  const deletedFiles = files.filter((file) => file.status === "deleted");
+  const archivedFiles = files.filter((file) => file.status === "archived");
+  const activeFiles = files.filter((file) => file.status === "active");
+  const orphanedMetadataCandidates = activeFiles.filter((file) => !file.organizationId && file.module !== "admin_dropbox" && file.module !== "system");
+  const missingObjectCandidates = activeFiles.filter((file) => Boolean(file.objectKey)).slice(0, 25);
+  const privateDocuments = activeFiles.filter((file) => file.visibility === "private" && file.mimeType !== "image/jpeg" && file.mimeType !== "image/png" && file.mimeType !== "image/webp");
+  const usageByOrganization = Object.entries(
+    files.reduce<Record<string, { fileCount: number; totalBytes: number }>>((acc, file) => {
+      const key = file.organizationId ?? "system";
+      acc[key] ??= { fileCount: 0, totalBytes: 0 };
+      acc[key].fileCount += 1;
+      acc[key].totalBytes += file.sizeBytes;
+      return acc;
+    }, {}),
+  ).map(([organizationId, usage]) => ({ organizationId, ...usage })).sort((a, b) => b.totalBytes - a.totalBytes);
+
+  return {
+    totalFiles: files.length,
+    activeFiles: activeFiles.length,
+    archivedFiles: archivedFiles.length,
+    deletedFiles: deletedFiles.length,
+    orphanedMetadataCandidates,
+    missingObjectCandidates,
+    unreferencedS3ObjectsStatus: "S3 bucket inventory comparison is a production ops placeholder. Use provider inventory export before deleting remote-only objects.",
+    privateDocuments,
+    usageByOrganization,
+    recommendations: [
+      deletedFiles.length ? "Archive deleted file metadata after retention review." : "No deleted file metadata needs archival.",
+      orphanedMetadataCandidates.length ? "Review active files without organization ownership before making them public." : "No obvious orphaned metadata candidates found.",
+      "Use signed URLs for verification documents and support/order attachments.",
+      "Run bucket read/delete tests after rotating credentials.",
+    ],
+  };
+}
+
+export async function archiveDeletedStorageFiles(session: StorageSession) {
+  assertStorageAdmin(session);
+  const result = await prisma.storageFile.updateMany({
+    where: { status: "deleted" },
+    data: { status: "archived" },
+  });
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    action: "storage_file.archived",
+    targetType: "storage_maintenance",
+    details: { archivedDeletedFileCount: result.count },
+  });
+  return result;
 }
 
 export async function getDropboxFile(session: StorageSession, fileId: string) {

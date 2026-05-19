@@ -25,6 +25,7 @@ export default async function AdminStoragePage() {
         <Button asChild><Link href="/admin/storage/configuration">Configure storage</Link></Button>
         <Button asChild variant="secondary"><Link href="/admin/storage/tests">Run bucket tests</Link></Button>
         <Button asChild variant="secondary"><Link href="/admin/storage/files">View files</Link></Button>
+        <Button asChild variant="secondary"><Link href="/admin/storage/maintenance">Maintenance</Link></Button>
       </Card>
       <AdminDataTable
         data={configs}
