@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { StorageConfigurationStatus, StorageProvider, type StorageConfiguration, type StorageFile } from "@prisma/client";
+import { Prisma, StorageConfigurationStatus, StorageProvider, type StorageConfiguration, type StorageFile } from "@prisma/client";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { decryptGatewayCredential, encryptGatewayCredential, isPaymentEncryptionConfigured, maskCredentialPreview } from "@/server/payments/credentials";
@@ -10,7 +10,7 @@ import { S3StorageProvider } from "@/server/storage/providers/s3-provider";
 import { LocalDevStorageProvider } from "@/server/storage/providers/local-provider";
 import type { StorageConfigurationWithSecrets, StorageProviderClient } from "@/server/storage/storage-provider";
 import type { StorageSession } from "@/server/storage/storage-permissions";
-import { assertStorageAdmin, canAccessStorageFile } from "@/server/storage/storage-permissions";
+import { assertStorageAdmin, canAccessAdminDropboxFile, canAccessStorageFile } from "@/server/storage/storage-permissions";
 
 export async function getActiveStorageConfiguration() {
   const config = await prisma.storageConfiguration.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" } });
@@ -140,6 +140,28 @@ export async function uploadStorageFile(session: StorageSession, input: Record<s
   return file;
 }
 
+export async function uploadAdminDropboxFile(session: StorageSession, input: Record<string, unknown> & { file: File }) {
+  assertStorageAdmin(session);
+  const organizationId = typeof input.organizationId === "string" && input.organizationId ? input.organizationId : null;
+  const countryCode = typeof input.countryCode === "string" && input.countryCode ? input.countryCode.toUpperCase() : null;
+  const file = await uploadStorageFile(
+    {
+      ...session,
+      activeOrganization: organizationId
+        ? { id: organizationId, countryCode: countryCode ?? "system", organizationType: "internal_admin" }
+        : null,
+    },
+    {
+      ...input,
+      module: input.module || "admin_dropbox",
+      purpose: input.purpose || "admin_dropbox",
+      visibility: input.visibility || "private",
+    },
+  );
+  await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "admin_dropbox.file_uploaded", targetType: "storage_file", targetId: file.id });
+  return file;
+}
+
 export async function getStorageFileUrl(session: StorageSession, fileId: string, request?: { ipAddress?: string | null; userAgent?: string | null }) {
   const file = await prisma.storageFile.findUnique({ where: { id: fileId } });
   if (!file || !canAccessStorageFile(session, file)) throw new Error("File not found.");
@@ -147,6 +169,21 @@ export async function getStorageFileUrl(session: StorageSession, fileId: string,
   const signed = await createSignedReadUrl(session, file, request);
   await prisma.storageFileAccessLog.create({ data: { fileId: file.id, userId: session.user.id, action: "signed_url_created", ipAddress: request?.ipAddress ?? null, userAgent: request?.userAgent ?? null } });
   await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "storage_file.signed_url_created", targetType: "storage_file", targetId: file.id });
+  return signed;
+}
+
+export async function getAdminDropboxSignedUrl(session: StorageSession, fileId: string, action: "preview" | "download", request?: { ipAddress?: string | null; userAgent?: string | null }) {
+  const file = await prisma.storageFile.findUnique({ where: { id: fileId } });
+  if (!file || !canAccessAdminDropboxFile(session, file)) throw new Error("File not found.");
+  const signed = await getStorageFileUrl(session, fileId, request);
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    organizationId: file.organizationId,
+    countryCode: file.countryCode,
+    action: action === "preview" ? "admin_dropbox.file_previewed" : "admin_dropbox.file_downloaded",
+    targetType: "storage_file",
+    targetId: file.id,
+  });
   return signed;
 }
 
@@ -161,11 +198,61 @@ export async function deleteStorageFile(session: StorageSession, fileId: string)
   return updated;
 }
 
-export async function listStorageFiles(session: StorageSession) {
+export async function listStorageFiles(session: StorageSession, filters: StorageFileFilters = {}) {
   if (session.user.platformRole) {
-    return prisma.storageFile.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+    return prisma.storageFile.findMany({ where: storageFileWhere(session, filters), orderBy: { createdAt: "desc" }, take: 100 });
   }
   return prisma.storageFile.findMany({ where: { organizationId: session.activeOrganization?.id, status: { not: "deleted" } }, orderBy: { createdAt: "desc" }, take: 100 });
+}
+
+export async function getStorageUsageDashboard(session: StorageSession) {
+  const files = await prisma.storageFile.findMany({ where: storageFileWhere(session), orderBy: { createdAt: "desc" }, take: 1000 });
+  const configurations = await listStorageConfigurations();
+  return {
+    totalFiles: files.length,
+    totalBytes: files.reduce((total, file) => total + file.sizeBytes, 0),
+    byModule: countBy(files, (file) => file.module),
+    byMimeType: countBy(files, (file) => file.mimeType),
+    byOrganization: countBy(files, (file) => file.organizationId ?? "system"),
+    recentUploads: files.slice(0, 10),
+    archivedFiles: files.filter((file) => file.status === "archived").length,
+    deletedFiles: files.filter((file) => file.status === "deleted").length,
+    storageConfigured: configurations.some((config) => config.status === "active"),
+    storageHealth: configurations.find((config) => config.status === "active")?.lastTestStatus ?? "not_tested",
+  };
+}
+
+export async function getDropboxFile(session: StorageSession, fileId: string) {
+  const file = await prisma.storageFile.findUnique({
+    where: { id: fileId },
+    include: { accessLogs: { orderBy: { createdAt: "desc" }, take: 25 }, versions: { orderBy: { versionNumber: "desc" } } },
+  });
+  if (!file || !canAccessAdminDropboxFile(session, file)) throw new Error("File not found.");
+  await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "admin_dropbox.viewed", targetType: "storage_file", targetId: file.id });
+  return file;
+}
+
+export async function archiveStorageFile(session: StorageSession, fileId: string) {
+  assertStorageAdmin(session);
+  const file = await prisma.storageFile.update({ where: { id: fileId }, data: { status: "archived" } });
+  await prisma.storageFileAccessLog.create({ data: { fileId, userId: session.user.id, action: "archived" } });
+  await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "admin_dropbox.file_archived", targetType: "storage_file", targetId: file.id });
+  return file;
+}
+
+export async function restoreStorageFile(session: StorageSession, fileId: string) {
+  assertStorageAdmin(session);
+  const file = await prisma.storageFile.update({ where: { id: fileId }, data: { status: "active", deletedAt: null } });
+  await prisma.storageFileAccessLog.create({ data: { fileId, userId: session.user.id, action: "restored" } });
+  await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "admin_dropbox.file_restored", targetType: "storage_file", targetId: file.id });
+  return file;
+}
+
+export async function deleteAdminDropboxFile(session: StorageSession, fileId: string) {
+  assertStorageAdmin(session);
+  const file = await deleteStorageFile(session, fileId);
+  await createAuditEvent({ actorUserId: session.user.id, organizationId: file.organizationId, countryCode: file.countryCode, action: "admin_dropbox.file_deleted", targetType: "storage_file", targetId: file.id });
+  return file;
 }
 
 export async function runStorageTest(session: StorageSession, kind: "connection" | "upload" | "read" | "delete") {
@@ -244,4 +331,47 @@ function maskedEncryptedPreview(encryptedValue: string) {
   } catch {
     return "configured";
   }
+}
+
+export type StorageFileFilters = {
+  module?: string;
+  organizationId?: string;
+  userId?: string;
+  countryCode?: string;
+  mimeType?: string;
+  purpose?: string;
+  status?: string;
+  visibility?: string;
+  search?: string;
+  minSize?: number;
+  maxSize?: number;
+};
+
+function storageFileWhere(session: StorageSession, filters: StorageFileFilters = {}): Prisma.StorageFileWhereInput {
+  const where: Prisma.StorageFileWhereInput = {
+    ...(filters.module ? { module: filters.module as never } : {}),
+    ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
+    ...(filters.userId ? { OR: [{ userId: filters.userId }, { uploadedById: filters.userId }] } : {}),
+    ...(filters.countryCode ? { countryCode: filters.countryCode.toUpperCase() } : {}),
+    ...(filters.mimeType ? { mimeType: { contains: filters.mimeType, mode: "insensitive" } } : {}),
+    ...(filters.purpose ? { purpose: filters.purpose as never } : {}),
+    ...(filters.status ? { status: filters.status as never } : {}),
+    ...(filters.visibility ? { visibility: filters.visibility as never } : {}),
+    ...(filters.search ? { originalFilename: { contains: filters.search, mode: "insensitive" } } : {}),
+    ...(filters.minSize || filters.maxSize ? { sizeBytes: { ...(filters.minSize ? { gte: filters.minSize } : {}), ...(filters.maxSize ? { lte: filters.maxSize } : {}) } } : {}),
+  };
+  if (session.user.platformRole === "country_manager") {
+    const assigned = session.countryAssignments?.map((assignment) => assignment.countryCode) ?? [];
+    const requestedCountry = filters.countryCode?.toUpperCase();
+    where.countryCode = requestedCountry && assigned.includes(requestedCountry) ? requestedCountry : { in: assigned };
+  }
+  return where;
+}
+
+function countBy<T>(items: T[], getKey: (item: T) => string) {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    const key = getKey(item);
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
 }

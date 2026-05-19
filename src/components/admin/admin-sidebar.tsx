@@ -12,6 +12,7 @@ import {
   CircleDollarSign,
   Flag,
   Globe2,
+  FolderOpen,
   Inbox,
   LayoutDashboard,
   Logs,
@@ -93,6 +94,9 @@ const adminNavGroups = [
       { href: "/admin/storage", label: "Storage", icon: ServerCog },
       { href: "/admin/storage/configuration", label: "Storage config", icon: Settings },
       { href: "/admin/storage/files", label: "Storage files", icon: Inbox },
+      { href: "/admin/dropbox", label: "Drop Box", icon: FolderOpen },
+      { href: "/admin/dropbox/files", label: "Dropbox files", icon: Inbox },
+      { href: "/admin/dropbox/uploads", label: "Upload files", icon: FolderOpen },
       { href: "/admin/system-settings", label: "System settings", icon: Settings },
       { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
       { href: "/admin/payments", label: "Payments", icon: CircleDollarSign },
@@ -133,6 +137,9 @@ function canSeeLink(session: Session, href: string) {
       "/admin/food-orders",
       "/admin/restaurant-fallback",
       "/admin/grocery-partners",
+      "/admin/dropbox",
+      "/admin/dropbox/files",
+      "/admin/dropbox/folders",
       "/admin/payments",
       "/admin/payments/operations",
       "/admin/payments/configurations",
@@ -154,6 +161,9 @@ function canSeeLink(session: Session, href: string) {
       "/admin/food-orders",
       "/admin/support",
       "/admin/leads",
+      "/admin/dropbox",
+      "/admin/dropbox/files",
+      "/admin/dropbox/folders",
       "/admin/payments",
       "/admin/payments/operations",
       "/admin/payments/transactions",
@@ -171,7 +181,13 @@ function canSeeLink(session: Session, href: string) {
     ].includes(href);
   }
 
-  if (href === "/admin/system" || href === "/admin/system-settings" || href.startsWith("/admin/storage")) {
+  if (
+    href === "/admin/system" ||
+    href === "/admin/system-settings" ||
+    href.startsWith("/admin/storage") ||
+    href === "/admin/dropbox/uploads" ||
+    href === "/admin/dropbox/settings"
+  ) {
     return role === "platform_owner" || role === "platform_admin";
   }
 

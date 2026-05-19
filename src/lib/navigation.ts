@@ -51,6 +51,11 @@ const platformAdminHrefs = [
   "/admin/storage/configuration",
   "/admin/storage/files",
   "/admin/storage/tests",
+  "/admin/dropbox",
+  "/admin/dropbox/files",
+  "/admin/dropbox/uploads",
+  "/admin/dropbox/folders",
+  "/admin/dropbox/settings",
   "/admin/system-settings",
   "/admin/leads",
 ] as const;
@@ -74,6 +79,9 @@ const countryManagerHrefs = [
   "/admin/food-orders",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
+  "/admin/dropbox",
+  "/admin/dropbox/files",
+  "/admin/dropbox/folders",
 ] as const;
 
 const supportAdminHrefs = [
@@ -84,6 +92,9 @@ const supportAdminHrefs = [
   "/admin/home-chef-requests",
   "/admin/chefs",
   "/admin/support",
+  "/admin/dropbox",
+  "/admin/dropbox/files",
+  "/admin/dropbox/folders",
 ] as const;
 
 const auditorHrefs = [
@@ -221,6 +232,11 @@ function labelForHref(href: string) {
     "/admin/storage/configuration": "Storage Config",
     "/admin/storage/files": "Storage Files",
     "/admin/storage/tests": "Storage Tests",
+    "/admin/dropbox": "Drop Box",
+    "/admin/dropbox/files": "Files",
+    "/admin/dropbox/uploads": "Uploads",
+    "/admin/dropbox/folders": "Folders",
+    "/admin/dropbox/settings": "Dropbox Settings",
     "/admin/system-settings": "System Settings",
     "/admin/support": "Support",
     "/admin/billing": "Billing",
