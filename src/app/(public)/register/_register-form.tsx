@@ -19,19 +19,19 @@ const accountTypes: { type: AccountType; label: string; description: string; emo
   {
     type: "household",
     label: "Household",
-    description: "Plan meals, cook authentic recipes, hire chefs, and manage your family kitchen.",
+    description: "Plan meals, cook real recipes, hire help, and keep an order-in backup.",
     emoji: "🏠",
   },
   {
     type: "chef",
     label: "Home Chef",
-    description: "Create a chef profile, manage bookings, and grow your cooking business.",
+    description: "Join the chef waitlist, set up your profile, and prepare for manual verification.",
     emoji: "👨‍🍳",
   },
   {
     type: "restaurant",
     label: "Restaurant Partner",
-    description: "Register your restaurant to appear when households choose to order instead.",
+    description: "Join the partner waitlist so households can discover you without fake ratings.",
     emoji: "🍽️",
   },
 ];
@@ -265,7 +265,7 @@ export function RegisterForm({
           <input type="hidden" name="countryCode" value={step2Data.countryCode} />
 
           <p className="text-sm text-[var(--color-muted)]">
-            Tell us about your household so we can personalise your experience.
+            Tell us about your household so your meal plans, servings, and spice defaults start in the right place.
           </p>
 
           <div>

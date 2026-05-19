@@ -5,26 +5,26 @@ const steps = [
   {
     icon: CalendarDays,
     label: "Plan",
-    heading: "Smart meal planning",
-    body: "Build weekly meal plans from authentic Hyderabadi recipes. Get nutritional guidance and avoid ingredients your household can't eat.",
+    heading: "Plan real Hyderabadi meals",
+    body: "Build weekly plans around biryani, khatti dal, salan, snacks, sweets, and everyday family favorites.",
   },
   {
     icon: UtensilsCrossed,
     label: "Cook",
-    heading: "Step-by-step recipes",
-    body: "Cook at home with confidence. Recipes scale to your household size and auto-generate a grocery list you can share.",
+    heading: "Cook with recipes and videos",
+    body: "Follow step-by-step recipes, verified video references, household servings, and grocery lists you can take to the store.",
   },
   {
     icon: ChefHat,
     label: "Hire",
-    heading: "Book a home chef",
-    body: "When you want restaurant-quality food at home, browse verified chefs available in your city and book them for any occasion.",
+    heading: "Request a home chef",
+    body: "When you want help for an occasion or weekly cooking, send a manual request to a verified home chef.",
   },
   {
     icon: ShoppingCart,
     label: "Order",
     heading: "Order instead",
-    body: "When cooking isn't the answer, discover partner restaurants nearby and save your favourites for next time.",
+    body: "When cooking isn't the answer, discover nearby restaurant options without fake ratings or invented claims.",
   },
 ];
 
@@ -49,6 +49,29 @@ const audiences = [
   },
 ];
 
+const trustPillars = [
+  {
+    title: "Verified recipe videos",
+    body: "Household recipe pages only show video references after they pass availability and safety checks.",
+  },
+  {
+    title: "No fake restaurant ratings",
+    body: "Restaurant fallback avoids invented review scores, fake photos, and claims NizamKitchen cannot verify.",
+  },
+  {
+    title: "Private by design",
+    body: "Household preferences, meal plans, grocery lists, and requests stay scoped to the right organization.",
+  },
+  {
+    title: "Manual chef verification",
+    body: "Chef profiles are reviewed by platform staff before they become publicly visible to households.",
+  },
+  {
+    title: "Grocery estimates",
+    body: "Generated lists are helpful planning tools, but households should check quantities before shopping.",
+  },
+];
+
 export default function HomePage() {
   return (
     <>
@@ -59,18 +82,18 @@ export default function HomePage() {
             Plan · Cook · Hire · Order
           </p>
           <h1 className="mt-5 font-serif text-4xl leading-tight sm:text-5xl lg:text-6xl">
-            Cook more of what you love.
+            Plan dinner, cook with confidence, and keep a backup plan.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-200">
-            NizamKitchen helps households plan meals, cook authentic Hyderabadi food, hire home chefs,
-            or order from local restaurants — all in one place.
+            NizamKitchen helps Hyderabadi households plan meals, generate groceries, cook with real
+            recipes and videos, hire home chefs, or order instead.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/register"
               className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#10263a] shadow-lg hover:opacity-90"
             >
-              Get started free
+              Start beta
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
@@ -140,20 +163,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
+      {/* ── Trust and safety ── */}
       <section className="px-5 py-20 sm:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+              Trust and safety
+            </p>
+            <h2 className="mt-3 font-serif text-3xl text-[var(--color-ink)] sm:text-4xl">
+              Built for real households, not fake marketplace noise.
+            </h2>
+            <p className="mt-4 text-[var(--color-muted)]">
+              NizamKitchen is designed to be honest about what is verified, what is estimated,
+              and what still needs a person in the loop.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {trustPillars.map((pillar) => (
+              <div key={pillar.title} className="rounded-3xl border border-[var(--color-border)] bg-white p-5">
+                <h3 className="font-serif text-lg text-[var(--color-ink)]">{pillar.title}</h3>
+                <p className="mt-2 text-sm text-[var(--color-muted)]">{pillar.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="px-5 pb-20 sm:px-8">
         <div className="mx-auto max-w-3xl rounded-3xl bg-[linear-gradient(135deg,#10263a_0%,#0f766e_100%)] px-8 py-14 text-center text-white">
           <h2 className="font-serif text-3xl sm:text-4xl">
             Ready to transform your kitchen?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-200">
-            Join households already using NizamKitchen to eat better, cook smarter, and stress less.
+            Join the beta and help shape the kitchen operating system for Hyderabadi households.
           </p>
           <Link
             href="/register"
             className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] hover:opacity-90"
           >
-            Create your free account
+            Start beta
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

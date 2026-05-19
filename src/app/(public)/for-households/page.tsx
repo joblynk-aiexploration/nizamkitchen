@@ -5,22 +5,22 @@ const benefits = [
   {
     icon: CalendarDays,
     title: "Plan your week in minutes",
-    body: "Build a full week of meals from our Hyderabadi recipe library. The planner handles portions, scales recipes, and ensures variety.",
+    body: "Build a full week from Hyderabadi recipes. The planner handles portions, servings, and household preferences.",
   },
   {
     icon: UtensilsCrossed,
     title: "Cook with confidence",
-    body: "Step-by-step recipes scaled to your household size. Filter out ingredients your family can't or won't eat — automatically.",
+    body: "Step-by-step recipes, mobile cooking mode, and verified video references help you stay steady at the stove.",
   },
   {
     icon: ShoppingCart,
     title: "Never forget an ingredient",
-    body: "Your meal plan becomes a categorised grocery list instantly. Share it with anyone or print it before heading to the market.",
+    body: "Your meal plan becomes a categorised grocery list. Quantities are estimates, so check your pantry before shopping.",
   },
   {
     icon: ChefHat,
     title: "Hire a chef for special occasions",
-    body: "When you want an unforgettable home meal without the effort, book a verified home chef from your city.",
+    body: "When you want help for an occasion or weekly cooking, request a manually reviewed home chef.",
   },
 ];
 
@@ -46,7 +46,7 @@ export default function ForHouseholdsPage() {
                 href="/register?type=household"
                 className="inline-flex items-center gap-2 rounded-2xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
               >
-                Create household account
+                Start beta
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
@@ -79,8 +79,9 @@ export default function ForHouseholdsPage() {
             Rooted in Hyderabadi culinary tradition.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-[var(--color-muted)]">
-            Every recipe in NizamKitchen is authentic and carefully curated — from slow-cooked biryani to
-            haleem and bagara baingan. We bring the richness of Hyderabad&apos;s food culture into your home kitchen.
+            Every starter recipe is written for NizamKitchen from general culinary knowledge and reviewed for
+            authenticity — from slow-cooked biryani to haleem and bagara baingan. Video references are verified
+            before household users see them.
           </p>
           <Link
             href="/features"

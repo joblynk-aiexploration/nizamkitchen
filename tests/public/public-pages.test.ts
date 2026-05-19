@@ -227,6 +227,79 @@ describe("navigation: /admin/leads", () => {
   });
 });
 
+// ─── Launch content and conversion flow ──────────────────────────────────────
+
+describe("launch content and pricing", () => {
+  it("public homepage presents the Plan Cook Hire Order funnel", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/(public)/page.tsx", "utf8");
+    expect(src).toContain("Plan real Hyderabadi meals");
+    expect(src).toContain("Cook with recipes and videos");
+    expect(src).toContain("Request a home chef");
+    expect(src).toContain("Order instead");
+  });
+
+  it("pricing page presents beta plans without checkout copy", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
+    expect(src).toContain("Household Free/Starter");
+    expect(src).toContain("Family Plus");
+    expect(src).toContain("Premium Household");
+    expect(src).toContain("Chef Business");
+    expect(src).toContain("Restaurant Partner");
+    expect(src).toContain("Enterprise");
+    expect(src).toContain("Start beta");
+    expect(src).toContain("Join waitlist");
+    expect(src).toContain("Contact us");
+    expect(src).toContain("Coming soon");
+    expect(src.toLowerCase()).not.toContain("credit card required");
+  });
+
+  it("pricing CTAs route to working beta, waitlist, and contact destinations", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
+    expect(src).toContain('href: "/register?type=household"');
+    expect(src).toContain('href: "/register?type=chef"');
+    expect(src).toContain('href: "/register?type=restaurant"');
+    expect(src).toContain('href: "/contact?topic=enterprise"');
+  });
+
+  it("registration routes new account types to the right onboarding area", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/api/auth/register/route.ts", "utf8");
+    expect(src).toContain('household: "/household/preferences"');
+    expect(src).toContain('chef: "/chef/profile"');
+    expect(src).toContain('restaurant: "/restaurant"');
+    expect(src).toContain('return "/admin"');
+  });
+
+  it("public pages do not reintroduce removed video-analysis marketing", async () => {
+    const fs = await import("node:fs/promises");
+    const paths = [
+      "src/app/(public)/page.tsx",
+      "src/app/(public)/features/page.tsx",
+      "src/app/(public)/pricing/page.tsx",
+      "src/app/(public)/for-households/page.tsx",
+      "src/app/(public)/for-chefs/page.tsx",
+      "src/app/(public)/for-restaurants/page.tsx",
+      "src/app/(public)/about/page.tsx",
+      "src/app/(public)/contact/page.tsx",
+      "src/app/(public)/register/_register-form.tsx",
+    ];
+    const forbidden = [
+      ["AI", "video", "analysis"].join(" "),
+      ["Analyze", "with", "AI"].join(" "),
+    ];
+
+    for (const path of paths) {
+      const src = await fs.readFile(path, "utf8");
+      for (const phrase of forbidden) {
+        expect(src).not.toContain(phrase);
+      }
+    }
+  });
+});
+
 // ─── Demo login not visible without env flag ──────────────────────────────────
 
 describe("demo login env guard", () => {

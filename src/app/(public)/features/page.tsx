@@ -35,7 +35,7 @@ const sections = [
       "Curated Hyderabadi recipe collection",
       "Step-by-step cooking instructions",
       "Ingredient and unit management",
-      "YouTube video references",
+      "Verified recipe video references",
       "Recipe difficulty and cook-time metadata",
     ],
   },
@@ -43,9 +43,9 @@ const sections = [
     category: "Home Chef Marketplace",
     icon: ChefHat,
     features: [
-      "Browse verified home chefs in your city",
+      "Browse manually reviewed home chefs in your city",
       "Request-based booking system",
-      "Chef profiles with specialties and reviews",
+      "Chef profiles with specialties and request history",
       "Match households with available chefs",
       "Chef business tools and availability calendar",
     ],
@@ -54,10 +54,10 @@ const sections = [
     category: "Restaurant Fallback",
     icon: UtensilsCrossed,
     features: [
-      "Discover partner restaurants nearby",
+      "Discover nearby restaurant options",
       "Save favourite restaurants",
       "Search by cuisine, city, or name",
-      "Integrated with MapTiler for geo discovery",
+      "No fake restaurant ratings or invented review data",
     ],
   },
   {
@@ -115,7 +115,8 @@ export default function FeaturesPage() {
             Features built for the modern household kitchen.
           </h1>
           <p className="mt-5 text-lg text-[var(--color-muted)]">
-            From recipe planning to chef booking — NizamKitchen covers every step of your kitchen journey.
+            From meal planning to grocery lists, cooking mode, home chef requests, and restaurant fallback,
+            NizamKitchen follows the real household flow: Plan → Cook → Hire → Order.
           </p>
         </div>
 
@@ -144,15 +145,15 @@ export default function FeaturesPage() {
         </div>
 
         <div className="mt-16 rounded-3xl bg-[linear-gradient(135deg,#10263a_0%,#0f766e_100%)] px-8 py-12 text-center text-white">
-          <h2 className="font-serif text-3xl">Start for free. No credit card needed.</h2>
+          <h2 className="font-serif text-3xl">Start beta. No payment setup needed.</h2>
           <p className="mt-3 text-slate-200">
-            Create your household account and start planning meals today.
+            Create your household account and start planning meals in beta today.
           </p>
           <Link
             href="/register"
             className="mt-6 inline-flex rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] hover:opacity-90"
           >
-            Get started free
+            Start beta
           </Link>
         </div>
       </div>

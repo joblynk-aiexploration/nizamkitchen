@@ -60,7 +60,7 @@ export function PublicNav() {
             href="/register"
             className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
-            Get started
+            Start beta
           </Link>
         </div>
 
@@ -107,7 +107,7 @@ export function PublicNav() {
               onClick={() => setOpen(false)}
               className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-center text-sm font-semibold text-white"
             >
-              Get started free
+              Start beta
             </Link>
           </div>
         </div>

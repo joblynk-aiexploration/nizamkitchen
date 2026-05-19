@@ -17,6 +17,10 @@ const values = [
     title: "Privacy by default",
     body: "Your household data is yours. We isolate every organisation's data at the architectural level — not just in policy.",
   },
+  {
+    title: "No fake trust signals",
+    body: "Restaurant fallback avoids invented ratings, chef profiles require manual verification, and grocery lists are estimates users should check.",
+  },
 ];
 
 export default function AboutPage() {
@@ -71,7 +75,7 @@ export default function AboutPage() {
               href="/register"
               className="rounded-2xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:opacity-90"
             >
-              Get started free
+              Start beta
             </Link>
             <Link
               href="/contact"

@@ -31,8 +31,8 @@ export default async function ContactPage({
               We&apos;d love to hear from you.
             </h1>
             <p className="mt-5 text-[var(--color-muted)]">
-              Whether you&apos;re a household, a home chef, or a restaurant — reach out and our team will
-              get back to you within one business day.
+              Whether you&apos;re joining the beta, applying as a chef, or registering restaurant partner interest,
+              reach out and our team will get back to you.
             </p>
             <div className="mt-10 space-y-4">
               <div className="rounded-2xl border border-[var(--color-border)] p-4">

@@ -16,10 +16,18 @@ const orgTypeMap: Record<string, OrganizationType> = {
 };
 
 const redirectAfterRegister: Record<string, string> = {
-  household: "/dashboard",
+  household: "/household/preferences",
   chef: "/chef/profile",
   restaurant: "/restaurant",
 };
+
+export function getPostRegisterDestination(accountType: string, platformRole?: string | null) {
+  if (platformRole === "platform_owner" || platformRole === "platform_admin") {
+    return "/admin";
+  }
+
+  return redirectAfterRegister[accountType] ?? "/dashboard";
+}
 
 export async function POST(request: Request) {
   const clientIp = getClientIpFromHeaders(request.headers);
@@ -163,6 +171,6 @@ export async function POST(request: Request) {
     ...requestMeta,
   });
 
-  const destination = redirectAfterRegister[parsed.data.accountType] ?? "/dashboard";
+  const destination = getPostRegisterDestination(parsed.data.accountType, result.user.platformRole);
   return NextResponse.redirect(new URL(destination, request.url));
 }

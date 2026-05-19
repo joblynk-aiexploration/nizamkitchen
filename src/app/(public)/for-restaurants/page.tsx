@@ -9,13 +9,13 @@ const benefits = [
   },
   {
     icon: Globe2,
-    title: "Geo-powered discovery",
-    body: "Your restaurant appears in location-based search results powered by MapTiler, reaching households in your city.",
+    title: "Honest discovery",
+    body: "Restaurant fallback helps households find options nearby without fake ratings, fake photos, or invented review data.",
   },
   {
     icon: ShoppingCart,
     title: "Saved by real customers",
-    body: "Households save their favourite restaurants for repeat orders. Get on their saved list and stay top of mind.",
+    body: "Households save restaurants they trust for repeat fallback nights. No checkout or payment flow is connected yet.",
   },
   {
     icon: TrendingUp,
@@ -39,14 +39,14 @@ export default function ForRestaurantsPage() {
             </h1>
             <p className="mt-5 text-lg text-[var(--color-muted)]">
               NizamKitchen households plan meals daily. When a meal plan falls through, they need a restaurant fast.
-              Partner with us to be their first recommendation.
+              Join the restaurant partner waitlist so households can find you when they need an honest fallback.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/register?type=restaurant"
                 className="inline-flex items-center gap-2 rounded-2xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
               >
-                Apply as a restaurant partner
+                Join as restaurant partner
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
@@ -88,7 +88,7 @@ export default function ForRestaurantsPage() {
               href="/register?type=restaurant"
               className="inline-flex rounded-2xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:opacity-90"
             >
-              Register interest
+              Join waitlist
             </Link>
             <Link
               href="/contact"
