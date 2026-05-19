@@ -191,7 +191,13 @@ describe("home catering seller foundation", () => {
       activeOrganization: { organizationType: "home_catering" },
       activeMembership: { role: "org_owner" },
     } as never);
-    expect(items.map((item) => item.href)).toEqual(["/catering", "/catering/profile", "/catering/settings"]);
+    expect(items.map((item) => item.href)).toEqual([
+      "/catering",
+      "/catering/profile",
+      "/catering/menu",
+      "/catering/menu-items",
+      "/catering/settings",
+    ]);
   });
 
   it("platform admin navigation includes home catering moderation", () => {

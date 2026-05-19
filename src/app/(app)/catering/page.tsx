@@ -74,11 +74,11 @@ export default async function CateringDashboardPage() {
             <Card>
               <h2 className="font-semibold text-[var(--color-ink)]">Add menu item</h2>
               <p className="mt-2 text-sm text-[var(--color-muted)]">Menu management is planned next. Profiles come first so admins can verify sellers.</p>
-              <Button asChild variant="secondary" className="mt-5"><Link href="/catering/settings">View placeholder</Link></Button>
+              <Button asChild variant="secondary" className="mt-5"><Link href="/catering/menu-items/new">Add menu item</Link></Button>
             </Card>
             <Card>
               <h2 className="font-semibold text-[var(--color-ink)]">View orders</h2>
-              <p className="mt-2 text-sm text-[var(--color-muted)]">Order request management is not live yet. No payments or credit cards are connected.</p>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">Order request management is not live yet. No checkout or payment collection is connected.</p>
               <Button asChild variant="secondary" className="mt-5"><Link href="/catering/settings">Order settings</Link></Button>
             </Card>
             <Card>

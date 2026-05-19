@@ -1,5 +1,7 @@
 import { Store } from "lucide-react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
@@ -23,7 +25,7 @@ export default async function RestaurantDashboardPage() {
       <PageHeader
         eyebrow="Restaurant workspace"
         title={session.activeOrganization.name}
-        description="Restaurant partner tools are intentionally placeholder-only while NizamKitchen stabilizes household planning and grocery workflows."
+        description="Manage restaurant profile foundations and menus households can browse before live ordering is connected."
       />
 
       <section className="grid gap-4 md:grid-cols-3">
@@ -33,8 +35,9 @@ export default async function RestaurantDashboardPage() {
           <p className="mt-2 text-sm text-[var(--color-muted)]">Public restaurant listings and lead management are not enabled yet.</p>
         </Card>
         <Card>
-          <h2 className="font-semibold text-[var(--color-ink)]">Leads</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">No inbound lead workflow is connected in this phase.</p>
+          <h2 className="font-semibold text-[var(--color-ink)]">Menus</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Create restaurant menus and dishes for household browsing.</p>
+          <Button asChild variant="secondary" className="mt-5"><Link href="/restaurant/menu">Manage menus</Link></Button>
         </Card>
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Ordering</h2>

@@ -71,8 +71,3 @@ CREATE INDEX "HomeCateringProfile_region_idx" ON "HomeCateringProfile"("region")
 
 -- AddForeignKey
 ALTER TABLE "HomeCateringProfile" ADD CONSTRAINT "HomeCateringProfile_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- SeedFeatureFlag
-INSERT INTO "FeatureFlag" ("id", "key", "name", "description", "enabled", "createdAt", "updatedAt")
-VALUES ('home_catering_global_feature_flag', 'home_catering', 'home catering', 'Placeholder flag for home_catering.', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT ("key", "organizationId", "countryCode") DO NOTHING;

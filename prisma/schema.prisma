@@ -184,6 +184,8 @@ model Organization {
   mealPlanPreference         MealPlanPreference?
   householdProfile           HouseholdProfile?
   homeCateringProfile        HomeCateringProfile?
+  menus                      Menu[]
+  menuItems                  MenuItem[]
   householdPreferences       HouseholdPreference[]
   preferredCuisines          HouseholdPreferredCuisine[]
   avoidedIngredients         AvoidedIngredient[]
@@ -720,6 +722,41 @@ enum HomeCateringVerificationStatus {
   pending
   verified
   rejected
+}
+
+enum MenuStatus {
+  draft
+  active
+  paused
+  archived
+}
+
+enum MenuVisibility {
+  private
+  public
+}
+
+enum MenuItemStatus {
+  draft
+  active
+  sold_out
+  paused
+  archived
+}
+
+enum MenuItemCategory {
+  biryani
+  curry
+  salan
+  rice
+  bread
+  snack
+  dessert
+  drink
+  combo
+  catering_tray
+  special
+  other
 }
 
 enum ChefVerificationStatus {
@@ -1402,6 +1439,84 @@ model HomeCateringProfile {
   @@index([isPublic])
   @@index([city])
   @@index([region])
+}
+
+model Menu {
+  id             String         @id @default(cuid())
+  organizationId String
+  countryCode    String
+  name           String
+  description    String?
+  status         MenuStatus     @default(draft)
+  visibility     MenuVisibility @default(private)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items          MenuItem[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([visibility])
+}
+
+model MenuItem {
+  id                     String                 @id @default(cuid())
+  organizationId         String
+  menuId                 String?
+  countryCode            String
+  name                   String
+  slug                   String
+  description            String?
+  cuisine                String?
+  category               MenuItemCategory
+  priceAmount            Float?
+  currencyCode           String
+  servingSize            String?
+  spiceLevel             SpiceLevel?
+  preparationTimeMinutes Int?
+  minimumOrderQuantity   Int?
+  maxDailyQuantity       Int?
+  availableFrom          DateTime?
+  availableUntil         DateTime?
+  preorderRequired       Boolean                @default(false)
+  minimumNoticeHours     Int?
+  pickupAvailable        Boolean                @default(true)
+  deliveryAvailable      Boolean                @default(false)
+  photoUrl               String?
+  allergensJson          Json?
+  ingredientsSummary     String?
+  status                 MenuItemStatus         @default(draft)
+  isFeatured             Boolean                @default(false)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  menu                   Menu?                  @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  availability           MenuItemAvailability[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([menuId])
+  @@index([countryCode])
+  @@index([category])
+  @@index([status])
+  @@index([isFeatured])
+}
+
+model MenuItemAvailability {
+  id          String   @id @default(cuid())
+  menuItemId  String
+  dayOfWeek   Int
+  startTime   String?
+  endTime     String?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, dayOfWeek])
+  @@index([menuItemId])
+  @@index([dayOfWeek])
 }
 
 model ChefProfile {

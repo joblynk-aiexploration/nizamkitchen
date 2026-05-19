@@ -23,6 +23,8 @@ describe("stabilized role navigation", () => {
       "/admin/youtube-discovery",
       "/admin/home-chef-requests",
       "/admin/chefs",
+      "/admin/home-catering",
+      "/admin/menu-items",
       "/admin/restaurant-fallback",
       "/admin/grocery-partners",
       "/admin/system-settings",
@@ -87,14 +89,14 @@ describe("stabilized role navigation", () => {
     expect(links).not.toContain("/chefs");
   });
 
-  it("shows restaurant accounts only the restaurant placeholder and settings", () => {
+  it("shows restaurant accounts restaurant menu tools and settings", () => {
     const links = getWorkspaceNavItems({
       user: { platformRole: null },
       activeOrganization: { organizationType: "restaurant" },
       activeMembership: { role: "restaurant_owner" },
     }).map((item) => item.href);
 
-    expect(links).toEqual(["/restaurant", "/settings"]);
+    expect(links).toEqual(["/restaurant", "/restaurant/menu", "/restaurant/menu-items", "/settings"]);
   });
 });
 
@@ -107,10 +109,13 @@ describe("production-safe feature flag catalog", () => {
       "youtube_references",
       "family_profiles",
       "home_chefs",
+      "home_catering",
+      "menus",
+      "restaurant_profiles",
       "restaurant_fallback",
       "grocery_partners",
     ];
 
-    expect(productFlags).toHaveLength(8);
+    expect(productFlags).toHaveLength(11);
   });
 });

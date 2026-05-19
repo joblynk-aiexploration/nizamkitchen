@@ -19,6 +19,8 @@ const moduleOptions = [
   "home_catering",
   "restaurant_fallback",
   "grocery_partners",
+  "menus",
+  "restaurant_profiles",
   "payments",
   "subscriptions",
   "ai_suggestions",

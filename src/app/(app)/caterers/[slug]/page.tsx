@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getPublicHomeCateringProfile } from "@/server/home-catering";
+import { listPublicMenuItemsForOrganization } from "@/server/menus";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
   if (!profile) notFound();
+  const menuItems = await listPublicMenuItemsForOrganization(profile.organizationId);
 
   return (
     <div className="space-y-8">
@@ -42,13 +44,41 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Request flow</h2>
           <p className="mt-3 text-sm text-[var(--color-muted)]">
-            Menu and order request management are coming later. No live payments or credit cards are connected.
+            Request order is a placeholder for now. No checkout, payment collection, or delivery tracking is connected.
           </p>
           <Button className="mt-5 w-full justify-center" variant="secondary" disabled>
-            Order requests coming soon
+            Request order coming soon
           </Button>
         </Card>
       </div>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
+        {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active menu items have been published yet.</p> : null}
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {menuItems.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-[var(--color-border)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-[var(--color-ink)]">{item.name}</p>
+                  <p className="mt-1 text-sm text-[var(--color-muted)]">{item.category.replace(/_/g, " ")}</p>
+                </div>
+                <Badge tone={item.status === "sold_out" ? "warning" : "success"}>{item.status === "sold_out" ? "Sold out" : "Available"}</Badge>
+              </div>
+              {item.description ? <p className="mt-3 text-sm text-[var(--color-muted)]">{item.description}</p> : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {item.preorderRequired ? <Badge tone="info">Preorder</Badge> : null}
+                {item.pickupAvailable ? <Badge tone="info">Pickup</Badge> : null}
+                {item.deliveryAvailable ? <Badge tone="info">Delivery</Badge> : null}
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <p className="font-semibold">{item.priceAmount ? `${item.currencyCode} ${item.priceAmount}` : "Price TBD"}</p>
+                <Button variant="secondary" disabled>Request order</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }

@@ -31,6 +31,7 @@ const platformAdminHrefs = [
   "/admin/home-chef-requests",
   "/admin/chefs",
   "/admin/home-catering",
+  "/admin/menu-items",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
   "/admin/system",
@@ -94,6 +95,8 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
   if (organizationType === "restaurant") {
     return [
       { href: "/restaurant", label: "Restaurant Dashboard" },
+      { href: "/restaurant/menu", label: "Menus" },
+      { href: "/restaurant/menu-items", label: "Menu Items" },
       { href: "/settings", label: "Settings" },
     ];
   }
@@ -102,6 +105,8 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     return [
       { href: "/catering", label: "Catering Dashboard" },
       { href: "/catering/profile", label: "Profile" },
+      { href: "/catering/menu", label: "Menus" },
+      { href: "/catering/menu-items", label: "Menu Items" },
       { href: "/catering/settings", label: "Settings" },
     ];
   }
@@ -122,6 +127,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/home-chef", label: "Home Chef" },
     { href: "/chefs", label: "Browse Chefs" },
     { href: "/caterers", label: "Browse Caterers" },
+    { href: "/restaurants", label: "Restaurant Menus" },
     { href: "/order-instead", label: "Order Instead" },
     { href: "/saved-restaurants", label: "Saved Restaurants" },
     { href: "/reports", label: "Reports" },
@@ -181,6 +187,7 @@ function labelForHref(href: string) {
     "/admin/chefs": "Chef Marketplace",
     "/admin/home-catering": "Home Catering",
     "/admin/restaurant-fallback": "Restaurant Fallback",
+    "/admin/menu-items": "Menu Items",
     "/admin/grocery-partners": "Grocery Partners",
     "/admin/system": "System Status",
     "/admin/system-settings": "System Settings",
