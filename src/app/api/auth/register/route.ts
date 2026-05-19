@@ -12,12 +12,14 @@ import { createAuditLog } from "@/lib/audit";
 const orgTypeMap: Record<string, OrganizationType> = {
   household: OrganizationType.household,
   chef: OrganizationType.chef_business,
+  catering: OrganizationType.home_catering,
   restaurant: OrganizationType.restaurant,
 };
 
 const redirectAfterRegister: Record<string, string> = {
   household: "/household/preferences",
   chef: "/chef/profile",
+  catering: "/catering/profile/setup",
   restaurant: "/restaurant",
 };
 
@@ -133,6 +135,20 @@ export async function POST(request: Request) {
           weeklyCookingDays: [],
         },
       });
+    } else if (organizationType === OrganizationType.home_catering) {
+      await tx.homeCateringProfile.create({
+        data: {
+          organizationId: organization.id,
+          countryCode: country.countryCode,
+          displayName: parsed.data.organizationName,
+          slug: `${slugify(parsed.data.organizationName)}-${Math.random().toString(36).slice(2, 8)}`,
+          cuisineSpecialtiesJson: [],
+          languagesJson: [],
+          acceptsPickup: true,
+          acceptsDelivery: false,
+          acceptsPreorders: true,
+        },
+      });
     }
 
     return { user, organization };
@@ -150,6 +166,19 @@ export async function POST(request: Request) {
     targetId: result.user.id,
     ...requestMeta,
   });
+
+  if (organizationType === OrganizationType.home_catering) {
+    await createAuditLog({
+      actorUserId: result.user.id,
+      organizationId: result.organization.id,
+      countryCode: result.organization.countryCode,
+      action: "home_catering_profile.created",
+      targetType: "home_catering_profile",
+      targetId: result.organization.id,
+      details: { createdDuringRegistration: true },
+      ...requestMeta,
+    });
+  }
   await createAuditLog({
     actorUserId: result.user.id,
     organizationId: result.organization.id,

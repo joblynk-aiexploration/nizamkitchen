@@ -112,5 +112,32 @@ export async function POST(request: Request) {
     ...requestMeta,
   });
 
+  if (parsed.data.organizationType === "home_catering") {
+    await prisma.homeCateringProfile.create({
+      data: {
+        organizationId: organization.id,
+        countryCode: organization.countryCode,
+        displayName: organization.name,
+        slug: `${slugify(organization.name)}-${Math.random().toString(36).slice(2, 8)}`,
+        cuisineSpecialtiesJson: [],
+        languagesJson: [],
+        acceptsPickup: true,
+        acceptsDelivery: false,
+        acceptsPreorders: true,
+      },
+    });
+    await createAuditLog({
+      actorUserId: session.user.id,
+      organizationId: organization.id,
+      countryCode: organization.countryCode,
+      action: "home_catering_profile.created",
+      targetType: "home_catering_profile",
+      targetId: organization.id,
+      details: { createdDuringOrganizationProvisioning: true },
+      ...requestMeta,
+    });
+    return NextResponse.redirect(new URL("/catering/profile/setup?message=Home catering organization created.", request.url));
+  }
+
   return NextResponse.redirect(new URL("/organizations?message=Organization created.", request.url));
 }

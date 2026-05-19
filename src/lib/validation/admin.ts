@@ -6,6 +6,7 @@ const supportedModuleValues = [
   "grocery_engine",
   "youtube_references",
   "home_chefs",
+  "home_catering",
   "restaurant_fallback",
   "grocery_partners",
   "payments",
@@ -74,6 +75,7 @@ export const organizationMetadataUpdateSchema = z.object({
   organizationType: z.enum([
     "household",
     "chef_business",
+    "home_catering",
     "restaurant",
     "grocery_partner",
     "internal_admin",

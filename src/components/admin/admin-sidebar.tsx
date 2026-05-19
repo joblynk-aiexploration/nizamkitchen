@@ -63,6 +63,7 @@ const adminNavGroups = [
       { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
       { href: "/admin/chefs", label: "Chef marketplace", icon: ChefHat },
       { href: "/admin/chef-verifications", label: "Chef verifications", icon: Shield },
+      { href: "/admin/home-catering", label: "Home catering", icon: Building2 },
       { href: "/admin/restaurant-fallback", label: "Restaurant fallback", icon: ShoppingCart },
     ],
   },
@@ -116,6 +117,7 @@ function canSeeLink(session: Session, href: string) {
       "/admin/reports",
       "/admin/home-chef-requests",
       "/admin/chefs",
+      "/admin/home-catering",
       "/admin/restaurant-fallback",
       "/admin/grocery-partners",
     ].includes(href);
@@ -129,6 +131,7 @@ function canSeeLink(session: Session, href: string) {
       "/admin/audit-logs",
       "/admin/home-chef-requests",
       "/admin/chefs",
+      "/admin/home-catering",
       "/admin/support",
       "/admin/leads",
     ].includes(href);

@@ -5,7 +5,7 @@ import { useState } from "react";
 
 type Country = { countryCode: string; countryName: string };
 type Cuisine = { id: string; name: string };
-type AccountType = "household" | "chef" | "restaurant";
+type AccountType = "household" | "chef" | "catering" | "restaurant";
 
 interface Step2Data {
   fullName: string;
@@ -27,6 +27,12 @@ const accountTypes: { type: AccountType; label: string; description: string; emo
     label: "Home Chef",
     description: "Join the chef waitlist, set up your profile, and prepare for manual verification.",
     emoji: "👨‍🍳",
+  },
+  {
+    type: "catering",
+    label: "Home Catering",
+    description: "Sell prepared dishes from your home kitchen for pickup, delivery, or pre-order.",
+    emoji: "🥘",
   },
   {
     type: "restaurant",
@@ -198,6 +204,8 @@ export function RegisterForm({
                 ? "Household name"
                 : accountType === "chef"
                   ? "Business name"
+                  : accountType === "catering"
+                    ? "Catering business name"
                   : "Restaurant name"}{" "}
               <span className="text-red-500">*</span>
             </label>
@@ -211,6 +219,8 @@ export function RegisterForm({
                   ? "e.g. The Ahmed Family"
                   : accountType === "chef"
                     ? "e.g. Chef Amir's Kitchen"
+                    : accountType === "catering"
+                      ? "e.g. Amina's Biryani Boxes"
                     : "e.g. Nizam Biryani House"
               }
               className="w-full rounded-xl border border-[var(--color-border)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"

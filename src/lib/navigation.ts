@@ -30,6 +30,7 @@ const platformAdminHrefs = [
   "/admin/youtube-discovery",
   "/admin/home-chef-requests",
   "/admin/chefs",
+  "/admin/home-catering",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
   "/admin/system",
@@ -47,6 +48,7 @@ const countryManagerHrefs = [
   "/admin/reports",
   "/admin/home-chef-requests",
   "/admin/chefs",
+  "/admin/home-catering",
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
 ] as const;
@@ -96,6 +98,14 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     ];
   }
 
+  if (organizationType === "home_catering") {
+    return [
+      { href: "/catering", label: "Catering Dashboard" },
+      { href: "/catering/profile", label: "Profile" },
+      { href: "/catering/settings", label: "Settings" },
+    ];
+  }
+
   if (organizationType === "grocery_partner") {
     return [
       { href: "/dashboard", label: "Dashboard" },
@@ -111,6 +121,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/household", label: "Household" },
     { href: "/home-chef", label: "Home Chef" },
     { href: "/chefs", label: "Browse Chefs" },
+    { href: "/caterers", label: "Browse Caterers" },
     { href: "/order-instead", label: "Order Instead" },
     { href: "/saved-restaurants", label: "Saved Restaurants" },
     { href: "/reports", label: "Reports" },
@@ -168,6 +179,7 @@ function labelForHref(href: string) {
     "/admin/youtube-discovery": "YouTube Discovery",
     "/admin/home-chef-requests": "Home Chef Requests",
     "/admin/chefs": "Chef Marketplace",
+    "/admin/home-catering": "Home Catering",
     "/admin/restaurant-fallback": "Restaurant Fallback",
     "/admin/grocery-partners": "Grocery Partners",
     "/admin/system": "System Status",

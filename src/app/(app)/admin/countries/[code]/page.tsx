@@ -16,6 +16,7 @@ const moduleOptions = [
   "grocery_engine",
   "youtube_references",
   "home_chefs",
+  "home_catering",
   "restaurant_fallback",
   "grocery_partners",
   "payments",

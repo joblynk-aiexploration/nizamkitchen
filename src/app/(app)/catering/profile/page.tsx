@@ -1,0 +1,100 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
+import { requireMembership } from "@/lib/auth/session";
+import {
+  canAccessHomeCatering,
+  getHomeCateringProfileForOrganization,
+  isHomeCateringBusiness,
+} from "@/server/home-catering";
+import { upsertHomeCateringProfileAction } from "../actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function CateringProfilePage() {
+  const session = await requireMembership();
+  const enabled = await canAccessHomeCatering({
+    organizationId: session.activeOrganization.id,
+    platformRole: session.user.platformRole,
+  });
+
+  if (!enabled || !isHomeCateringBusiness(session.activeOrganization.organizationType)) {
+    return <EmptyState title="Home catering profile unavailable" description="Profile tools are available only for enabled home catering organizations." />;
+  }
+
+  const profile = await getHomeCateringProfileForOrganization(session.activeOrganization.id);
+  const specialties = Array.isArray(profile?.cuisineSpecialtiesJson) ? profile.cuisineSpecialtiesJson.join(", ") : "";
+  const languages = Array.isArray(profile?.languagesJson) ? profile.languagesJson.join(", ") : "";
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Home catering"
+        title="Seller profile"
+        description="Share city-level service details only. Exact home addresses stay private until a future explicit seller workflow is built."
+      />
+
+      {profile ? (
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>
+          <Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge>
+          <Badge tone={profile.isPublic ? "success" : "neutral"}>{profile.isPublic ? "Public" : "Hidden"}</Badge>
+        </div>
+      ) : null}
+
+      <form action={upsertHomeCateringProfileAction} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="space-y-5">
+          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Business details</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput label="Display name" name="displayName" defaultValue={profile?.displayName ?? session.activeOrganization.name} required />
+            <TextInput label="Owner name" name="ownerName" defaultValue={profile?.ownerName ?? ""} />
+            <TextInput label="Profile photo URL" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
+            <TextInput label="Cover photo URL" name="coverPhotoUrl" defaultValue={profile?.coverPhotoUrl ?? ""} />
+            <TextInput label="Cuisine specialties" name="cuisineSpecialties" defaultValue={specialties} hint="Comma-separated, e.g. biryani, haleem, sweets" />
+            <TextInput label="Languages" name="languages" defaultValue={languages} hint="Comma-separated, e.g. English, Urdu, Hindi" />
+            <TextInput label="City" name="city" defaultValue={profile?.city ?? ""} />
+            <TextInput label="Region" name="region" defaultValue={profile?.region ?? ""} />
+            <TextInput label="Postal code" name="postalCode" defaultValue={profile?.postalCode ?? ""} />
+            <TextInput label="Phone" name="phone" defaultValue={profile?.phone ?? ""} />
+            <TextInput label="Email" name="email" type="email" defaultValue={profile?.email ?? ""} />
+            <TextInput label="Minimum notice hours" name="minimumNoticeHours" type="number" min={0} defaultValue={profile?.minimumNoticeHours ?? ""} />
+          </div>
+          <TextArea label="Bio" name="bio" defaultValue={profile?.bio ?? ""} />
+          <TextArea label="Service area notes" name="serviceAreaText" defaultValue={profile?.serviceAreaText ?? ""} />
+        </Card>
+
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <h2 className="font-semibold text-[var(--color-ink)]">Fulfillment options</h2>
+            <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+              <input type="checkbox" name="acceptsPickup" defaultChecked={profile?.acceptsPickup ?? true} />
+              Accept pickup
+            </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+              <input type="checkbox" name="acceptsDelivery" defaultChecked={profile?.acceptsDelivery ?? false} />
+              Accept delivery
+            </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+              <input type="checkbox" name="acceptsPreorders" defaultChecked={profile?.acceptsPreorders ?? true} />
+              Accept preorders
+            </label>
+          </Card>
+
+          <Card className="space-y-4">
+            <h2 className="font-semibold text-[var(--color-ink)]">Review workflow</h2>
+            <p className="text-sm text-[var(--color-muted)]">Submitting asks platform admins to review. Sellers cannot approve or verify their own profiles.</p>
+            <label className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+              <input type="checkbox" name="submitForVerification" />
+              Submit for verification
+            </label>
+            <Button type="submit" className="w-full justify-center">Save profile</Button>
+          </Card>
+        </div>
+      </form>
+    </div>
+  );
+}

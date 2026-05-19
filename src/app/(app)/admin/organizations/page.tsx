@@ -49,6 +49,7 @@ export default async function AdminOrganizationsPage({
           <option value="">All organization types</option>
           <option value="household">household</option>
           <option value="chef_business">chef_business</option>
+          <option value="home_catering">home_catering</option>
           <option value="restaurant">restaurant</option>
           <option value="grocery_partner">grocery_partner</option>
           <option value="internal_admin">internal_admin</option>

@@ -71,6 +71,23 @@ const plans = [
     ],
   },
   {
+    name: "Home Catering Seller",
+    price: "Waitlist",
+    period: "manual approval",
+    description: "For sellers preparing dishes from home or small kitchens for pickup, delivery, or pre-order.",
+    cta: "Join waitlist",
+    href: "/register?type=catering",
+    highlight: false,
+    badge: "New seller path",
+    limits: [
+      "Home catering profile setup",
+      "City-level service area and specialties",
+      "Pickup, delivery, and preorder preferences",
+      "Admin review before public visibility",
+      "Menu and order requests coming later",
+    ],
+  },
+  {
     name: "Restaurant Partner",
     price: "Waitlist",
     period: "partner review",

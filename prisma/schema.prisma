@@ -29,6 +29,7 @@ enum OrganizationRole {
 enum OrganizationType {
   household
   chef_business
+  home_catering
   restaurant
   grocery_partner
   internal_admin
@@ -182,6 +183,7 @@ model Organization {
   mealPlans                  MealPlan[]
   mealPlanPreference         MealPlanPreference?
   householdProfile           HouseholdProfile?
+  homeCateringProfile        HomeCateringProfile?
   householdPreferences       HouseholdPreference[]
   preferredCuisines          HouseholdPreferredCuisine[]
   avoidedIngredients         AvoidedIngredient[]
@@ -703,6 +705,21 @@ enum ChefProfileStatus {
   paused
   suspended
   disabled
+}
+
+enum HomeCateringProfileStatus {
+  draft
+  active
+  paused
+  suspended
+  disabled
+}
+
+enum HomeCateringVerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
 }
 
 enum ChefVerificationStatus {
@@ -1344,6 +1361,47 @@ model HouseholdShoppingPreference {
   organization            Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+model HomeCateringProfile {
+  id                       String                           @id @default(cuid())
+  organizationId           String                           @unique
+  countryCode              String
+  displayName              String
+  slug                     String                           @unique
+  ownerName                String?
+  bio                      String?
+  status                   HomeCateringProfileStatus        @default(draft)
+  verificationStatus       HomeCateringVerificationStatus   @default(unverified)
+  profilePhotoUrl          String?
+  coverPhotoUrl            String?
+  cuisineSpecialtiesJson   Json
+  languagesJson            Json
+  serviceAreaText          String?
+  city                     String?
+  region                   String?
+  postalCode               String?
+  phone                    String?
+  email                    String?
+  acceptsPickup            Boolean                          @default(true)
+  acceptsDelivery          Boolean                          @default(false)
+  acceptsPreorders         Boolean                          @default(true)
+  minimumNoticeHours       Int?
+  averageRating            Float?
+  ratingCount              Int                              @default(0)
+  isPublic                 Boolean                          @default(false)
+  adminNotes               String?
+  createdAt                DateTime                         @default(now())
+  updatedAt                DateTime                         @updatedAt
+  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([isPublic])
+  @@index([city])
+  @@index([region])
 }
 
 model ChefProfile {

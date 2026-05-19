@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/pricing", label: "Pricing" },
   { href: "/for-households", label: "For Households" },
   { href: "/for-chefs", label: "For Chefs" },
+  { href: "/caterers", label: "Caterers" },
   { href: "/for-restaurants", label: "For Restaurants" },
   { href: "/about", label: "About" },
 ];
