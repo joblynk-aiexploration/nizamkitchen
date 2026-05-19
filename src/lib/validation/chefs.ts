@@ -43,6 +43,8 @@ export const chefProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(140),
   bio: z.string().trim().min(20).max(2000),
   profilePhotoUrl: nullableString(500).optional(),
+  profilePhotoFileId: nullableString(120).optional(),
+  coverPhotoFileId: nullableString(120).optional(),
   languages: listFromFormValue.default([]),
   specialties: listFromFormValue.default([]),
   yearsExperience: z.preprocess(

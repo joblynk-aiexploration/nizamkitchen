@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
+import { BusinessCoverUploader, ImageUploadField } from "@/components/storage/file-upload-field";
 import { requireMembership } from "@/lib/auth/session";
 import {
   canAccessHomeCatering,
@@ -56,8 +57,10 @@ export default async function CateringProfilePage() {
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput label="Display name" name="displayName" defaultValue={profile?.displayName ?? session.activeOrganization.name} required />
             <TextInput label="Owner name" name="ownerName" defaultValue={profile?.ownerName ?? ""} />
-            <TextInput label="Profile photo URL" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
-            <TextInput label="Cover photo URL" name="coverPhotoUrl" defaultValue={profile?.coverPhotoUrl ?? ""} />
+            <ImageUploadField label="Profile photo" name="profilePhotoFileId" module="home_catering" purpose="business_profile_photo" visibility="public" entityType="home_catering_profile" entityId={profile?.id} defaultFileId={profile?.profilePhotoFileId ?? null} />
+            <BusinessCoverUploader label="Cover photo" name="coverPhotoFileId" module="home_catering" entityType="home_catering_profile" entityId={profile?.id} defaultFileId={profile?.coverPhotoFileId ?? null} />
+            <TextInput label="Legacy profile photo URL fallback" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
+            <TextInput label="Legacy cover photo URL fallback" name="coverPhotoUrl" defaultValue={profile?.coverPhotoUrl ?? ""} />
             <TextInput label="Cuisine specialties" name="cuisineSpecialties" defaultValue={specialties} hint="Comma-separated, e.g. biryani, haleem, sweets" />
             <TextInput label="Languages" name="languages" defaultValue={languages} hint="Comma-separated, e.g. English, Urdu, Hindi" />
             <TextInput label="City" name="city" defaultValue={profile?.city ?? ""} />

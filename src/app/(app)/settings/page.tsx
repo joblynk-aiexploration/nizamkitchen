@@ -55,6 +55,22 @@ export default async function SettingsPage() {
 
       <Card className="flex flex-wrap items-center justify-between gap-4">
         <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Profile</p>
+          <p className="mt-2 text-lg font-semibold">Personal profile and photos</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Upload your S3-backed profile and cover photos without exposing storage credentials.
+          </p>
+        </div>
+        <Link
+          href="/settings/profile"
+          className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] hover:bg-slate-50"
+        >
+          Open profile settings
+        </Link>
+      </Card>
+
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Meal planner</p>
           <p className="mt-2 text-lg font-semibold">Household planning preferences</p>
           <p className="mt-1 text-sm text-[var(--color-muted)]">

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { adminMenuItemStatusSchema, menuItemSchema, menuSchema } from "@/lib/validation/menus";
 import { createAuditEvent } from "@/server/audit";
+import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const MENU_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
 const MENU_READ_ADMIN_ROLES: PlatformRole[] = [...MENU_ADMIN_ROLES, "auditor"];
@@ -143,6 +144,7 @@ export async function upsertMenuItem(params: {
     const menu = await prisma.menu.findFirst({ where: { id: parsed.menuId, organizationId: params.organizationId }, select: { id: true } });
     if (!menu) throw new Error("Menu not found for this organization.");
   }
+  await assertStorageFileBelongsToOrganization(parsed.photoFileId, params.organizationId);
 
   const baseSlug = slugify(parsed.name);
   const slug = existing?.slug ?? `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
@@ -168,6 +170,7 @@ export async function upsertMenuItem(params: {
     pickupAvailable: parsed.pickupAvailable,
     deliveryAvailable: parsed.deliveryAvailable,
     photoUrl: parsed.photoUrl ?? null,
+    photoFileId: parsed.photoFileId ?? null,
     allergensJson: parsed.allergens.length > 0 ? parsed.allergens : Prisma.JsonNull,
     ingredientsSummary: parsed.ingredientsSummary ?? null,
     status: parsed.status,

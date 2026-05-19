@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SelectInput } from "@/components/ui/select-input";
@@ -48,6 +49,15 @@ export default function NewSupportTicketPage() {
           <TextArea label="Description" name="description" placeholder="What happened? What did you expect?" required />
           <TextInput label="Page URL" name="pageUrl" placeholder="/meal-plans/new or full URL" />
           <TextArea label="Browser info" name="browserInfo" placeholder="Optional: browser, device, screenshot notes, or error text" />
+          <DocumentUploadField
+            label="Screenshot or attachment"
+            name="supportAttachmentFileId"
+            module="support"
+            purpose="support_attachment"
+            visibility="organization"
+            entityType="support_ticket"
+            hint="Optional. Uploads to S3 and appears in the admin Dropbox for support review."
+          />
           <div>
             <Button type="submit">Submit ticket</Button>
           </div>

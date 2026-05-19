@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
+import { StorageImage } from "@/components/storage/storage-image";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getPublicHomeCateringProfile } from "@/server/home-catering";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
+import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +20,13 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
   if (!profile) notFound();
-  const [menuItems, socialLinks] = await Promise.all([
+  const [menuItems, socialLinks, profileImageUrl, coverImageUrl] = await Promise.all([
     listPublicMenuItemsForOrganization(profile.organizationId),
     listPublicBusinessSocialLinks(profile.organizationId, "home_catering"),
+    getStorageImageUrl(session, profile.profilePhotoFileId, profile.profilePhotoUrl),
+    getStorageImageUrl(session, profile.coverPhotoFileId, profile.coverPhotoUrl),
   ]);
+  const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
   return (
     <div className="space-y-8">
@@ -35,6 +40,10 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         {profile.acceptsPickup ? <Badge tone="info">Pickup</Badge> : null}
         {profile.acceptsDelivery ? <Badge tone="info">Delivery</Badge> : null}
         {profile.acceptsPreorders ? <Badge tone="info">Preorders</Badge> : null}
+      </div>
+      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+        <StorageImage src={profileImageUrl} alt={`${profile.displayName} profile photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Seller photo coming soon" />
+        <StorageImage src={coverImageUrl} alt={`${profile.displayName} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -67,6 +76,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {menuItems.map((item) => (
             <div key={item.id} className="rounded-2xl border border-[var(--color-border)] p-4">
+              <StorageImage src={menuImageUrls[item.id]} alt={item.name} className="mb-4 h-40 w-full rounded-2xl object-cover" fallbackLabel="Dish photo coming soon" />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-[var(--color-ink)]">{item.name}</p>

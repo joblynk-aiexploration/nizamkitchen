@@ -42,6 +42,7 @@ function inputFromMenuItemForm(formData: FormData, currencyCode: string) {
     pickupAvailable: formData.get("pickupAvailable") === "on",
     deliveryAvailable: formData.get("deliveryAvailable") === "on",
     photoUrl: formData.get("photoUrl"),
+    photoFileId: formData.get("photoFileId"),
     allergens: formData.get("allergens"),
     ingredientsSummary: formData.get("ingredientsSummary"),
     status: formData.get("status"),

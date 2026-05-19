@@ -180,6 +180,11 @@ model User {
   fullName                   String
   status                     UserStatus                     @default(active)
   platformRole               PlatformRole?
+  profilePhotoFileId         String?
+  coverPhotoFileId           String?
+  headline                   String?
+  bio                        String?
+  location                   String?
   preferredLocale            String?                        @default("en-US")
   preferredTimezone          String?                        @default("UTC")
   lastLoginAt                DateTime?
@@ -245,6 +250,8 @@ model Organization {
   organizationId             String                       @unique
   countryCode                String
   currencyCode               String
+  logoFileId                 String?
+  coverPhotoFileId           String?
   defaultTimezone            String
   defaultLocale              String
   measurementSystem          MeasurementSystem
@@ -1766,6 +1773,8 @@ model HomeCateringProfile {
   verificationStatus       HomeCateringVerificationStatus   @default(unverified)
   profilePhotoUrl          String?
   coverPhotoUrl            String?
+  profilePhotoFileId       String?
+  coverPhotoFileId         String?
   cuisineSpecialtiesJson   Json
   languagesJson            Json
   serviceAreaText          String?
@@ -1838,6 +1847,7 @@ model MenuItem {
   pickupAvailable        Boolean                @default(true)
   deliveryAvailable      Boolean                @default(false)
   photoUrl               String?
+  photoFileId            String?
   allergensJson          Json?
   ingredientsSummary     String?
   status                 MenuItemStatus         @default(draft)
@@ -2289,6 +2299,8 @@ model ChefProfile {
   status                ChefProfileStatus          @default(draft)
   verificationStatus    ChefVerificationStatus     @default(unverified)
   profilePhotoUrl       String?
+  profilePhotoFileId    String?
+  coverPhotoFileId      String?
   languages             Json
   specialties           Json
   yearsExperience       Int?

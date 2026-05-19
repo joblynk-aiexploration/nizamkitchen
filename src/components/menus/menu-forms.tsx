@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
+import { ImageUploadField } from "@/components/storage/file-upload-field";
 
 const menuStatusOptions = [
   { value: "draft", label: "Draft" },
@@ -84,6 +85,7 @@ type MenuItemLike = {
   pickupAvailable: boolean;
   deliveryAvailable: boolean;
   photoUrl?: string | null;
+  photoFileId?: string | null;
   allergensJson?: unknown;
   ingredientsSummary?: string | null;
   status: string;
@@ -150,7 +152,18 @@ export function MenuItemForm({
           <TextInput label="Minimum order quantity" name="minimumOrderQuantity" type="number" min={1} defaultValue={item?.minimumOrderQuantity ?? ""} />
           <TextInput label="Max daily quantity" name="maxDailyQuantity" type="number" min={1} defaultValue={item?.maxDailyQuantity ?? ""} />
           <TextInput label="Minimum notice hours" name="minimumNoticeHours" type="number" min={0} defaultValue={item?.minimumNoticeHours ?? ""} />
-          <TextInput label="Photo URL" name="photoUrl" defaultValue={item?.photoUrl ?? ""} />
+          <ImageUploadField
+            label="Dish photo"
+            name="photoFileId"
+            module="menus"
+            purpose="menu_item_photo"
+            visibility="public"
+            entityType="menu_item"
+            entityId={item?.id}
+            defaultFileId={item?.photoFileId ?? null}
+            hint="Stores the menu item image in S3 and attaches it to this dish."
+          />
+          <TextInput label="Legacy photo URL fallback" name="photoUrl" defaultValue={item?.photoUrl ?? ""} />
           <SelectInput label="Status" name="status" defaultValue={item?.status ?? "draft"} options={itemStatusOptions} />
         </div>
         <TextArea label="Description" name="description" defaultValue={item?.description ?? ""} />

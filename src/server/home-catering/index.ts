@@ -15,6 +15,7 @@ import {
   homeCateringProfileSchema,
 } from "@/lib/validation/home-catering";
 import { createAuditEvent } from "@/server/audit";
+import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const CATERING_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
 const CATERING_READ_ADMIN_ROLES: PlatformRole[] = [...CATERING_ADMIN_ROLES, "auditor"];
@@ -107,6 +108,10 @@ export async function upsertHomeCateringProfile(params: {
   input: unknown;
 }) {
   const parsed = homeCateringProfileSchema.parse(params.input);
+  await Promise.all([
+    assertStorageFileBelongsToOrganization(parsed.profilePhotoFileId, params.organizationId),
+    assertStorageFileBelongsToOrganization(parsed.coverPhotoFileId, params.organizationId),
+  ]);
   const existing = await prisma.homeCateringProfile.findUnique({
     where: { organizationId: params.organizationId },
     select: { id: true, slug: true, status: true, verificationStatus: true },
@@ -124,6 +129,8 @@ export async function upsertHomeCateringProfile(params: {
       bio: parsed.bio ?? null,
       profilePhotoUrl: parsed.profilePhotoUrl ?? null,
       coverPhotoUrl: parsed.coverPhotoUrl ?? null,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       cuisineSpecialtiesJson: asJsonArray(parsed.cuisineSpecialties),
       languagesJson: asJsonArray(parsed.languages),
       serviceAreaText: parsed.serviceAreaText ?? null,
@@ -149,6 +156,8 @@ export async function upsertHomeCateringProfile(params: {
       verificationStatus,
       profilePhotoUrl: parsed.profilePhotoUrl ?? null,
       coverPhotoUrl: parsed.coverPhotoUrl ?? null,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       cuisineSpecialtiesJson: asJsonArray(parsed.cuisineSpecialties),
       languagesJson: asJsonArray(parsed.languages),
       serviceAreaText: parsed.serviceAreaText ?? null,

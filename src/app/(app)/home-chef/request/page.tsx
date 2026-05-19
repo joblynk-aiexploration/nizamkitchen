@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -161,6 +162,15 @@ export default async function NewHomeChefRequestPage({
               />
             </div>
             <TextArea label="Notes" name="notes" placeholder="Anything support should know before reviewing this request." />
+            <DocumentUploadField
+              label="Reference attachment"
+              name="orderAttachmentFileId"
+              module="orders"
+              purpose="order_attachment"
+              visibility="organization"
+              entityType="home_chef_request"
+              hint="Optional: upload a reference image, document, or planning file to S3 for support review."
+            />
           </Card>
         </div>
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
+import { StorageImage } from "@/components/storage/storage-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,11 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
-  const socialLinks = await listPublicBusinessSocialLinks(chef.organizationId, "chef_business");
+  const [socialLinks, profileImageUrl, coverImageUrl] = await Promise.all([
+    listPublicBusinessSocialLinks(chef.organizationId, "chef_business"),
+    getStorageImageUrl(session, chef.profilePhotoFileId, chef.profilePhotoUrl),
+    getStorageImageUrl(session, chef.coverPhotoFileId),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -40,6 +46,10 @@ export default async function ChefPublicProfilePage({
         {chef.verificationStatus === "verified" ? <Badge tone="success">Verified</Badge> : null}
         {chef.baseCity ? <Badge tone="info">{chef.baseCity}{chef.baseRegion ? `, ${chef.baseRegion}` : ""}</Badge> : null}
         {chef.yearsExperience ? <Badge tone="neutral">{chef.yearsExperience} years experience</Badge> : null}
+      </div>
+      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+        <StorageImage src={profileImageUrl} alt={`${chef.displayName} profile photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Chef photo coming soon" />
+        <StorageImage src={coverImageUrl} alt={`${chef.displayName} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">

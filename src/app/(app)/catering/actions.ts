@@ -38,6 +38,8 @@ export async function upsertHomeCateringProfileAction(formData: FormData) {
         bio: formData.get("bio"),
         profilePhotoUrl: formData.get("profilePhotoUrl"),
         coverPhotoUrl: formData.get("coverPhotoUrl"),
+        profilePhotoFileId: formData.get("profilePhotoFileId"),
+        coverPhotoFileId: formData.get("coverPhotoFileId"),
         cuisineSpecialties: formData.get("cuisineSpecialties"),
         languages: formData.get("languages"),
         serviceAreaText: formData.get("serviceAreaText"),

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
@@ -85,6 +86,15 @@ export function FoodOrderRequestForm({
         <TextInput label="Delivery address line 2" name="deliveryAddressLine2" />
         <TextArea label="Order notes" name="customerNotes" />
         <TextArea label="Item notes" name="itemNotes" />
+        <DocumentUploadField
+          label="Order attachment"
+          name="orderAttachmentFileId"
+          module="orders"
+          purpose="order_attachment"
+          visibility="organization"
+          entityType="food_order"
+          hint="Optional: upload a reference image or document to S3 for the seller/admin team."
+        />
         <Button type="submit">Submit order request</Button>
       </form>
     </Card>

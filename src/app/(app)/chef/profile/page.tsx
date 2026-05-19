@@ -5,11 +5,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
+import { BusinessCoverUploader, DocumentUploadField, ImageUploadField } from "@/components/storage/file-upload-field";
 import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
-import { addChefSpecialtyAction, deleteChefSocialLinkAction, upsertChefProfileAction, upsertChefSocialLinkAction } from "../actions";
+import { addChefSpecialtyAction, addChefVerificationDocumentAction, deleteChefSocialLinkAction, upsertChefProfileAction, upsertChefSocialLinkAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,9 @@ export default async function ChefProfilePage() {
           <h2 className="text-lg font-semibold text-[var(--color-ink)]">Profile details</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput label="Display name" name="displayName" defaultValue={profile?.displayName ?? ""} required />
-            <TextInput label="Profile photo URL" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
+            <ImageUploadField label="Profile photo" name="profilePhotoFileId" module="home_chefs" purpose="business_profile_photo" visibility="public" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.profilePhotoFileId ?? null} />
+            <BusinessCoverUploader label="Cover photo" name="coverPhotoFileId" module="home_chefs" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.coverPhotoFileId ?? null} />
+            <TextInput label="Legacy profile photo URL fallback" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
             <TextInput label="Languages" name="languages" defaultValue={Array.isArray(profile?.languages) ? profile.languages.join(", ") : ""} hint="Comma-separated, e.g. English, Urdu, Hindi" />
             <TextInput label="Specialties" name="specialties" defaultValue={Array.isArray(profile?.specialties) ? profile.specialties.join(", ") : ""} hint="Comma-separated dish/service specialties" />
             <TextInput label="Years experience" name="yearsExperience" type="number" min={0} defaultValue={profile?.yearsExperience ?? ""} />
@@ -96,6 +99,25 @@ export default async function ChefProfilePage() {
             <TextInput label="Dish name" name="dishName" required />
             <TextInput label="Notes" name="notes" />
             <div className="flex items-end"><Button type="submit">Add</Button></div>
+          </form>
+        </Card>
+      ) : null}
+
+      {profile ? (
+        <Card className="space-y-5">
+          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Verification documents</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {profile.verificationDocuments.map((document) => (
+              <div key={document.id} className="rounded-2xl border border-[var(--color-border)] p-4 text-sm">
+                <p className="font-semibold text-[var(--color-ink)]">{document.documentType}</p>
+                <p className="mt-1 text-[var(--color-muted)]">{document.status} · {document.fileId ?? "No file"}</p>
+              </div>
+            ))}
+          </div>
+          <form action={addChefVerificationDocumentAction} className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+            <TextInput label="Document type" name="documentType" defaultValue="business_license" />
+            <DocumentUploadField label="Private document" name="verificationDocumentFileId" module="home_chefs" purpose="verification_document" visibility="private" entityType="chef_verification_document" entityId={profile.id} />
+            <div className="flex items-end"><Button type="submit">Add document</Button></div>
           </form>
         </Card>
       ) : null}

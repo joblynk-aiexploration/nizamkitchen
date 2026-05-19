@@ -85,6 +85,7 @@ export const menuItemSchema = z.object({
   pickupAvailable: z.coerce.boolean().default(false),
   deliveryAvailable: z.coerce.boolean().default(false),
   photoUrl: nullableString(500).optional(),
+  photoFileId: nullableString(120).optional(),
   allergens: listFromFormValue.default([]),
   ingredientsSummary: nullableString(1000).optional(),
   status: z.enum(menuItemStatusValues).default("draft"),

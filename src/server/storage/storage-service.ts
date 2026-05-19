@@ -137,6 +137,18 @@ export async function uploadStorageFile(session: StorageSession, input: Record<s
   });
   await prisma.storageFileAccessLog.create({ data: { fileId: file.id, userId: session.user.id, action: "uploaded" } });
   await createAuditEvent({ actorUserId: session.user.id, organizationId, countryCode, action: "storage_file.uploaded", targetType: "storage_file", targetId: file.id, details: { purpose: file.purpose, mimeType: file.mimeType } });
+  const purposeAction = auditActionForStoragePurpose(file.purpose);
+  if (purposeAction) {
+    await createAuditEvent({
+      actorUserId: session.user.id,
+      organizationId,
+      countryCode,
+      action: purposeAction,
+      targetType: "storage_file",
+      targetId: file.id,
+      details: { module: file.module, entityType: file.entityType, entityId: file.entityId },
+    });
+  }
   return file;
 }
 
@@ -374,4 +386,21 @@ function countBy<T>(items: T[], getKey: (item: T) => string) {
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+function auditActionForStoragePurpose(purpose: string) {
+  const map: Record<string, string> = {
+    user_profile_photo: "profile_photo.uploaded",
+    user_cover_photo: "profile_photo.uploaded",
+    business_profile_photo: "business_photo.uploaded",
+    business_cover_photo: "business_photo.uploaded",
+    menu_item_photo: "menu_item_photo.uploaded",
+    verification_document: "verification_document.uploaded",
+    chef_document: "verification_document.uploaded",
+    home_catering_document: "verification_document.uploaded",
+    restaurant_document: "verification_document.uploaded",
+    support_attachment: "support_attachment.uploaded",
+    order_attachment: "order_attachment.uploaded",
+  };
+  return map[purpose] ?? null;
 }

@@ -23,6 +23,7 @@ import {
 import { createAuditEvent } from "@/server/audit";
 import { createNotification } from "@/server/notifications/notification-service";
 import { createHomeChefRequest } from "@/server/home-chef";
+import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const CHEF_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
 const CHEF_READ_ADMIN_ROLES: PlatformRole[] = [...CHEF_ADMIN_ROLES, "auditor"];
@@ -133,6 +134,10 @@ export async function upsertChefProfile(params: {
   input: unknown;
 }) {
   const parsed = chefProfileSchema.parse(params.input);
+  await Promise.all([
+    assertStorageFileBelongsToOrganization(parsed.profilePhotoFileId, params.organizationId),
+    assertStorageFileBelongsToOrganization(parsed.coverPhotoFileId, params.organizationId),
+  ]);
   const existing = await prisma.chefProfile.findUnique({
     where: { organizationId: params.organizationId },
     select: { id: true, slug: true, status: true },
@@ -148,6 +153,8 @@ export async function upsertChefProfile(params: {
       displayName: parsed.displayName,
       bio: parsed.bio,
       profilePhotoUrl: parsed.profilePhotoUrl,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       languages: asJsonArray(parsed.languages),
       specialties: asJsonArray(parsed.specialties),
       yearsExperience: parsed.yearsExperience ?? null,
@@ -168,6 +175,8 @@ export async function upsertChefProfile(params: {
       status: "draft",
       verificationStatus,
       profilePhotoUrl: parsed.profilePhotoUrl,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       languages: asJsonArray(parsed.languages),
       specialties: asJsonArray(parsed.specialties),
       yearsExperience: parsed.yearsExperience ?? null,
@@ -280,6 +289,39 @@ export async function addChefSpecialty(params: {
   });
 
   return specialty;
+}
+
+export async function addChefVerificationDocument(params: {
+  organizationId: string;
+  countryCode: string;
+  actorUserId: string;
+  documentType: string;
+  fileId: string | null;
+}) {
+  const profile = await getChefProfileForOrganization(params.organizationId);
+  if (!profile) throw new Error("Create a chef profile before uploading verification documents.");
+  await assertStorageFileBelongsToOrganization(params.fileId, params.organizationId);
+  if (!params.fileId) throw new Error("Verification document file is required.");
+
+  const document = await prisma.chefVerificationDocument.create({
+    data: {
+      chefProfileId: profile.id,
+      documentType: params.documentType.trim() || "verification_document",
+      fileId: params.fileId,
+      status: "pending",
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode,
+    action: "verification_document.uploaded",
+    targetType: "chef_verification_document",
+    targetId: document.id,
+  });
+
+  return document;
 }
 
 export async function upsertChefAvailability(params: {

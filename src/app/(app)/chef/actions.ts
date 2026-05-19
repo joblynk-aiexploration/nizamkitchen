@@ -6,6 +6,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
 import {
+  addChefVerificationDocument,
   addChefSpecialty,
   canAccessChefMarketplace,
   isChefBusiness,
@@ -39,6 +40,8 @@ export async function upsertChefProfileAction(formData: FormData) {
         displayName: formData.get("displayName"),
         bio: formData.get("bio"),
         profilePhotoUrl: formData.get("profilePhotoUrl"),
+        profilePhotoFileId: formData.get("profilePhotoFileId"),
+        coverPhotoFileId: formData.get("coverPhotoFileId"),
         languages: formData.get("languages"),
         specialties: formData.get("specialties"),
         yearsExperience: formData.get("yearsExperience"),
@@ -84,6 +87,24 @@ export async function upsertChefServiceAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/services?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save chef service."))}`);
+  }
+}
+
+export async function addChefVerificationDocumentAction(formData: FormData) {
+  try {
+    const session = await requireChefBusinessAccess();
+    await addChefVerificationDocument({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      documentType: String(formData.get("documentType") ?? ""),
+      fileId: String(formData.get("verificationDocumentFileId") ?? ""),
+    });
+    revalidateChefPaths();
+    redirect("/chef/profile?message=Verification document uploaded.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to upload verification document."))}`);
   }
 }
 

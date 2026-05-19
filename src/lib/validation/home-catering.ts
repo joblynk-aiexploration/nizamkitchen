@@ -26,6 +26,8 @@ export const homeCateringProfileSchema = z.object({
   bio: nullableString(2000).optional(),
   profilePhotoUrl: nullableString(500).optional(),
   coverPhotoUrl: nullableString(500).optional(),
+  profilePhotoFileId: nullableString(120).optional(),
+  coverPhotoFileId: nullableString(120).optional(),
   cuisineSpecialties: listFromFormValue.default([]),
   languages: listFromFormValue.default([]),
   serviceAreaText: nullableString(800).optional(),

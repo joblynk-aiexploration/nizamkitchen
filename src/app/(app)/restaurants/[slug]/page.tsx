@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PublicSocialLinks } from "@/components/business-social-links/social-link-components";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
+import { StorageImage } from "@/components/storage/storage-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
+import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +23,24 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
   const { slug } = await params;
   const restaurant = await prisma.organization.findFirst({
     where: { slug, organizationType: "restaurant", status: "active" },
-    select: { id: true, name: true, countryCode: true },
+    select: { id: true, name: true, countryCode: true, logoFileId: true, coverPhotoFileId: true },
   });
   if (!restaurant) notFound();
-  const [menuItems, socialLinks] = await Promise.all([
+  const [menuItems, socialLinks, logoUrl, coverUrl] = await Promise.all([
     listPublicMenuItemsForOrganization(restaurant.id),
     listPublicBusinessSocialLinks(restaurant.id, "restaurant"),
+    getStorageImageUrl(session, restaurant.logoFileId),
+    getStorageImageUrl(session, restaurant.coverPhotoFileId),
   ]);
+  const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and submit manual order requests. Payment is handled directly with the restaurant for now." />
+      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+        <StorageImage src={logoUrl} alt={`${restaurant.name} logo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Restaurant image coming soon" />
+        <StorageImage src={coverUrl} alt={`${restaurant.name} cover photo`} className="h-52 w-full rounded-3xl object-cover" fallbackLabel="Cover photo coming soon" />
+      </div>
       <PublicSocialLinks links={socialLinks} />
       <Card>
         <h2 className="text-lg font-semibold text-[var(--color-ink)]">Menu</h2>
@@ -39,6 +48,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {menuItems.map((item) => (
             <div key={item.id} className="rounded-2xl border border-[var(--color-border)] p-4">
+              <StorageImage src={menuImageUrls[item.id]} alt={item.name} className="mb-4 h-40 w-full rounded-2xl object-cover" fallbackLabel="Dish photo coming soon" />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-[var(--color-ink)]">{item.name}</p>
