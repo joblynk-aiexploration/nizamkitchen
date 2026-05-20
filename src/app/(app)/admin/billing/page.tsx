@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card } from "@/components/ui/card";
+import { getBillingAdminSummary } from "@/server/billing/safe-billing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,15 +17,8 @@ export default async function AdminBillingPage() {
     "support_admin",
   ]);
 
-  const [planCount, subscriptionCount, byStatus] = await Promise.all([
-    prisma.billingPlan.count({ where: { status: "active" } }),
-    prisma.billingSubscription.count(),
-    prisma.billingSubscription.groupBy({ by: ["status"], _count: { _all: true } }),
-  ]);
-
-  const statusCounts = Object.fromEntries(
-    byStatus.map((r) => [r.status, r._count._all]),
-  ) as Record<string, number>;
+  const billingSummary = await getBillingAdminSummary();
+  const { planCount, subscriptionCount, statusCounts } = billingSummary;
 
   return (
     <AdminShell
@@ -37,6 +30,12 @@ export default async function AdminBillingPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
           Payments are not configured yet — <code className="font-mono">STRIPE_SECRET_KEY</code> is not set.
           Subscriptions are managed manually until a payment provider is wired up.
+        </div>
+      )}
+
+      {!billingSummary.ready && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
+          {billingSummary.message ?? "Billing is not ready yet."}
         </div>
       )}
 

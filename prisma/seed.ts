@@ -12,6 +12,7 @@ import {
   MembershipStatus,
   OrganizationStatus,
   OrganizationType,
+  PermissionAction,
   PlatformRole,
   PrismaClient,
   RecipeDifficulty,
@@ -35,8 +36,12 @@ const FEATURE_FLAGS = [
   "grocery_engine",
   "youtube_references",
   "home_chefs",
+  "home_catering",
   "restaurant_fallback",
   "grocery_partners",
+  "notifications",
+  "billing",
+  "reports",
   "payments",
   "live_checkout",
   "stripe_payments",
@@ -59,7 +64,79 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports"]);
+
+const PERMISSION_SEEDS = [
+  { key: "admin.access", name: "Access admin", module: "admin", action: "read" },
+  { key: "rbac.manage", name: "Manage RBAC", module: "access_control", action: "manage" },
+  { key: "users.manage", name: "Manage users", module: "users", action: "manage" },
+  { key: "organizations.manage", name: "Manage organizations", module: "organizations", action: "manage" },
+  { key: "countries.manage", name: "Manage countries", module: "countries", action: "manage" },
+  { key: "feature_flags.manage", name: "Manage feature flags", module: "feature_flags", action: "configure" },
+  { key: "audit.read", name: "View audit logs", module: "audit", action: "read" },
+  { key: "reports.read", name: "View reports", module: "reports", action: "read" },
+  { key: "recipes.manage", name: "Manage recipes", module: "food_library", action: "manage" },
+  { key: "youtube.manage", name: "Manage YouTube discovery", module: "youtube", action: "manage" },
+  { key: "grocery.manage", name: "Manage grocery", module: "grocery", action: "manage" },
+  { key: "meal_plans.manage", name: "Manage meal planning", module: "meal_plans", action: "manage" },
+  { key: "home_chefs.manage", name: "Manage home chef requests", module: "home_chefs", action: "manage" },
+  { key: "chefs.manage", name: "Manage chef marketplace", module: "chefs", action: "manage" },
+  { key: "home_catering.manage", name: "Manage home catering", module: "home_catering", action: "manage" },
+  { key: "restaurants.manage", name: "Manage restaurants", module: "restaurants", action: "manage" },
+  { key: "menus.manage", name: "Manage menus", module: "menus", action: "moderate" },
+  { key: "food_orders.manage", name: "Manage food orders", module: "food_orders", action: "manage" },
+  { key: "billing.manage", name: "Manage billing", module: "billing", action: "manage" },
+  { key: "payments.manage", name: "Manage payments", module: "payments", action: "manage" },
+  { key: "payments.configure", name: "Configure payment gateways", module: "payments", action: "configure" },
+  { key: "refunds.manage", name: "Manage refunds", module: "payments", action: "refund" },
+  { key: "payouts.manage", name: "Manage payouts", module: "payments", action: "payout" },
+  { key: "storage.manage", name: "Manage storage files", module: "storage", action: "manage" },
+  { key: "storage.configure", name: "Configure storage", module: "storage", action: "configure" },
+  { key: "verification.manage", name: "Manage seller verification", module: "verification", action: "verify" },
+  { key: "kyc.manage", name: "Manage KYC", module: "kyc", action: "manage" },
+  { key: "support.manage", name: "Manage support", module: "support", action: "manage" },
+  { key: "notifications.manage", name: "Manage notifications", module: "notifications", action: "manage" },
+  { key: "settings.manage", name: "Manage system settings", module: "settings", action: "configure" },
+] as const;
+
+const PLATFORM_ROLE_PERMISSION_SEEDS = {
+  platform_owner: PERMISSION_SEEDS.map((permission) => permission.key),
+  platform_admin: PERMISSION_SEEDS.filter(
+    (permission) => !["rbac.manage", "payments.configure", "storage.configure"].includes(permission.key),
+  ).map((permission) => permission.key),
+  country_manager: [
+    "admin.access",
+    "countries.manage",
+    "organizations.manage",
+    "users.manage",
+    "reports.read",
+    "audit.read",
+    "home_chefs.manage",
+    "chefs.manage",
+    "home_catering.manage",
+    "restaurants.manage",
+    "food_orders.manage",
+    "payments.manage",
+    "verification.manage",
+    "kyc.manage",
+    "storage.manage",
+    "support.manage",
+  ],
+  support_admin: [
+    "admin.access",
+    "users.manage",
+    "organizations.manage",
+    "support.manage",
+    "home_chefs.manage",
+    "chefs.manage",
+    "home_catering.manage",
+    "verification.manage",
+    "kyc.manage",
+    "storage.manage",
+    "audit.read",
+  ],
+  auditor: ["admin.access", "audit.read", "reports.read"],
+} as const;
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -116,9 +193,56 @@ async function ensureSellerRequirement(input: {
     provider: "manual" as const,
     isActive: true,
   };
-  return existing
+ return existing
     ? prisma.sellerVerificationRequirement.update({ where: { id: existing.id }, data })
     : prisma.sellerVerificationRequirement.create({ data });
+}
+
+async function seedRbacCatalog() {
+  const permissionIds = new Map<string, string>();
+
+  for (const permission of PERMISSION_SEEDS) {
+    const record = await prisma.permission.upsert({
+      where: { key: permission.key },
+      update: {
+        name: permission.name,
+        description: `Allows ${permission.name.toLowerCase()} in NizamKitchen.`,
+        module: permission.module,
+        action: permission.action as PermissionAction,
+      },
+      create: {
+        key: permission.key,
+        name: permission.name,
+        description: `Allows ${permission.name.toLowerCase()} in NizamKitchen.`,
+        module: permission.module,
+        action: permission.action as PermissionAction,
+      },
+    });
+    permissionIds.set(permission.key, record.id);
+  }
+
+  for (const [roleName, permissionKeys] of Object.entries(PLATFORM_ROLE_PERMISSION_SEEDS)) {
+    for (const permissionKey of permissionKeys) {
+      const permissionId = permissionIds.get(permissionKey);
+      if (!permissionId) continue;
+
+      await prisma.rolePermission.upsert({
+        where: {
+          roleScope_roleName_permissionId: {
+            roleScope: "platform",
+            roleName,
+            permissionId,
+          },
+        },
+        update: {},
+        create: {
+          roleScope: "platform",
+          roleName,
+          permissionId,
+        },
+      });
+    }
+  }
 }
 
 async function upsertUser(
@@ -1702,6 +1826,8 @@ async function main() {
       create: { ...country, supportedModules: FEATURE_FLAGS, isActive: true },
     });
   }
+
+  await seedRbacCatalog();
 
   const users = new Map<string, Awaited<ReturnType<typeof upsertUser>>>();
   for (const user of USER_SEEDS) {

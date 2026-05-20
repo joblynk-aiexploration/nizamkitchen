@@ -1,24 +1,53 @@
 import { assertPlatformRole } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { getBillingDelegates } from "@/server/billing/safe-billing";
 import { Prisma, type BillingInterval, type BillingPlanStatus } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
 export async function listBillingPlans(statusFilter?: BillingPlanStatus) {
-  return prisma.billingPlan.findMany({
-    where: statusFilter ? { status: statusFilter } : undefined,
-    orderBy: [{ status: "asc" }, { priceAmount: "asc" }],
-  });
+  const { billingPlan } = getBillingDelegates();
+  if (!billingPlan) {
+    console.error("BillingPlan Prisma delegate is unavailable. Run prisma generate and restart.");
+    return [];
+  }
+
+  try {
+    return await billingPlan.findMany({
+      where: statusFilter ? { status: statusFilter } : undefined,
+      orderBy: [{ status: "asc" }, { priceAmount: "asc" }],
+    });
+  } catch (error) {
+    console.error("Unable to list billing plans", error);
+    return [];
+  }
 }
 
 export async function getBillingPlanBySlug(slug: string) {
-  return prisma.billingPlan.findUnique({ where: { slug } });
+  const { billingPlan } = getBillingDelegates();
+  if (!billingPlan) {
+    return null;
+  }
+
+  return billingPlan.findUnique({ where: { slug } });
 }
 
 export async function getBillingPlanById(id: string) {
-  return prisma.billingPlan.findUnique({ where: { id } });
+  const { billingPlan } = getBillingDelegates();
+  if (!billingPlan) {
+    return null;
+  }
+
+  return billingPlan.findUnique({ where: { id } });
+}
+
+async function requireBillingPlanDelegate() {
+  const { billingPlan } = getBillingDelegates();
+  if (!billingPlan) {
+    throw new Error("Billing is not initialized. Run Prisma generate and migrations first.");
+  }
+  return billingPlan;
 }
 
 type PlanInput = {
@@ -35,7 +64,8 @@ type PlanInput = {
 
 export async function createBillingPlan(session: Session, input: PlanInput) {
   assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
-  const plan = await prisma.billingPlan.create({
+  const billingPlan = await requireBillingPlanDelegate();
+  const plan = await billingPlan.create({
     data: {
       name: input.name,
       slug: input.slug,
@@ -64,7 +94,8 @@ export async function updateBillingPlan(
   input: Partial<PlanInput & { status: BillingPlanStatus }>,
 ) {
   assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
-  const plan = await prisma.billingPlan.update({
+  const billingPlan = await requireBillingPlanDelegate();
+  const plan = await billingPlan.update({
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),

@@ -43,6 +43,7 @@ import {
   BUILT_IN_PLAN_LIMITS,
 } from "../../src/server/billing/plan-limits";
 import { listBillingPlans, getBillingPlanBySlug } from "../../src/server/billing/plans";
+import { getBillingAdminSummary } from "../../src/server/billing/safe-billing";
 import { getActiveSubscription, getSubscriptionForOrg } from "../../src/server/billing/subscriptions";
 import { recordUsage, currentBillingPeriod } from "../../src/server/billing/usage";
 import { getWorkspaceNavItems, getPlatformNavItems } from "../../src/lib/navigation";
@@ -205,6 +206,17 @@ describe("billing plans service", () => {
     const result = await getBillingPlanBySlug("free");
     expect(mockPrisma.billingPlan.findUnique).toHaveBeenCalledWith({ where: { slug: "free" } });
     expect(result?.slug).toBe("free");
+  });
+
+  it("billing admin summary returns setup state instead of crashing when billing delegate is missing", async () => {
+    const original = mockPrisma.billingPlan;
+    (mockPrisma as unknown as { billingPlan?: unknown }).billingPlan = undefined;
+
+    const result = await getBillingAdminSummary();
+
+    expect(result.ready).toBe(false);
+    expect(result.issue).toBe("billing_delegate_missing");
+    (mockPrisma as unknown as { billingPlan?: unknown }).billingPlan = original;
   });
 });
 

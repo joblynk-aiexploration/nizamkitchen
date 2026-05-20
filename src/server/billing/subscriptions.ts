@@ -1,13 +1,20 @@
 import { assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { getBillingDelegates } from "@/server/billing/safe-billing";
 import type { BillingProvider, BillingSubscriptionStatus } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
 export async function getActiveSubscription(organizationId: string) {
-  return prisma.billingSubscription.findFirst({
+  const { billingSubscription } = getBillingDelegates();
+  if (!billingSubscription) {
+    console.error("BillingSubscription Prisma delegate is unavailable. Run prisma generate and restart.");
+    return null;
+  }
+
+  return billingSubscription.findFirst({
     where: {
       organizationId,
       status: { in: ["active", "trialing", "free"] },
@@ -18,7 +25,12 @@ export async function getActiveSubscription(organizationId: string) {
 }
 
 export async function getSubscriptionForOrg(organizationId: string) {
-  return prisma.billingSubscription.findFirst({
+  const { billingSubscription } = getBillingDelegates();
+  if (!billingSubscription) {
+    return null;
+  }
+
+  return billingSubscription.findFirst({
     where: { organizationId },
     include: { plan: true },
     orderBy: { createdAt: "desc" },
@@ -31,10 +43,21 @@ export async function listAllSubscriptions(session: Session) {
     "platform_admin",
     "support_admin",
   ]);
-  return prisma.billingSubscription.findMany({
-    include: { plan: true, organization: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const { billingSubscription } = getBillingDelegates();
+  if (!billingSubscription) {
+    console.error("BillingSubscription Prisma delegate is unavailable. Run prisma generate and restart.");
+    return [];
+  }
+
+  try {
+    return await billingSubscription.findMany({
+      include: { plan: true, organization: true },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("Unable to list billing subscriptions", error);
+    return [];
+  }
 }
 
 export async function assignSubscription(

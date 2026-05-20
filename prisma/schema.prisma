@@ -19,11 +19,44 @@ enum OrganizationRole {
   org_owner
   org_admin
   member
+  household_member
   chef_owner
   chef_staff
+  home_catering_owner
+  home_catering_staff
   restaurant_owner
   restaurant_staff
   grocery_partner_admin
+}
+
+enum PermissionAction {
+  create
+  read
+  update
+  delete
+  archive
+  restore
+  approve
+  reject
+  export
+  manage
+  configure
+  impersonate_placeholder
+  refund
+  payout
+  verify
+  moderate
+}
+
+enum PermissionEffect {
+  allow
+  deny
+}
+
+enum RoleScope {
+  platform
+  organization
+  country
 }
 
 enum OrganizationType {
@@ -241,6 +274,8 @@ model User {
   kycProviderConfigurationsUpdated KycProviderConfiguration[]     @relation("KycProviderConfigurationUpdatedBy")
   identityVerifications            IdentityVerification[]
   sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
+  permissionOverrides              UserPermissionOverride[]        @relation("UserPermissionOverrideUser")
+  permissionOverridesCreated       UserPermissionOverride[]        @relation("UserPermissionOverrideCreatedBy")
 }
 
 model Session {
@@ -513,6 +548,52 @@ model AuditLog {
   @@index([organizationId])
   @@index([countryCode])
   @@index([createdAt])
+}
+
+model Permission {
+  id           String                   @id @default(cuid())
+  key          String                   @unique
+  name         String
+  description  String?
+  module       String
+  action       PermissionAction
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  roleBindings RolePermission[]
+  userOverrides UserPermissionOverride[]
+
+  @@index([module])
+  @@index([action])
+}
+
+model RolePermission {
+  id           String       @id @default(cuid())
+  roleScope    RoleScope
+  roleName     String
+  permissionId String
+  createdAt    DateTime     @default(now())
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleScope, roleName, permissionId])
+  @@index([roleScope, roleName])
+  @@index([permissionId])
+}
+
+model UserPermissionOverride {
+  id           String             @id @default(cuid())
+  userId       String
+  permissionId String
+  effect       PermissionEffect
+  createdById  String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission         @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([createdById])
 }
 
 model FeatureFlag {
