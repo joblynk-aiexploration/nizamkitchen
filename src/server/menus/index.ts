@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { adminMenuItemStatusSchema, menuItemSchema, menuSchema } from "@/lib/validation/menus";
 import { createAuditEvent } from "@/server/audit";
+import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import { assertSellerGate, getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
@@ -154,6 +155,17 @@ export async function upsertMenuItem(params: {
   await assertStorageFileBelongsToOrganization(parsed.photoFileId, params.organizationId);
   const sellerType = sellerTypeFromOrganizationType(params.organizationType);
   if (sellerType && (parsed.status === "active" || parsed.status === "sold_out")) {
+    const legalAcceptance = await hasAcceptedLatestRequiredDocuments({
+      user: { id: params.actorUserId, platformRole: null },
+      activeOrganization: {
+        id: params.organizationId,
+        organizationType: params.organizationType as OrganizationType,
+        countryCode: params.countryCode,
+      },
+    });
+    if (!legalAcceptance.accepted) {
+      throw new Error("Accept the required seller agreements before publishing menu items.");
+    }
     await assertSellerGate({
       organizationId: params.organizationId,
       sellerType,

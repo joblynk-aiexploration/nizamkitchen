@@ -245,6 +245,17 @@ export function RegisterForm({
             </select>
           </div>
 
+          {accountType !== "household" && (
+            <label className="flex gap-3 rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+              <input name="acceptLegalTerms" type="checkbox" required className="mt-1" />
+              <span>
+                I agree to the required{" "}
+                <Link href="/legal/terms" className="font-semibold text-[var(--color-primary)]">Terms</Link>,{" "}
+                <Link href="/legal/privacy" className="font-semibold text-[var(--color-primary)]">Privacy Policy</Link>, and seller policies that apply to this account type.
+              </span>
+            </label>
+          )}
+
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -335,6 +346,15 @@ export function RegisterForm({
               </div>
             </div>
           )}
+
+          <label className="flex gap-3 rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+            <input name="acceptLegalTerms" type="checkbox" required className="mt-1" />
+            <span>
+              I agree to the required{" "}
+              <Link href="/legal/terms" className="font-semibold text-[var(--color-primary)]">Terms</Link> and{" "}
+              <Link href="/legal/privacy" className="font-semibold text-[var(--color-primary)]">Privacy Policy</Link>.
+            </span>
+          </label>
 
           <div className="flex gap-3 pt-2">
             <button

@@ -17,6 +17,7 @@ import {
   sellerFoodOrderStatusSchema,
 } from "@/lib/validation/food-orders";
 import { createAuditEvent } from "@/server/audit";
+import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
 import { assertSellerGate } from "@/server/seller-verification-gates";
 import type { getCurrentSession } from "@/lib/session";
@@ -244,6 +245,10 @@ export async function updateSellerFoodOrderStatus(params: {
   const order = await getSellerFoodOrder(params.session.activeOrganization.id, params.orderId);
   if (!order) throw new Error("Order not found.");
   if (parsed.status === "accepted") {
+    const legalAcceptance = await hasAcceptedLatestRequiredDocuments(params.session);
+    if (!legalAcceptance.accepted) {
+      throw new Error("Accept the required seller agreements before accepting orders.");
+    }
     await assertSellerGate({
       organizationId: params.session.activeOrganization.id,
       sellerType: order.sellerType === "home_catering" ? SellerType.home_catering : SellerType.restaurant,

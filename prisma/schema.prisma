@@ -282,6 +282,10 @@ model User {
   marketplacePolicyOverridesCreated MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideCreatedBy")
   marketplacePolicyOverridesRevoked MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideRevokedBy")
   marketplacePolicyLogs            MarketplacePolicyEvaluationLog[]
+  legalDocumentsCreated            LegalDocument[]                  @relation("LegalDocumentCreatedBy")
+  legalDocumentsPublished          LegalDocument[]                  @relation("LegalDocumentPublishedBy")
+  legalDocumentAcceptances         LegalDocumentAcceptance[]
+  legalConsentEvents               LegalConsentEvent[]
 }
 
 model Session {
@@ -373,6 +377,8 @@ model Organization {
   sellerVerificationOverrides SellerVerificationOverride[]
   marketplacePolicyOverrides MarketplacePolicyOverride[]
   marketplacePolicyLogs      MarketplacePolicyEvaluationLog[]
+  legalDocumentAcceptances   LegalDocumentAcceptance[]
+  legalConsentEvents         LegalConsentEvent[]
 
   @@index([countryCode])
   @@index([status])
@@ -1293,6 +1299,44 @@ enum PolicyOverrideStatus {
   active
   revoked
   expired
+}
+
+enum LegalDocumentType {
+  terms_of_service
+  privacy_policy
+  seller_agreement
+  home_chef_agreement
+  home_catering_agreement
+  restaurant_partner_agreement
+  refund_policy
+  cancellation_policy
+  food_safety_policy
+  background_check_consent
+  file_upload_policy
+  marketplace_disclaimer
+  other
+}
+
+enum LegalDocumentStatus {
+  draft
+  published
+  archived
+}
+
+enum LegalAudience {
+  all_users
+  households
+  chefs
+  home_catering
+  restaurants
+  admins
+  sellers
+}
+
+enum ConsentStatus {
+  accepted
+  revoked
+  declined
 }
 
 enum SellerVerificationLevel {
@@ -2994,6 +3038,79 @@ model MarketplacePolicyEvaluationLog {
   @@index([module])
   @@index([action])
   @@index([result])
+  @@index([createdAt])
+}
+
+model LegalDocument {
+  id              String                    @id @default(cuid())
+  documentType    LegalDocumentType
+  title           String
+  slug            String
+  version         String
+  status          LegalDocumentStatus       @default(draft)
+  countryCode     String?
+  region          String?
+  audience        LegalAudience
+  contentMarkdown String
+  effectiveAt     DateTime?
+  createdById     String
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  createdBy       User                      @relation("LegalDocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  publishedBy     User?                     @relation("LegalDocumentPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  acceptances     LegalDocumentAcceptance[]
+
+  @@unique([slug, version, countryCode, region])
+  @@index([documentType])
+  @@index([slug])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([region])
+  @@index([effectiveAt])
+}
+
+model LegalDocumentAcceptance {
+  id              String        @id @default(cuid())
+  documentId      String
+  userId          String
+  organizationId  String?
+  acceptedVersion String
+  acceptedAt      DateTime      @default(now())
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime      @default(now())
+  document        LegalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([acceptedVersion])
+  @@index([acceptedAt])
+}
+
+model LegalConsentEvent {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  consentType    LegalDocumentType
+  status         ConsentStatus
+  textSnapshot   String
+  version        String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([consentType])
+  @@index([status])
   @@index([createdAt])
 }
 

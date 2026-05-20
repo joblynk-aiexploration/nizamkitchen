@@ -40,6 +40,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <ul className="mt-3 space-y-2 text-sm">
                 <li><Link href="/about" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">About</Link></li>
                 <li><Link href="/contact" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Contact</Link></li>
+                <li><Link href="/legal/terms" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Terms</Link></li>
+                <li><Link href="/legal/privacy" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Privacy</Link></li>
               </ul>
             </div>
           </div>

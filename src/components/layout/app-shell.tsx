@@ -7,6 +7,7 @@ import { LogoutForm } from "@/components/layout/logout-form";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { getUnreadNotificationCount } from "@/server/notifications/notification-service";
+import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await getCurrentSession();
@@ -19,6 +20,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       console.error("[AppShell] notification count failed:", err instanceof Error ? err.message : err);
     }
     return 0;
+  });
+  const legalAcceptance = await hasAcceptedLatestRequiredDocuments(session).catch((err: unknown) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[AppShell] legal acceptance check failed:", err instanceof Error ? err.message : err);
+    }
+    return { accepted: true, missing: [] };
   });
 
   return (
@@ -59,7 +66,19 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="min-h-screen px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="mx-auto max-w-7xl">
+          {!legalAcceptance.accepted && session.user.platformRole !== "platform_owner" && (
+            <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span>Updated terms require your acceptance before some marketplace actions can continue.</span>
+                <Link href="/legal/accept-required" className="font-semibold text-amber-900 underline">
+                  Review and accept
+                </Link>
+              </div>
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   );

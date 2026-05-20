@@ -3,6 +3,7 @@ import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { backgroundCheckConsentSchema, backgroundCheckRequestSchema, backgroundCheckStatusSchema, identityVerificationStartSchema, kycProviderConfigurationSchema } from "@/lib/validation/kyc";
 import { createAuditEvent } from "@/server/audit";
+import { createConsentEvent } from "@/server/legal/legal-service";
 import { encryptGatewayCredential, isPaymentEncryptionConfigured, maskCredentialPreview, decryptGatewayCredential } from "@/server/payments/credentials";
 import { getOrCreateSellerVerificationProfile } from "@/server/seller-verifications";
 import { CheckrPlaceholderBackgroundProvider, CheckrPlaceholderKycProvider } from "@/server/kyc/providers/checkr-placeholder-provider";
@@ -91,6 +92,16 @@ export async function collectBackgroundCheckConsent(session: SellerSession, inpu
   const profile = await getOrCreateSellerVerificationProfile(session);
   const attestation = await prisma.sellerAttestation.create({
     data: { organizationId: profile.organizationId, verificationProfileId: profile.id, attestationType: "background_check_consent", version: parsed.version, textSnapshot: parsed.textSnapshot, acceptedByUserId: session.user.id, ipAddress: requestMeta?.ipAddress ?? null, userAgent: requestMeta?.userAgent ?? null },
+  });
+  await createConsentEvent({
+    userId: session.user.id,
+    organizationId: profile.organizationId,
+    consentType: "background_check_consent",
+    status: "accepted",
+    version: parsed.version,
+    textSnapshot: parsed.textSnapshot,
+    ipAddress: requestMeta?.ipAddress ?? null,
+    userAgent: requestMeta?.userAgent ?? null,
   });
   const check = await prisma.sellerBackgroundCheck.create({
     data: { organizationId: profile.organizationId, verificationProfileId: profile.id, provider: "checkr_placeholder", status: "consent_collected", consentAttestationId: attestation.id },

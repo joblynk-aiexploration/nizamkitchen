@@ -14,6 +14,8 @@ import {
   OrganizationType,
   PermissionAction,
   MarketplacePolicyModule,
+  LegalAudience,
+  LegalDocumentType,
   PlatformRole,
   PrismaClient,
   RecipeDifficulty,
@@ -208,6 +210,48 @@ const MARKETPLACE_POLICY_SEEDS = [
   },
 ] as const;
 
+const LEGAL_TEMPLATE_NOTICE = "Template placeholder — replace with final legal counsel-approved text before production.";
+
+const LEGAL_DOCUMENT_SEEDS: Array<{
+  documentType: LegalDocumentType;
+  title: string;
+  slug: string;
+  version: string;
+  audience: LegalAudience;
+  status: "published" | "draft";
+  contentMarkdown: string;
+}> = [
+  legalSeed("terms_of_service", "Terms of Service", "terms-of-service", "all_users"),
+  legalSeed("privacy_policy", "Privacy Policy", "privacy-policy", "all_users"),
+  legalSeed("seller_agreement", "Seller Agreement", "seller-agreement", "sellers"),
+  legalSeed("food_safety_policy", "Food Safety Responsibility Agreement", "food-safety-policy", "sellers"),
+  legalSeed("refund_policy", "Payment and Refund Policy", "refund-policy", "all_users"),
+  legalSeed("cancellation_policy", "Cancellation Policy", "cancellation-policy", "all_users"),
+  legalSeed("home_chef_agreement", "Home Chef Agreement", "home-chef-agreement", "chefs"),
+  legalSeed("home_catering_agreement", "Home Catering Agreement", "home-catering-agreement", "home_catering"),
+  legalSeed("restaurant_partner_agreement", "Restaurant Partner Agreement", "restaurant-partner-agreement", "restaurants"),
+  legalSeed("background_check_consent", "KYC and Background Check Consent", "background-check-consent", "sellers"),
+  legalSeed("file_upload_policy", "S3 and File Upload Policy", "file-upload-policy", "all_users"),
+  legalSeed("marketplace_disclaimer", "Marketplace Disclaimer", "marketplace-disclaimer", "all_users"),
+];
+
+function legalSeed(
+  documentType: LegalDocumentType,
+  title: string,
+  slug: string,
+  audience: LegalAudience,
+) {
+  return {
+    documentType,
+    title,
+    slug,
+    version: "v1.0-template",
+    audience,
+    status: "published" as const,
+    contentMarkdown: `# ${title}\n\n**${LEGAL_TEMPLATE_NOTICE}**\n\nThis NizamKitchen template is provided for product setup and workflow testing only. It is not jurisdiction-specific legal advice and is not lawyer-approved.\n\n## Purpose\n\nDescribe the platform expectations, user responsibilities, seller responsibilities, payment/refund handling, privacy practices, and operational limits that apply to this document.\n\n## Admin replacement required\n\nBefore production launch, replace this placeholder with final reviewed text approved by qualified counsel for the countries and regions where NizamKitchen operates.\n`,
+  };
+}
+
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
   { countryCode: "IN", countryName: "India", currencyCode: "INR", defaultTimezone: "Asia/Kolkata", defaultLocale: "en-IN", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+91" },
@@ -348,6 +392,43 @@ async function seedMarketplacePolicies(createdById: string) {
           organizationType: null,
           createdById,
           ...data,
+        },
+      });
+    }
+  }
+}
+
+async function seedLegalDocuments(createdById: string) {
+  for (const document of LEGAL_DOCUMENT_SEEDS) {
+    const existing = await prisma.legalDocument.findFirst({
+      where: {
+        slug: document.slug,
+        version: document.version,
+        countryCode: null,
+        region: null,
+      },
+    });
+    const data = {
+      documentType: document.documentType,
+      title: document.title,
+      audience: document.audience,
+      status: document.status,
+      contentMarkdown: document.contentMarkdown,
+      effectiveAt: new Date(),
+      publishedById: document.status === "published" ? createdById : null,
+      publishedAt: document.status === "published" ? new Date() : null,
+    };
+    if (existing) {
+      await prisma.legalDocument.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.legalDocument.create({
+        data: {
+          ...data,
+          slug: document.slug,
+          version: document.version,
+          countryCode: null,
+          region: null,
+          createdById,
         },
       });
     }
@@ -1970,6 +2051,7 @@ async function main() {
   const platformOwner = Array.from(users.values()).find((user) => user.platformRole === PlatformRole.platform_owner);
   if (!platformOwner) throw new Error("Platform owner seed is required before marketplace policies.");
   await seedMarketplacePolicies(platformOwner.id);
+  await seedLegalDocuments(platformOwner.id);
 
   const sellerRequirementSeeds = [
     { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },

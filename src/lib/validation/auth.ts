@@ -18,6 +18,7 @@ export const registerSchema = z.object({
   organizationName: z.string().trim().min(2).max(120),
   countryCode: z.string().trim().min(2).max(3).toUpperCase(),
   accountType: z.enum(["household", "chef", "catering", "restaurant"]).default("household"),
+  acceptLegalTerms: z.string().optional(),
   householdSize: z.coerce.number().int().min(1).max(20).optional(),
   spiceLevel: z.enum(["mild", "medium", "hot", "extra_hot"]).optional(),
   cuisineIds: z.union([z.string(), z.array(z.string())]).optional().transform((v) =>

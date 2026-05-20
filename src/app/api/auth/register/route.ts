@@ -8,6 +8,7 @@ import { createSession, getRequestMetadata } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { registerSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
+import { createAcceptance, getRequiredLegalDocumentsForUser } from "@/server/legal/legal-service";
 
 const orgTypeMap: Record<string, OrganizationType> = {
   household: OrganizationType.household,
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
     organizationName: formData.get("organizationName"),
     countryCode: formData.get("countryCode"),
     accountType: formData.get("accountType") ?? "household",
+    acceptLegalTerms: formData.get("acceptLegalTerms"),
     householdSize: formData.get("householdSize") ?? undefined,
     spiceLevel: formData.get("spiceLevel") ?? undefined,
     cuisineIds: cuisineIds.length > 0 ? cuisineIds : undefined,
@@ -65,6 +67,10 @@ export async function POST(request: Request) {
     return NextResponse.redirect(
       new URL("/register?message=Invalid registration data.", request.url),
     );
+  }
+
+  if (parsed.data.acceptLegalTerms !== "on") {
+    return NextResponse.redirect(new URL("/register?message=Please accept the required legal documents.", request.url));
   }
 
   const existingUser = await prisma.user.findUnique({
@@ -199,6 +205,21 @@ export async function POST(request: Request) {
     details: { role: "org_owner" },
     ...requestMeta,
   });
+
+  const requiredLegalDocuments = await getRequiredLegalDocumentsForUser({
+    user: result.user,
+    activeOrganization: result.organization,
+  });
+  await Promise.all(
+    requiredLegalDocuments.map((document) =>
+      createAcceptance({
+        userId: result.user.id,
+        organizationId: result.organization.id,
+        documentId: document.id,
+        ...requestMeta,
+      }),
+    ),
+  );
 
   const destination = getPostRegisterDestination(parsed.data.accountType, result.user.platformRole);
   return NextResponse.redirect(new URL(destination, request.url));
