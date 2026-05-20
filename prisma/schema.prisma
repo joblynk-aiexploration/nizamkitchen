@@ -240,6 +240,7 @@ model User {
   kycProviderConfigurationsCreated KycProviderConfiguration[]     @relation("KycProviderConfigurationCreatedBy")
   kycProviderConfigurationsUpdated KycProviderConfiguration[]     @relation("KycProviderConfigurationUpdatedBy")
   identityVerifications            IdentityVerification[]
+  sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
 }
 
 model Session {
@@ -328,6 +329,7 @@ model Organization {
   kitchenSafetyReviews       KitchenSafetyReview[]
   sellerTrialReviews         SellerTrialReview[]
   identityVerifications      IdentityVerification[]
+  sellerVerificationOverrides SellerVerificationOverride[]
 
   @@index([countryCode])
   @@index([status])
@@ -1162,6 +1164,11 @@ enum SellerVerificationStatus {
   rejected
   expired
   suspended
+}
+
+enum SellerVerificationPolicyStatus {
+  active
+  disabled
 }
 
 enum SellerVerificationLevel {
@@ -2736,6 +2743,54 @@ model SellerVerificationRequirement {
   @@index([sellerType])
   @@index([requirementType])
   @@index([isActive])
+}
+
+model SellerVerificationPolicy {
+  id                                      String                         @id @default(cuid())
+  countryCode                             String?
+  region                                  String?
+  sellerType                              SellerType
+  policyName                              String
+  status                                  SellerVerificationPolicyStatus @default(active)
+  allowPublicProfileBeforeVerification    Boolean                        @default(false)
+  allowMenuPublishingBeforeVerification   Boolean                        @default(false)
+  allowOrderAcceptanceBeforeVerification  Boolean                        @default(false)
+  allowPayoutsBeforeVerification          Boolean                        @default(false)
+  requireIdentityVerification             Boolean                        @default(false)
+  requireFoodHandlerCertificate           Boolean                        @default(false)
+  requireLocalPermit                      Boolean                        @default(false)
+  requireKitchenReview                    Boolean                        @default(false)
+  requireBackgroundCheck                  Boolean                        @default(false)
+  requirePayoutOnboarding                 Boolean                        @default(false)
+  requireAdminApproval                    Boolean                        @default(true)
+  createdAt                               DateTime                       @default(now())
+  updatedAt                               DateTime                       @updatedAt
+  overrides                               SellerVerificationOverride[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([status])
+}
+
+model SellerVerificationOverride {
+  id             String                    @id @default(cuid())
+  organizationId String
+  policyId       String?
+  grantedById    String
+  reason         String
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime                  @default(now())
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policy         SellerVerificationPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  grantedBy      User                      @relation("SellerVerificationOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([policyId])
+  @@index([grantedById])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 model SellerVerificationItem {

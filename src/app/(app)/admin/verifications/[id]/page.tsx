@@ -8,8 +8,9 @@ import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { listSellerVerificationOverrides } from "@/server/seller-verification-gates";
 import { getAdminVerificationProfile } from "@/server/seller-verifications";
-import { requestBackgroundCheckAction, reviewFoodSafetyCertificateAction, reviewKitchenChecklistAction, reviewSellerPermitAction, reviewVerificationItemAction, reviewVerificationProfileAction, updateBackgroundCheckStatusAction, upsertTrialReviewAction } from "../../../seller-verification-actions";
+import { grantSellerVerificationOverrideAction, requestBackgroundCheckAction, reviewFoodSafetyCertificateAction, reviewKitchenChecklistAction, reviewSellerPermitAction, reviewVerificationItemAction, reviewVerificationProfileAction, revokeSellerVerificationOverrideAction, updateBackgroundCheckStatusAction, upsertTrialReviewAction } from "../../../seller-verification-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ export default async function AdminVerificationDetailPage({ params, searchParams
     searchParams,
   ]);
   const profile = await getAdminVerificationProfile(session, routeParams.id);
+  const overrides = await listSellerVerificationOverrides(profile.organizationId);
   const canMutate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin" || session.user.platformRole === "country_manager";
+  const canOverride = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
 
   return (
     <AdminShell session={session} title={profile.organization.name} description={`${profile.sellerType.replace(/_/g, " ")} · ${profile.countryCode}`}>
@@ -121,6 +124,7 @@ export default async function AdminVerificationDetailPage({ params, searchParams
           ) : null}
           {canMutate ? <TrialReviewCard profileId={profile.id} trialReviewId={profile.trialReviews[0]?.id ?? null} /> : null}
           {canMutate ? <RequestBackgroundCheckCard profileId={profile.id} /> : null}
+          {canOverride ? <OverrideCard profileId={profile.id} organizationId={profile.organizationId} overrides={overrides} /> : null}
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Privacy guardrails</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">Identity documents, certificates, kitchen photos, and background status are private. Public profiles only show safe status badges, never document numbers or background-check details.</p>
@@ -128,6 +132,47 @@ export default async function AdminVerificationDetailPage({ params, searchParams
         </div>
       </div>
     </AdminShell>
+  );
+}
+
+function OverrideCard({ profileId, organizationId, overrides }: {
+  profileId: string;
+  organizationId: string;
+  overrides: Array<{ id: string; reason: string; expiresAt: Date | null; revokedAt: Date | null; policy: { policyName: string } | null; grantedBy: { fullName: string; email: string } }>;
+}) {
+  return (
+    <Card className="space-y-4">
+      <h2 className="font-semibold text-[var(--color-ink)]">Temporary override</h2>
+      <p className="text-sm text-[var(--color-muted)]">Platform admins can temporarily bypass policy gates for a seller. Overrides never bypass suspended or rejected verification status.</p>
+      <form action={grantSellerVerificationOverrideAction} className="space-y-3">
+        <input type="hidden" name="profileId" value={profileId} />
+        <input type="hidden" name="organizationId" value={organizationId} />
+        <TextArea label="Reason" name="reason" placeholder="Why is this temporary override needed?" required />
+        <TextInput label="Expires at" name="expiresAt" type="date" />
+        <Button type="submit" className="w-full justify-center">Grant temporary override</Button>
+      </form>
+      <div className="space-y-2">
+        {overrides.length === 0 ? <p className="text-sm text-[var(--color-muted)]">No overrides granted.</p> : overrides.map((override) => (
+          <div key={override.id} className="rounded-2xl border border-[var(--color-border)] p-3 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{override.policy?.policyName ?? "Global override"}</span>
+              <Badge tone={override.revokedAt ? "neutral" : override.expiresAt && override.expiresAt < new Date() ? "warning" : "success"}>
+                {override.revokedAt ? "revoked" : override.expiresAt && override.expiresAt < new Date() ? "expired" : "active"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-[var(--color-muted)]">{override.reason}</p>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">Expires: {override.expiresAt?.toLocaleDateString() ?? "No expiration"}</p>
+            {!override.revokedAt ? (
+              <form action={revokeSellerVerificationOverrideAction} className="mt-3">
+                <input type="hidden" name="profileId" value={profileId} />
+                <input type="hidden" name="overrideId" value={override.id} />
+                <Button type="submit" variant="secondary">Revoke</Button>
+              </form>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

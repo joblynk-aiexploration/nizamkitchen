@@ -19,6 +19,11 @@ const { mockPrisma } = vi.hoisted(() => ({
       deleteMany: vi.fn(),
       create: vi.fn(),
     },
+    organization: { findUnique: vi.fn() },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     featureFlag: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
@@ -57,6 +62,11 @@ describe("shared menu builder", () => {
       status: "active",
       category: "biryani",
     });
+    mockPrisma.organization.findUnique.mockResolvedValue({ id: "org-1", organizationType: "home_catering", countryCode: "US", status: "active" });
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
   });
 
   it("validates menu item input", () => {
@@ -126,6 +136,72 @@ describe("shared menu builder", () => {
         data: expect.objectContaining({ organizationId: "restaurant-org" }),
       }),
     );
+  });
+
+  it("unverified seller cannot publish menu item when policy requires verification", async () => {
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([{
+      id: "policy-1",
+      policyName: "Strict marketplace policy",
+      countryCode: "US",
+      region: null,
+      sellerType: "home_catering",
+      status: "active",
+      allowMenuPublishingBeforeVerification: false,
+      allowPublicProfileBeforeVerification: false,
+      allowOrderAcceptanceBeforeVerification: false,
+      allowPayoutsBeforeVerification: false,
+      requireAdminApproval: true,
+      requireIdentityVerification: false,
+      requireFoodHandlerCertificate: false,
+      requireLocalPermit: false,
+      requireKitchenReview: false,
+      requireBackgroundCheck: false,
+      requirePayoutOnboarding: false,
+      updatedAt: new Date(),
+    }]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "submitted", items: [], foodSafetyCertificates: [], permits: [], kitchenReviews: [], backgroundChecks: [], identityVerifications: [] });
+
+    await expect(upsertMenuItem({
+      organizationId: "catering-org",
+      countryCode: "US",
+      organizationType: "home_catering",
+      actorUserId: "seller-1",
+      input: { name: "Haleem", category: "special", currencyCode: "USD", status: "active" },
+    })).rejects.toThrow("Complete verification before publishing menu items.");
+  });
+
+  it("verified seller can publish menu item when policy requires verification", async () => {
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([{
+      id: "policy-1",
+      policyName: "Strict marketplace policy",
+      countryCode: "US",
+      region: null,
+      sellerType: "home_catering",
+      status: "active",
+      allowMenuPublishingBeforeVerification: false,
+      allowPublicProfileBeforeVerification: false,
+      allowOrderAcceptanceBeforeVerification: false,
+      allowPayoutsBeforeVerification: false,
+      requireAdminApproval: true,
+      requireIdentityVerification: false,
+      requireFoodHandlerCertificate: false,
+      requireLocalPermit: false,
+      requireKitchenReview: false,
+      requireBackgroundCheck: false,
+      requirePayoutOnboarding: false,
+      updatedAt: new Date(),
+    }]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "verified", items: [], foodSafetyCertificates: [], permits: [], kitchenReviews: [], backgroundChecks: [], identityVerifications: [] });
+
+    await upsertMenuItem({
+      organizationId: "catering-org",
+      countryCode: "US",
+      organizationType: "home_catering",
+      actorUserId: "seller-1",
+      input: { name: "Haleem", category: "special", currencyCode: "USD", status: "active" },
+    });
+
+    expect(mockPrisma.menuItem.create).toHaveBeenCalled();
   });
 
   it("seller cannot attach an item to another organization menu", async () => {

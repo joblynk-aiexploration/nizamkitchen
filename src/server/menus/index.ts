@@ -1,10 +1,11 @@
-import { MenuItemStatus, OrganizationType, Prisma, type PlatformRole, type UserStatus } from "@prisma/client";
+import { MenuItemStatus, OrganizationType, Prisma, SellerType, type PlatformRole, type UserStatus } from "@prisma/client";
 import { assertCountryAccess, assertPlatformRole, hasPlatformRole } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { adminMenuItemStatusSchema, menuItemSchema, menuSchema } from "@/lib/validation/menus";
 import { createAuditEvent } from "@/server/audit";
+import { assertSellerGate, getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const MENU_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
@@ -32,6 +33,12 @@ function assertMenuOwnerType(organizationType: string) {
 
 function ownerFeatureFlag(organizationType: string) {
   return organizationType === OrganizationType.home_catering ? "home_catering" : "restaurant_profiles";
+}
+
+function sellerTypeFromOrganizationType(organizationType: string): SellerType | null {
+  if (organizationType === OrganizationType.home_catering) return SellerType.home_catering;
+  if (organizationType === OrganizationType.restaurant) return SellerType.restaurant;
+  return null;
 }
 
 export async function canAccessMenus(params: {
@@ -145,6 +152,16 @@ export async function upsertMenuItem(params: {
     if (!menu) throw new Error("Menu not found for this organization.");
   }
   await assertStorageFileBelongsToOrganization(parsed.photoFileId, params.organizationId);
+  const sellerType = sellerTypeFromOrganizationType(params.organizationType);
+  if (sellerType && (parsed.status === "active" || parsed.status === "sold_out")) {
+    await assertSellerGate({
+      organizationId: params.organizationId,
+      sellerType,
+      countryCode: params.countryCode,
+      capability: "menu_publishing",
+      message: "Complete verification before publishing menu items.",
+    });
+  }
 
   const baseSlug = slugify(parsed.name);
   const slug = existing?.slug ?? `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
@@ -215,6 +232,21 @@ export async function upsertMenuItem(params: {
 }
 
 export async function listPublicMenuItemsForOrganization(organizationId: string, filters?: { category?: string }) {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { id: true, organizationType: true, countryCode: true, status: true },
+  });
+  const sellerType = organization ? sellerTypeFromOrganizationType(organization.organizationType) : null;
+  if (!organization || organization.status === "suspended" || organization.status === "disabled") return [];
+  if (sellerType) {
+    const gate = await getSellerVerificationGate({
+      organizationId,
+      sellerType,
+      countryCode: organization.countryCode,
+      capability: "public_profile",
+    });
+    if (!gate.allowed) return [];
+  }
   const items = await prisma.menuItem.findMany({
     where: {
       organizationId,

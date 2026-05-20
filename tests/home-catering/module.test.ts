@@ -10,6 +10,10 @@ const { mockPrisma } = vi.hoisted(() => ({
       upsert: vi.fn(),
       update: vi.fn(),
     },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     featureFlag: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
@@ -42,6 +46,10 @@ describe("home catering seller foundation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(isFeatureEnabled).mockResolvedValue(true);
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
   });
 
   it("accepts home catering registration account type", () => {
@@ -114,7 +122,6 @@ describe("home catering seller foundation", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: "active",
-          verificationStatus: "verified",
           isPublic: true,
           acceptsDelivery: true,
         }),

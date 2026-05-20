@@ -21,7 +21,11 @@ const { mockPrisma, stripeClient } = vi.hoisted(() => ({
     homeChefRequest: { updateMany: vi.fn() },
     billingPlan: { findUniqueOrThrow: vi.fn() },
     billingSubscription: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-    sellerPayoutAccount: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+    sellerPayoutAccount: { findUnique: vi.fn(), findFirst: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+    organization: { findUnique: vi.fn() },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -66,6 +70,10 @@ describe("Stripe payment gateway integration", () => {
     mockPrisma.paymentGateway.findUnique.mockResolvedValue(gateway());
     mockPrisma.paymentConfiguration.findUnique.mockResolvedValue({ platformCommissionPercent: "10", fixedCommissionAmount: "1.00", taxPercent: "0" });
     mockPrisma.paymentOrder.findUnique.mockResolvedValue(null);
+    mockPrisma.organization.findUnique.mockResolvedValue({ id: "seller-1", organizationType: "home_catering", countryCode: "US" });
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
     mockPrisma.paymentOrder.findFirst.mockResolvedValue({ id: "payment-order-1", organizationId: "org-household", countryCode: "US" });
     mockPrisma.paymentOrder.create.mockImplementation(async ({ data }) => ({ id: "payment-order-1", status: "pending", ...data }));
     mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue({
@@ -92,6 +100,7 @@ describe("Stripe payment gateway integration", () => {
       currencyCode: "USD",
     });
     mockPrisma.sellerPayoutAccount.findUnique.mockResolvedValue({ status: "active", chargesEnabled: true, providerAccountId: "acct_seller" });
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue({ status: "active", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true, providerAccountId: "acct_seller" });
     stripeClient.checkout.sessions.create.mockResolvedValue({ id: "cs_test_1", url: "https://checkout.stripe.test/session", expires_at: 123 });
   });
 

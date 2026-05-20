@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireMembership, requirePlatformRole, getRequestMetadata } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { collectBackgroundCheckConsent, requestBackgroundCheck, saveKycProviderConfiguration, startIdentityVerification, updateBackgroundCheckStatus } from "@/server/kyc/kyc-service";
+import { grantSellerVerificationOverride, revokeSellerVerificationOverride, saveSellerVerificationPolicy } from "@/server/seller-verification-gates";
 import {
   acceptSellerAttestation,
   reviewFoodSafetyCertificate,
@@ -174,6 +175,44 @@ export async function saveKycProviderConfigurationAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/admin/kyc/providers?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save KYC provider."))}`);
+  }
+}
+
+export async function saveSellerVerificationPolicyAction(formData: FormData) {
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+    await saveSellerVerificationPolicy(session, Object.fromEntries(formData.entries()));
+    revalidatePath("/admin/verifications/requirements");
+    redirect("/admin/verifications/requirements?message=Verification policy saved.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/requirements?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save verification policy."))}`);
+  }
+}
+
+export async function grantSellerVerificationOverrideAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+    await grantSellerVerificationOverride(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Temporary verification override granted.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to grant verification override."))}`);
+  }
+}
+
+export async function revokeSellerVerificationOverrideAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+    await revokeSellerVerificationOverride(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Verification override revoked.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to revoke verification override."))}`);
   }
 }
 

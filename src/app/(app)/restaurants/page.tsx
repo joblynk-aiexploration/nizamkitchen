@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
+import { getSellerVerificationGate } from "@/server/seller-verification-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +29,23 @@ export default async function RestaurantsPage() {
     },
     orderBy: { name: "asc" },
   });
+  const visibleRestaurants = [];
+  for (const restaurant of restaurants) {
+    const gate = await getSellerVerificationGate({
+      organizationId: restaurant.id,
+      sellerType: "restaurant",
+      countryCode: restaurant.countryCode,
+      capability: "public_profile",
+    });
+    if (gate.allowed) visibleRestaurants.push(restaurant);
+  }
 
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Restaurants" title="Browse restaurant menus" description="View restaurant partner menu foundations before live ordering is connected." />
-      {restaurants.length === 0 ? <EmptyState title="No restaurant menus yet" description="Approved restaurant menus will appear here." /> : (
+      {visibleRestaurants.length === 0 ? <EmptyState title="No restaurant menus yet" description="Approved restaurant menus will appear here." /> : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {restaurants.map((restaurant) => (
+          {visibleRestaurants.map((restaurant) => (
             <Link key={restaurant.id} href={`/restaurants/${restaurant.slug}`}>
               <Card className="h-full">
                 <h2 className="text-xl font-semibold">{restaurant.name}</h2>

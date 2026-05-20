@@ -27,6 +27,10 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => {
     organization: {
       findFirst: vi.fn(),
     },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     $transaction: vi.fn((callback) =>
       callback({
         homeChefRequest: { update: requestUpdate },
@@ -70,6 +74,10 @@ const countryManagerSession = {
 describe("home chef request system", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
   });
 
   it("creates an organization-scoped household request with status history and audit logs", async () => {
@@ -225,6 +233,43 @@ describe("home chef request system", () => {
       }),
     );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "home_chef_request.assigned" }));
+  });
+
+  it("blocks home chef assignment when required chef verification is missing", async () => {
+    mockPrisma.homeChefRequest.findUnique.mockResolvedValue({
+      id: "request-1",
+      organizationId: "org-1",
+      countryCode: "US",
+      status: "submitted",
+    });
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "chef-org-1", name: "Chef Org" });
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([{
+      id: "policy-1",
+      policyName: "Chef verification gate",
+      countryCode: "US",
+      region: null,
+      sellerType: "chef_business",
+      status: "active",
+      allowOrderAcceptanceBeforeVerification: false,
+      allowPublicProfileBeforeVerification: true,
+      allowMenuPublishingBeforeVerification: true,
+      allowPayoutsBeforeVerification: true,
+      requireAdminApproval: true,
+      requireIdentityVerification: false,
+      requireFoodHandlerCertificate: true,
+      requireLocalPermit: false,
+      requireKitchenReview: false,
+      requireBackgroundCheck: true,
+      requirePayoutOnboarding: false,
+      updatedAt: new Date(),
+    }]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "submitted", items: [], foodSafetyCertificates: [], permits: [], kitchenReviews: [], backgroundChecks: [], identityVerifications: [] });
+
+    await expect(assignHomeChefRequest({
+      session: adminSession,
+      requestId: "request-1",
+      input: { assignedChefOrganizationId: "chef-org-1" },
+    })).rejects.toThrow("Chef verification is incomplete");
   });
 
   it("creates household messages without allowing internal notes", async () => {

@@ -12,6 +12,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
+import { getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
 
@@ -27,6 +28,13 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
     select: { id: true, name: true, countryCode: true, logoFileId: true, coverPhotoFileId: true },
   });
   if (!restaurant) notFound();
+  const publicGate = await getSellerVerificationGate({
+    organizationId: restaurant.id,
+    sellerType: "restaurant",
+    countryCode: restaurant.countryCode,
+    capability: "public_profile",
+  });
+  if (!publicGate.allowed) notFound();
   const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadges] = await Promise.all([
     listPublicMenuItemsForOrganization(restaurant.id),
     listPublicBusinessSocialLinks(restaurant.id, "restaurant"),

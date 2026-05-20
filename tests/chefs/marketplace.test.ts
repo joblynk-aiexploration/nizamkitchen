@@ -29,6 +29,10 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled, createHomeChefRequest } 
     homeChefRequest: {
       update: vi.fn(),
     },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
   },
   createAuditEvent: vi.fn(),
   isFeatureEnabled: vi.fn(),
@@ -65,6 +69,10 @@ const countryManagerSession = {
 describe("home chef marketplace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
   });
 
   it("lets a chef business create its own profile and logs audit", async () => {
@@ -107,7 +115,7 @@ describe("home chef marketplace", () => {
 
   it("household browsing returns only public active chefs from query", async () => {
     isFeatureEnabled.mockResolvedValue(true);
-    mockPrisma.chefProfile.findMany.mockResolvedValue([{ id: "chef-1", status: "active", isPublic: true }]);
+    mockPrisma.chefProfile.findMany.mockResolvedValue([{ id: "chef-1", organizationId: "chef-org-1", countryCode: "US", baseRegion: null, status: "active", isPublic: true }]);
 
     await listPublicChefProfiles({ organizationId: "household-1", verifiedOnly: true, serviceType: "occasion" });
 
@@ -168,6 +176,8 @@ describe("home chef marketplace", () => {
     mockPrisma.chefProfile.findFirst.mockResolvedValue({
       id: "chef-profile-1",
       organizationId: "chef-org-1",
+      countryCode: "US",
+      baseRegion: null,
       displayName: "Hyderabad Home Kitchen",
       status: "active",
       isPublic: true,

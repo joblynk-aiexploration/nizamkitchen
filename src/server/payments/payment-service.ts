@@ -1,9 +1,10 @@
-import { PaymentGatewayStatus, PaymentProvider, Prisma } from "@prisma/client";
+import { OrganizationType, PaymentGatewayStatus, PaymentProvider, Prisma, SellerType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { paymentOrderCreateSchema } from "@/lib/validation/payments";
 import { createAuditEvent } from "@/server/audit";
 import { calculatePaymentBreakdown } from "@/server/payments/currency";
 import { PaymentGatewayUnavailableError } from "@/server/payments/payment-errors";
+import { assertSellerGate } from "@/server/seller-verification-gates";
 
 export async function createPaymentOrderForModule(input: unknown) {
   const parsed = paymentOrderCreateSchema.parse(input);
@@ -22,6 +23,22 @@ export async function createPaymentOrderForModule(input: unknown) {
     }
     if (supportedCurrencies.length && !supportedCurrencies.includes(parsed.currencyCode)) {
       throw new PaymentGatewayUnavailableError("This gateway is not enabled for the selected currency.");
+    }
+  }
+  if (parsed.sellerOrganizationId && providerRequiresHostedCheckout(parsed.provider)) {
+    const seller = await prisma.organization.findUnique({
+      where: { id: parsed.sellerOrganizationId },
+      select: { id: true, organizationType: true, countryCode: true },
+    });
+    const sellerType = sellerTypeFromOrganizationType(seller?.organizationType ?? null);
+    if (seller && sellerType) {
+      await assertSellerGate({
+        organizationId: seller.id,
+        sellerType,
+        countryCode: seller.countryCode,
+        capability: "payouts",
+        message: "Seller payout verification is incomplete. Live checkout is not available yet.",
+      });
     }
   }
 
@@ -83,4 +100,11 @@ export function parseStringArray(value: Prisma.JsonValue): string[] {
 
 export function providerRequiresHostedCheckout(provider: PaymentProvider) {
   return provider !== PaymentProvider.manual && provider !== PaymentProvider.cash;
+}
+
+function sellerTypeFromOrganizationType(organizationType: OrganizationType | null): SellerType | null {
+  if (organizationType === OrganizationType.home_catering) return SellerType.home_catering;
+  if (organizationType === OrganizationType.restaurant) return SellerType.restaurant;
+  if (organizationType === OrganizationType.chef_business) return SellerType.chef_business;
+  return null;
 }

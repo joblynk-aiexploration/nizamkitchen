@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { getSellerDashboardVerificationSummary } from "@/server/seller-verification-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,11 @@ export default async function RestaurantDashboardPage() {
       />
     );
   }
+  const gateSummary = await getSellerDashboardVerificationSummary({
+    organizationId: session.activeOrganization.id,
+    sellerType: "restaurant",
+    countryCode: session.activeOrganization.countryCode,
+  });
 
   return (
     <div className="space-y-8">
@@ -27,6 +33,7 @@ export default async function RestaurantDashboardPage() {
         title={session.activeOrganization.name}
         description="Manage restaurant profile foundations and menus households can browse before live ordering is connected."
       />
+      <VerificationGateAlert summary={gateSummary} />
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -46,5 +53,18 @@ export default async function RestaurantDashboardPage() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function VerificationGateAlert({ summary }: { summary: { missingRequirements: string[]; blockedCapabilities: string[]; policyName: string | null; overrideActive: boolean } }) {
+  if (summary.missingRequirements.length === 0 && summary.blockedCapabilities.length === 0) return null;
+  return (
+    <Card className="border-amber-200 bg-amber-50">
+      <h2 className="font-semibold text-amber-950">Verification checklist</h2>
+      <p className="mt-2 text-sm text-amber-900">Policy: {summary.policyName ?? "No active marketplace gate policy"}. {summary.overrideActive ? "A temporary admin override is active." : "Complete the next steps to unlock marketplace capabilities."}</p>
+      {summary.blockedCapabilities.length ? <p className="mt-3 text-sm text-amber-900">Blocked: {summary.blockedCapabilities.map((item) => item.replace(/_/g, " ")).join(", ")}.</p> : null}
+      {summary.missingRequirements.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">{summary.missingRequirements.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+      <Button asChild variant="secondary" className="mt-4"><Link href="/restaurant/verification">Open verification</Link></Button>
+    </Card>
   );
 }

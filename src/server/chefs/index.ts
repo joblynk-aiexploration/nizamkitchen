@@ -3,6 +3,7 @@ import {
   ChefVerificationStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type ChefServiceType,
   type PlatformRole,
   type UserStatus,
@@ -23,6 +24,7 @@ import {
 import { createAuditEvent } from "@/server/audit";
 import { createNotification } from "@/server/notifications/notification-service";
 import { createHomeChefRequest } from "@/server/home-chef";
+import { getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const CHEF_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
@@ -87,7 +89,7 @@ export async function listPublicChefProfiles(filters: {
   if (!enabled) return prisma.chefProfile.findMany({ where: { id: "__disabled__" }, include: { organization: { select: { name: true, countryCode: true } }, services: true, specialtyRecipes: true, availability: true } });
   const serviceType = filters.serviceType as ChefServiceType | undefined;
 
-  return prisma.chefProfile.findMany({
+  const profiles = await prisma.chefProfile.findMany({
     where: {
       status: "active",
       isPublic: true,
@@ -111,13 +113,25 @@ export async function listPublicChefProfiles(filters: {
     },
     orderBy: [{ verificationStatus: "desc" }, { displayName: "asc" }],
   });
+  const visibleProfiles = [];
+  for (const profile of profiles) {
+    const gate = await getSellerVerificationGate({
+      organizationId: profile.organizationId,
+      sellerType: SellerType.chef_business,
+      countryCode: profile.countryCode,
+      region: profile.baseRegion,
+      capability: "public_profile",
+    });
+    if (gate.allowed) visibleProfiles.push(profile);
+  }
+  return visibleProfiles;
 }
 
 export async function getPublicChefProfile(slug: string, organizationId: string | null) {
   const enabled = await canAccessChefMarketplace({ organizationId });
   if (!enabled) return null;
 
-  return prisma.chefProfile.findFirst({
+  const profile = await prisma.chefProfile.findFirst({
     where: {
       slug,
       status: "active",
@@ -125,6 +139,15 @@ export async function getPublicChefProfile(slug: string, organizationId: string 
     },
     ...chefProfileDetailArgs,
   });
+  if (!profile) return null;
+  const gate = await getSellerVerificationGate({
+    organizationId: profile.organizationId,
+    sellerType: SellerType.chef_business,
+    countryCode: profile.countryCode,
+    region: profile.baseRegion,
+    capability: "public_profile",
+  });
+  return gate.allowed ? profile : null;
 }
 
 export async function upsertChefProfile(params: {

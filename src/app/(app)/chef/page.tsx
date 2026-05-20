@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
+import { getSellerDashboardVerificationSummary } from "@/server/seller-verification-gates";
 import { pauseChefProfileAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,14 @@ export default async function ChefDashboardPage() {
     return <EmptyState title="Chef marketplace unavailable" description="Chef tools are available only for enabled chef business organizations." />;
   }
 
-  const profile = await getChefProfileForOrganization(session.activeOrganization.id);
+  const [profile, gateSummary] = await Promise.all([
+    getChefProfileForOrganization(session.activeOrganization.id),
+    getSellerDashboardVerificationSummary({
+      organizationId: session.activeOrganization.id,
+      sellerType: "chef_business",
+      countryCode: session.activeOrganization.countryCode,
+    }),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -43,6 +51,7 @@ export default async function ChefDashboardPage() {
         />
       ) : (
         <>
+          <VerificationGateAlert summary={gateSummary} />
           <section className="grid gap-4 md:grid-cols-4">
             <Card>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Profile status</p>
@@ -91,5 +100,18 @@ export default async function ChefDashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+function VerificationGateAlert({ summary }: { summary: { missingRequirements: string[]; blockedCapabilities: string[]; policyName: string | null; overrideActive: boolean } }) {
+  if (summary.missingRequirements.length === 0 && summary.blockedCapabilities.length === 0) return null;
+  return (
+    <Card className="border-amber-200 bg-amber-50">
+      <h2 className="font-semibold text-amber-950">Verification checklist</h2>
+      <p className="mt-2 text-sm text-amber-900">Policy: {summary.policyName ?? "No active marketplace gate policy"}. {summary.overrideActive ? "A temporary admin override is active." : "Complete the next steps to unlock marketplace capabilities."}</p>
+      {summary.blockedCapabilities.length ? <p className="mt-3 text-sm text-amber-900">Blocked: {summary.blockedCapabilities.map((item) => item.replace(/_/g, " ")).join(", ")}.</p> : null}
+      {summary.missingRequirements.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">{summary.missingRequirements.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+      <Button asChild variant="secondary" className="mt-4"><Link href="/chef/verification">Open verification</Link></Button>
+    </Card>
   );
 }

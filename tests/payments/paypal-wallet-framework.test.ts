@@ -11,7 +11,11 @@ const { mockPrisma } = vi.hoisted(() => ({
     paymentWebhookEvent: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     foodOrder: { findUniqueOrThrow: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     homeChefRequest: { updateMany: vi.fn() },
-    sellerPayoutAccount: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findUnique: vi.fn(), findFirst: vi.fn() },
+    organization: { findUnique: vi.fn() },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -64,6 +68,11 @@ describe("PayPal and wallet gateway framework", () => {
     mockPrisma.paymentGateway.findUnique.mockResolvedValue(paypalGateway());
     mockPrisma.paymentConfiguration.findUnique.mockResolvedValue({ allowStripe: true, allowPayPal: true, allowGooglePay: true, allowManualPayment: true, platformCommissionPercent: "10", fixedCommissionAmount: "0", taxPercent: "0" });
     mockPrisma.paymentOrder.findUnique.mockResolvedValue(null);
+    mockPrisma.organization.findUnique.mockResolvedValue({ id: "seller-1", organizationType: "home_catering", countryCode: "US" });
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue({ status: "active", chargesEnabled: true, payoutsEnabled: true, detailsSubmitted: true });
     mockPrisma.paymentOrder.create.mockImplementation(async ({ data }) => ({ id: "payment-order-1", status: "pending", ...data }));
     mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue({ id: "payment-order-1", status: "paid", provider: "paypal", providerOrderId: "paypal-order-1", organizationId: "org-1", countryCode: "US", currencyCode: "USD", amount: new Prisma.Decimal(25), gatewayId: "gateway-paypal", refunds: [] });
     mockPrisma.paymentOrder.findFirstOrThrow.mockResolvedValue({ id: "payment-order-1", provider: "paypal", providerOrderId: "paypal-order-1", organizationId: "org-1", countryCode: "US", currencyCode: "USD", amount: new Prisma.Decimal(25), gatewayId: "gateway-paypal" });

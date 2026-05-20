@@ -12,6 +12,10 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     foodOrderMessage: { create: vi.fn() },
     membership: { findMany: vi.fn() },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     featureFlag: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     notificationPreference: { upsert: vi.fn() },
@@ -109,6 +113,10 @@ describe("food order request workflow", () => {
     mockPrisma.menuItem.findFirst.mockResolvedValue(activeMenuItem());
     mockPrisma.foodOrder.create.mockResolvedValue(createdOrder());
     mockPrisma.membership.findMany.mockResolvedValue([{ userId: "seller-user" }]);
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
   });
 
   it("validates order request input without payment data", () => {
@@ -204,6 +212,72 @@ describe("food order request workflow", () => {
       }),
     }));
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "food_order.accepted" }));
+  });
+
+  it("unverified seller cannot accept order when policy requires verification", async () => {
+    mockPrisma.foodOrder.findFirst.mockResolvedValue(createdOrder());
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([{
+      id: "policy-1",
+      policyName: "Order gate",
+      countryCode: "US",
+      region: null,
+      sellerType: "home_catering",
+      status: "active",
+      allowOrderAcceptanceBeforeVerification: false,
+      allowPublicProfileBeforeVerification: true,
+      allowMenuPublishingBeforeVerification: true,
+      allowPayoutsBeforeVerification: true,
+      requireAdminApproval: true,
+      requireIdentityVerification: false,
+      requireFoodHandlerCertificate: false,
+      requireLocalPermit: false,
+      requireKitchenReview: false,
+      requireBackgroundCheck: false,
+      requirePayoutOnboarding: false,
+      updatedAt: new Date(),
+    }]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "submitted", items: [], foodSafetyCertificates: [], permits: [], kitchenReviews: [], backgroundChecks: [], identityVerifications: [] });
+
+    await expect(updateSellerFoodOrderStatus({
+      session: sellerSession(),
+      orderId: "order-1",
+      input: { status: "accepted", note: "Confirmed" },
+    })).rejects.toThrow("Seller verification is incomplete");
+  });
+
+  it("admin override allows order acceptance temporarily", async () => {
+    mockPrisma.foodOrder.findFirst.mockResolvedValue(createdOrder());
+    mockPrisma.foodOrder.update.mockResolvedValue({ ...createdOrder(), status: "accepted" });
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([{
+      id: "policy-1",
+      policyName: "Order gate",
+      countryCode: "US",
+      region: null,
+      sellerType: "home_catering",
+      status: "active",
+      allowOrderAcceptanceBeforeVerification: false,
+      allowPublicProfileBeforeVerification: true,
+      allowMenuPublishingBeforeVerification: true,
+      allowPayoutsBeforeVerification: true,
+      requireAdminApproval: true,
+      requireIdentityVerification: false,
+      requireFoodHandlerCertificate: false,
+      requireLocalPermit: false,
+      requireKitchenReview: false,
+      requireBackgroundCheck: false,
+      requirePayoutOnboarding: false,
+      updatedAt: new Date(),
+    }]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue({ status: "submitted", items: [], foodSafetyCertificates: [], permits: [], kitchenReviews: [], backgroundChecks: [], identityVerifications: [] });
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue({ id: "override-1" });
+
+    await updateSellerFoodOrderStatus({
+      session: sellerSession(),
+      orderId: "order-1",
+      input: { status: "accepted", note: "Confirmed" },
+    });
+
+    expect(mockPrisma.foodOrder.update).toHaveBeenCalled();
   });
 
   it("minimum notice validation works", async () => {

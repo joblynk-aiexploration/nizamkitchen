@@ -3,6 +3,7 @@ import {
   HomeChefRequestStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type PlatformRole,
   type UserStatus,
 } from "@prisma/client";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/validation/home-chef";
 import { createAuditEvent } from "@/server/audit";
 import { createNotification } from "@/server/notifications/notification-service";
+import { assertSellerGate } from "@/server/seller-verification-gates";
 
 const ADMIN_HOME_CHEF_ROLES: PlatformRole[] = [
   "platform_owner",
@@ -558,6 +560,13 @@ export async function assignHomeChefRequest(params: {
     if (!chefOrg) {
       throw new Error("Assigned chef organization must be a chef business in the request country.");
     }
+    await assertSellerGate({
+      organizationId: chefOrg.id,
+      sellerType: SellerType.chef_business,
+      countryCode: existing.countryCode,
+      capability: "home_chef_assignment",
+      message: "Chef verification is incomplete. This chef cannot be assigned yet.",
+    });
   }
 
   const nextStatus = parsed.assignedChefOrganizationId ? HomeChefRequestStatus.matched : existing.status;

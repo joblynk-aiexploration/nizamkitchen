@@ -3,6 +3,7 @@ import {
   HomeCateringVerificationStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type PlatformRole,
   type UserStatus,
 } from "@prisma/client";
@@ -15,6 +16,7 @@ import {
   homeCateringProfileSchema,
 } from "@/lib/validation/home-catering";
 import { createAuditEvent } from "@/server/audit";
+import { getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const CATERING_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
@@ -237,7 +239,6 @@ export async function listPublicHomeCateringProfiles(filters: {
   const profiles = await prisma.homeCateringProfile.findMany({
     where: {
       status: "active",
-      verificationStatus: "verified",
       isPublic: true,
       ...(filters.city ? { city: { contains: filters.city, mode: "insensitive" } } : {}),
       ...(filters.pickup ? { acceptsPickup: true } : {}),
@@ -248,9 +249,21 @@ export async function listPublicHomeCateringProfiles(filters: {
     orderBy: [{ verificationStatus: "desc" }, { displayName: "asc" }],
   });
 
-  if (!filters.cuisine) return profiles;
+  const visibleProfiles = [];
+  for (const profile of profiles) {
+    const gate = await getSellerVerificationGate({
+      organizationId: profile.organizationId,
+      sellerType: SellerType.home_catering,
+      countryCode: profile.countryCode,
+      region: profile.region,
+      capability: "public_profile",
+    });
+    if (gate.allowed) visibleProfiles.push(profile);
+  }
+
+  if (!filters.cuisine) return visibleProfiles;
   const cuisine = filters.cuisine.toLowerCase();
-  return profiles.filter((profile) =>
+  return visibleProfiles.filter((profile) =>
     Array.isArray(profile.cuisineSpecialtiesJson)
       ? profile.cuisineSpecialtiesJson.some((item) => String(item).toLowerCase().includes(cuisine))
       : false,
@@ -261,10 +274,19 @@ export async function getPublicHomeCateringProfile(slug: string, organizationId:
   const enabled = await canAccessHomeCatering({ organizationId });
   if (!enabled) return null;
 
-  return prisma.homeCateringProfile.findFirst({
-    where: { slug, status: "active", verificationStatus: "verified", isPublic: true },
+  const profile = await prisma.homeCateringProfile.findFirst({
+    where: { slug, status: "active", isPublic: true },
     ...homeCateringDetailArgs,
   });
+  if (!profile) return null;
+  const gate = await getSellerVerificationGate({
+    organizationId: profile.organizationId,
+    sellerType: SellerType.home_catering,
+    countryCode: profile.countryCode,
+    region: profile.region,
+    capability: "public_profile",
+  });
+  return gate.allowed ? profile : null;
 }
 
 export async function listAdminHomeCateringProfiles(

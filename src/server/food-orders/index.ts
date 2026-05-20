@@ -2,6 +2,7 @@ import {
   FoodOrderStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type FoodOrderSellerType,
   type PlatformRole,
   type UserStatus,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/validation/food-orders";
 import { createAuditEvent } from "@/server/audit";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
+import { assertSellerGate } from "@/server/seller-verification-gates";
 import type { getCurrentSession } from "@/lib/session";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
@@ -241,6 +243,15 @@ export async function updateSellerFoodOrderStatus(params: {
   const parsed = sellerFoodOrderStatusSchema.parse(params.input);
   const order = await getSellerFoodOrder(params.session.activeOrganization.id, params.orderId);
   if (!order) throw new Error("Order not found.");
+  if (parsed.status === "accepted") {
+    await assertSellerGate({
+      organizationId: params.session.activeOrganization.id,
+      sellerType: order.sellerType === "home_catering" ? SellerType.home_catering : SellerType.restaurant,
+      countryCode: order.countryCode,
+      capability: "order_acceptance",
+      message: "Seller verification is incomplete. Orders cannot be accepted yet.",
+    });
+  }
   return updateFoodOrderStatus({
     order,
     actorUserId: params.session.user.id,
