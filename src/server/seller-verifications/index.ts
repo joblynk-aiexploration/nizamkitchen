@@ -56,6 +56,7 @@ const verificationProfileInclude = {
   permits: { orderBy: { createdAt: "desc" }, include: { reviewedBy: { select: { id: true, fullName: true } } } },
   attestations: { orderBy: { acceptedAt: "desc" } },
   backgroundChecks: { orderBy: { createdAt: "desc" } },
+  identityVerifications: { orderBy: { createdAt: "desc" } },
   kitchenReviews: { include: { photos: true, reviewedBy: { select: { id: true, fullName: true } } }, orderBy: { createdAt: "desc" } },
   trialReviews: { include: { reviewedBy: { select: { id: true, fullName: true } } }, orderBy: { createdAt: "desc" } },
 } satisfies Prisma.SellerVerificationProfileInclude;

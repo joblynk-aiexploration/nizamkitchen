@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership, requirePlatformRole, getRequestMetadata } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
+import { collectBackgroundCheckConsent, requestBackgroundCheck, saveKycProviderConfiguration, startIdentityVerification, updateBackgroundCheckStatus } from "@/server/kyc/kyc-service";
 import {
   acceptSellerAttestation,
   reviewFoodSafetyCertificate,
@@ -123,6 +124,35 @@ export async function submitSellerVerificationAction(formData: FormData) {
   }
 }
 
+export async function startIdentityVerificationAction(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const redirectPath = returnTo || sellerPathForCurrent(returnTo);
+  try {
+    const session = await requireMembership();
+    const identity = await startIdentityVerification(session, Object.fromEntries(formData.entries()));
+    revalidatePath(redirectPath);
+    if (identity.verificationUrl) redirect(identity.verificationUrl);
+    redirect(`${redirectPath}?message=Identity verification session created.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`${redirectPath}?message=${encodeURIComponent(getActionErrorMessage(error, "Identity verification provider is not configured."))}`);
+  }
+}
+
+export async function collectBackgroundConsentAction(formData: FormData) {
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const redirectPath = returnTo || sellerPathForCurrent(returnTo);
+  try {
+    const session = await requireMembership();
+    await collectBackgroundCheckConsent(session, Object.fromEntries(formData.entries()), await getRequestMetadata());
+    revalidatePath(redirectPath);
+    redirect(`${redirectPath}?message=Background check consent recorded.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`${redirectPath}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to record background check consent."))}`);
+  }
+}
+
 export async function upsertSellerRequirementAction(formData: FormData) {
   try {
     const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
@@ -132,6 +162,44 @@ export async function upsertSellerRequirementAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/admin/verifications/requirements?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save requirement."))}`);
+  }
+}
+
+export async function saveKycProviderConfigurationAction(formData: FormData) {
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+    await saveKycProviderConfiguration(session, Object.fromEntries(formData.entries()));
+    revalidatePath("/admin/kyc/providers");
+    redirect("/admin/kyc/providers?message=KYC provider saved.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/kyc/providers?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save KYC provider."))}`);
+  }
+}
+
+export async function requestBackgroundCheckAction(formData: FormData) {
+  const profileId = String(formData.get("verificationProfileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await requestBackgroundCheck(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Background check requested.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Background checks require consent before they are ordered."))}`);
+  }
+}
+
+export async function updateBackgroundCheckStatusAction(formData: FormData) {
+  const profileId = String(formData.get("profileId") ?? "");
+  try {
+    const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+    await updateBackgroundCheckStatus(session, Object.fromEntries(formData.entries()));
+    revalidatePath(`/admin/verifications/${profileId}`);
+    redirect(`/admin/verifications/${profileId}?message=Background check status updated.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/admin/verifications/${profileId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update background check."))}`);
   }
 }
 

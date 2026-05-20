@@ -9,7 +9,7 @@ import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { getAdminVerificationProfile } from "@/server/seller-verifications";
-import { reviewFoodSafetyCertificateAction, reviewKitchenChecklistAction, reviewSellerPermitAction, reviewVerificationItemAction, reviewVerificationProfileAction, upsertTrialReviewAction } from "../../../seller-verification-actions";
+import { requestBackgroundCheckAction, reviewFoodSafetyCertificateAction, reviewKitchenChecklistAction, reviewSellerPermitAction, reviewVerificationItemAction, reviewVerificationProfileAction, updateBackgroundCheckStatusAction, upsertTrialReviewAction } from "../../../seller-verification-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +94,16 @@ export default async function AdminVerificationDetailPage({ params, searchParams
               { key: "scheduled", header: "Scheduled", render: (item) => item.scheduledAt?.toLocaleDateString() ?? "Not scheduled" },
             ]}
           />
+          <AdminDataTable
+            data={profile.backgroundChecks}
+            emptyMessage="No background consent/check recorded."
+            columns={[
+              { key: "provider", header: "Provider", render: (item) => item.provider.replace(/_/g, " ") },
+              { key: "status", header: "Status", render: (item) => <Badge tone={item.status === "clear" ? "success" : item.status === "failed" ? "danger" : "warning"}>{item.status.replace(/_/g, " ")}</Badge> },
+              { key: "summary", header: "Safe summary", render: (item) => item.resultSummary ?? "No full report stored" },
+              { key: "actions", header: "Status", render: (item) => canMutate ? <BackgroundCheckStatusForm profileId={profile.id} backgroundCheckId={item.id} /> : "Read only" },
+            ]}
+          />
         </div>
         <div className="space-y-6">
           {canMutate ? (
@@ -110,6 +120,7 @@ export default async function AdminVerificationDetailPage({ params, searchParams
             </Card>
           ) : null}
           {canMutate ? <TrialReviewCard profileId={profile.id} trialReviewId={profile.trialReviews[0]?.id ?? null} /> : null}
+          {canMutate ? <RequestBackgroundCheckCard profileId={profile.id} /> : null}
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Privacy guardrails</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">Identity documents, certificates, kitchen photos, and background status are private. Public profiles only show safe status badges, never document numbers or background-check details.</p>
@@ -117,6 +128,38 @@ export default async function AdminVerificationDetailPage({ params, searchParams
         </div>
       </div>
     </AdminShell>
+  );
+}
+
+function RequestBackgroundCheckCard({ profileId }: { profileId: string }) {
+  return (
+    <Card className="space-y-4">
+      <h2 className="font-semibold text-[var(--color-ink)]">Request background check</h2>
+      <p className="text-sm text-[var(--color-muted)]">Background checks require recorded seller consent before ordering.</p>
+      <form action={requestBackgroundCheckAction} className="space-y-3">
+        <input type="hidden" name="verificationProfileId" value={profileId} />
+        <SelectInput label="Provider" name="provider" defaultValue="manual" options={[{ value: "manual", label: "manual" }, { value: "checkr_placeholder", label: "checkr placeholder" }]} />
+        <Button type="submit" className="w-full justify-center">Request check</Button>
+      </form>
+    </Card>
+  );
+}
+
+function BackgroundCheckStatusForm({ profileId, backgroundCheckId }: { profileId: string; backgroundCheckId: string }) {
+  return (
+    <form action={updateBackgroundCheckStatusAction} className="grid gap-2">
+      <input type="hidden" name="profileId" value={profileId} />
+      <input type="hidden" name="backgroundCheckId" value={backgroundCheckId} />
+      <select name="status" defaultValue="pending" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs">
+        <option value="pending">pending</option>
+        <option value="clear">clear</option>
+        <option value="consider">consider</option>
+        <option value="failed">failed</option>
+        <option value="cancelled">cancelled</option>
+      </select>
+      <input name="resultSummary" placeholder="Safe summary only" className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-xs" />
+      <Button type="submit">Save</Button>
+    </form>
   );
 }
 

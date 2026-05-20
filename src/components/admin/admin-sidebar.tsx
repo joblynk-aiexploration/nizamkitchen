@@ -66,6 +66,7 @@ const adminNavGroups = [
       { href: "/admin/chef-verifications", label: "Chef verifications", icon: Shield },
       { href: "/admin/verifications", label: "Seller verifications", icon: Shield },
       { href: "/admin/verifications/requirements", label: "Verification requirements", icon: Settings },
+      { href: "/admin/kyc", label: "KYC providers", icon: Shield },
       { href: "/admin/home-catering", label: "Home catering", icon: Building2 },
       { href: "/admin/menu-items", label: "Menu items", icon: ShoppingCart },
       { href: "/admin/food-orders", label: "Food orders", icon: Inbox },

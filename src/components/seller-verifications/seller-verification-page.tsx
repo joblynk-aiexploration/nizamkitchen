@@ -25,6 +25,8 @@ type VerificationProfile = SellerVerificationProfile & {
   foodSafetyCertificates: Array<{ id: string; status: string; providerName: string | null; expiresAt: Date | null; rejectionReason: string | null }>;
   permits: Array<{ id: string; status: string; permitType: string; expiresAt: Date | null; rejectionReason: string | null }>;
   attestations: Array<{ id: string; attestationType: string; acceptedAt: Date }>;
+  backgroundChecks: Array<{ id: string; status: string; provider: string; resultSummary: string | null }>;
+  identityVerifications: Array<{ id: string; status: string; provider: string; providerStatus: string | null; verificationUrl: string | null }>;
   kitchenReviews: Array<{ id: string; status: string; photos: Array<{ id: string; category: string; fileId: string }> }>;
   trialReviews: Array<{ id: string; status: string; scheduledAt: Date | null; dishName: string | null; notes: string | null }>;
 };
@@ -37,6 +39,8 @@ export function SellerVerificationPage({
   uploadAction,
   foodCertificateAction,
   permitAction,
+  identityAction,
+  backgroundConsentAction,
   attestationAction,
   kitchenPhotoAction,
   submitAction,
@@ -49,6 +53,8 @@ export function SellerVerificationPage({
   uploadAction: (formData: FormData) => Promise<void>;
   foodCertificateAction: (formData: FormData) => Promise<void>;
   permitAction: (formData: FormData) => Promise<void>;
+  identityAction: (formData: FormData) => Promise<void>;
+  backgroundConsentAction: (formData: FormData) => Promise<void>;
   attestationAction: (formData: FormData) => Promise<void>;
   kitchenPhotoAction: (formData: FormData) => Promise<void>;
   submitAction: (formData: FormData) => Promise<void>;
@@ -68,6 +74,34 @@ export function SellerVerificationPage({
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Public badge</p><p className="mt-3"><SellerVerificationBadge label={badge.label} tone={badge.tone} /></p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Submitted items</p><p className="mt-3 text-3xl font-semibold">{profile.items.length}</p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Attestations</p><p className="mt-3 text-3xl font-semibold">{profile.attestations.length}</p></Card>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card className="space-y-4">
+          <div>
+            <h2 className="font-semibold text-[var(--color-ink)]">Identity verification</h2>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">Start a hosted provider flow when configured. NizamKitchen stores provider status only, not raw identity data.</p>
+          </div>
+          <SummaryCard title="Recent identity sessions" rows={profile.identityVerifications.map((item) => `${item.provider.replace(/_/g, " ")} · ${item.status.replace(/_/g, " ")}${item.providerStatus ? ` · ${item.providerStatus}` : ""}`)} empty="No identity session started." />
+          <form action={identityAction} className="flex flex-col gap-3 md:flex-row">
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <SelectInput label="Provider" name="provider" options={["stripe_identity", "persona_placeholder", "manual"].map((value) => ({ value, label: value.replace(/_/g, " ") }))} />
+            <div className="flex items-end"><Button type="submit">Start identity verification</Button></div>
+          </form>
+        </Card>
+        <Card className="space-y-4">
+          <div>
+            <h2 className="font-semibold text-[var(--color-ink)]">Background check consent</h2>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">Background checks require your consent before they are ordered.</p>
+          </div>
+          <SummaryCard title="Background status" rows={profile.backgroundChecks.map((item) => `${item.provider.replace(/_/g, " ")} · ${item.status.replace(/_/g, " ")}`)} empty="No background consent or check recorded." />
+          <form action={backgroundConsentAction} className="space-y-3">
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <input type="hidden" name="version" value="v1" />
+            <TextArea label="Disclosure and authorization" name="textSnapshot" defaultValue="I authorize NizamKitchen to record my consent for a future background check provider workflow. I understand the check will not be ordered until I provide consent and an authorized admin requests it." />
+            <Button type="submit">Record background consent</Button>
+          </form>
+        </Card>
       </section>
 
       {profile.rejectionReason ? <Card className="border-red-200 bg-red-50 text-sm text-red-800">{profile.rejectionReason}</Card> : null}
