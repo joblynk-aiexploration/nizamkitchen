@@ -9,6 +9,10 @@ const { mockPrisma, mockAudit } = vi.hoisted(() => ({
     menu: { findFirst: vi.fn() },
     menuItem: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
     menuItemAvailability: { deleteMany: vi.fn(), create: vi.fn() },
+    sellerVerificationPolicy: { findMany: vi.fn() },
+    sellerVerificationProfile: { findUnique: vi.fn() },
+    sellerPayoutAccount: { findFirst: vi.fn() },
+    sellerVerificationOverride: { findFirst: vi.fn() },
     chefProfile: { findUnique: vi.fn(), upsert: vi.fn() },
     chefVerificationDocument: { create: vi.fn() },
     homeCateringProfile: { findUnique: vi.fn(), upsert: vi.fn() },
@@ -36,6 +40,10 @@ describe("S3 upload wiring across product modules", () => {
     mockPrisma.menuItem.create.mockImplementation(async ({ data }) => ({ id: "item-1", ...data }));
     mockPrisma.menuItemAvailability.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.menuItemAvailability.create.mockImplementation(async ({ data }) => ({ id: `day-${data.dayOfWeek}`, ...data }));
+    mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
+    mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
+    mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
     mockPrisma.chefProfile.findUnique.mockResolvedValue({ id: "chef-profile-1", slug: "chef", status: "draft" });
     mockPrisma.chefProfile.upsert.mockImplementation(async ({ update }) => ({ id: "chef-profile-1", organizationId: "chef-org", verificationStatus: "unverified", ...update }));
     mockPrisma.chefVerificationDocument.create.mockImplementation(async ({ data }) => ({ id: "doc-1", ...data }));
