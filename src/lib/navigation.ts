@@ -25,6 +25,9 @@ const platformAdminHrefs = [
   "/admin/legal/documents",
   "/admin/legal/acceptances",
   "/admin/legal/consents",
+  "/admin/privacy",
+  "/admin/privacy/requests",
+  "/admin/privacy/retention",
   "/admin/policies",
   "/admin/policies/overrides",
   "/admin/policies/evaluation-logs",
@@ -202,6 +205,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/reports", label: "Reports" },
     { href: "/billing", label: "Billing" },
     { href: "/support", label: "Support" },
+    { href: "/privacy", label: "Privacy" },
     { href: "/settings", label: "Settings" },
   ];
 
@@ -253,6 +257,9 @@ function labelForHref(href: string) {
     "/admin/legal/documents": "Legal Documents",
     "/admin/legal/acceptances": "Legal Acceptances",
     "/admin/legal/consents": "Legal Consents",
+    "/admin/privacy": "Privacy Center",
+    "/admin/privacy/requests": "Privacy Requests",
+    "/admin/privacy/retention": "Retention Policies",
     "/admin/policies": "Policies",
     "/admin/policies/overrides": "Policy Overrides",
     "/admin/policies/evaluation-logs": "Policy Logs",

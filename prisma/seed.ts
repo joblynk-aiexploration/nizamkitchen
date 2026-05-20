@@ -5,6 +5,7 @@ import {
   ChefProfileStatus,
   ChefServiceType,
   ChefVerificationStatus,
+  DataCategory,
   GroceryIntegrationType,
   GroceryPartnerStatus,
   IngredientCategory,
@@ -25,6 +26,7 @@ import {
   SellerType,
   SpiceLevel,
   PreferredDeliveryMethod,
+  RetentionAction,
   UnitSystem,
   UnitType,
   UserStatus,
@@ -235,6 +237,14 @@ const LEGAL_DOCUMENT_SEEDS: Array<{
   legalSeed("marketplace_disclaimer", "Marketplace Disclaimer", "marketplace-disclaimer", "all_users"),
 ];
 
+const DATA_RETENTION_POLICY_SEEDS = [
+  { dataCategory: DataCategory.payments, action: RetentionAction.retain, retentionDays: 2555, notes: "Payment ledger summaries are retained for accounting, disputes, and tax review." },
+  { dataCategory: DataCategory.audit_logs, action: RetentionAction.retain, retentionDays: 2555, notes: "Audit logs are retained for security and compliance investigations." },
+  { dataCategory: DataCategory.kyc_documents, action: RetentionAction.archive, retentionDays: 1095, notes: "KYC/document retention depends on provider and jurisdiction requirements." },
+  { dataCategory: DataCategory.user_profile, action: RetentionAction.anonymize, retentionDays: 30, notes: "User profile fields can be anonymized after approved deletion requests." },
+  { dataCategory: DataCategory.files, action: RetentionAction.archive, retentionDays: 365, notes: "Files are archived or deleted only after retention and ownership review." },
+];
+
 function legalSeed(
   documentType: LegalDocumentType,
   title: string,
@@ -431,6 +441,28 @@ async function seedLegalDocuments(createdById: string) {
           createdById,
         },
       });
+    }
+  }
+}
+
+async function seedDataRetentionPolicies(createdById: string) {
+  for (const policy of DATA_RETENTION_POLICY_SEEDS) {
+    const existing = await prisma.dataRetentionPolicy.findFirst({
+      where: { countryCode: null, dataCategory: policy.dataCategory },
+    });
+    const data = {
+      countryCode: null,
+      dataCategory: policy.dataCategory,
+      retentionDays: policy.retentionDays,
+      action: policy.action,
+      status: "active" as const,
+      notes: policy.notes,
+      updatedById: createdById,
+    };
+    if (existing) {
+      await prisma.dataRetentionPolicy.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.dataRetentionPolicy.create({ data: { ...data, createdById } });
     }
   }
 }
@@ -2052,6 +2084,7 @@ async function main() {
   if (!platformOwner) throw new Error("Platform owner seed is required before marketplace policies.");
   await seedMarketplacePolicies(platformOwner.id);
   await seedLegalDocuments(platformOwner.id);
+  await seedDataRetentionPolicies(platformOwner.id);
 
   const sellerRequirementSeeds = [
     { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },

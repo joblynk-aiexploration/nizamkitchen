@@ -181,6 +181,7 @@ enum StorageFilePurpose {
   support_attachment
   order_attachment
   grocery_attachment
+  data_export
   general_document
   admin_dropbox
 }
@@ -196,6 +197,7 @@ enum StorageModule {
   orders
   grocery
   support
+  privacy
   admin_dropbox
   system
 }
@@ -286,6 +288,11 @@ model User {
   legalDocumentsPublished          LegalDocument[]                  @relation("LegalDocumentPublishedBy")
   legalDocumentAcceptances         LegalDocumentAcceptance[]
   legalConsentEvents               LegalConsentEvent[]
+  dataPrivacyRequests              DataPrivacyRequest[]             @relation("DataPrivacyRequestUser")
+  dataPrivacyRequestsCreated       DataPrivacyRequest[]             @relation("DataPrivacyRequestRequestedBy")
+  dataPrivacyRequestsCompleted     DataPrivacyRequest[]             @relation("DataPrivacyRequestCompletedBy")
+  dataRetentionPoliciesCreated     DataRetentionPolicy[]            @relation("DataRetentionPolicyCreatedBy")
+  dataRetentionPoliciesUpdated     DataRetentionPolicy[]            @relation("DataRetentionPolicyUpdatedBy")
 }
 
 model Session {
@@ -379,6 +386,7 @@ model Organization {
   marketplacePolicyLogs      MarketplacePolicyEvaluationLog[]
   legalDocumentAcceptances   LegalDocumentAcceptance[]
   legalConsentEvents         LegalConsentEvent[]
+  dataPrivacyRequests        DataPrivacyRequest[]
 
   @@index([countryCode])
   @@index([status])
@@ -794,6 +802,7 @@ model StorageFile {
   uploadedBy       User                   @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
   accessLogs       StorageFileAccessLog[]
   versions         StorageFileVersion[]
+  dataPrivacyExports DataPrivacyRequest[]
 
   @@unique([bucketName, objectKey])
   @@index([organizationId])
@@ -1337,6 +1346,51 @@ enum ConsentStatus {
   accepted
   revoked
   declined
+}
+
+enum DataPrivacyRequestType {
+  user_export
+  organization_export
+  account_deletion
+  organization_deletion
+  anonymization
+  file_deletion
+  correction_request
+}
+
+enum DataPrivacyRequestStatus {
+  submitted
+  reviewing
+  processing
+  completed
+  rejected
+  cancelled
+}
+
+enum DataCategory {
+  user_profile
+  organization_profile
+  orders
+  payments
+  files
+  kyc_documents
+  support_tickets
+  audit_logs
+  notifications
+  marketing
+  marketplace_profiles
+}
+
+enum RetentionAction {
+  retain
+  archive
+  anonymize
+  delete
+}
+
+enum DataRetentionPolicyStatus {
+  active
+  disabled
 }
 
 enum SellerVerificationLevel {
@@ -3112,6 +3166,59 @@ model LegalConsentEvent {
   @@index([consentType])
   @@index([status])
   @@index([createdAt])
+}
+
+model DataPrivacyRequest {
+  id             String                   @id @default(cuid())
+  userId         String?
+  organizationId String?
+  requestedById  String
+  requestType    DataPrivacyRequestType
+  status         DataPrivacyRequestStatus @default(submitted)
+  countryCode    String?
+  reason         String?
+  adminNotes     String?
+  exportFileId   String?
+  completedById  String?
+  completedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  user           User?                    @relation("DataPrivacyRequestUser", fields: [userId], references: [id], onDelete: SetNull)
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  requestedBy    User                     @relation("DataPrivacyRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  completedBy    User?                    @relation("DataPrivacyRequestCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  exportFile     StorageFile?             @relation(fields: [exportFileId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([requestedById])
+  @@index([requestType])
+  @@index([status])
+  @@index([countryCode])
+  @@index([exportFileId])
+  @@index([createdAt])
+}
+
+model DataRetentionPolicy {
+  id             String                    @id @default(cuid())
+  countryCode    String?
+  dataCategory   DataCategory
+  retentionDays  Int?
+  action         RetentionAction
+  status         DataRetentionPolicyStatus @default(active)
+  notes          String?
+  createdById    String
+  updatedById    String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  createdBy      User                      @relation("DataRetentionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User?                     @relation("DataRetentionPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([countryCode])
+  @@index([dataCategory])
+  @@index([status])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model SellerVerificationItem {
