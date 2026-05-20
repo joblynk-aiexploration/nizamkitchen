@@ -71,6 +71,10 @@ const platformAdminHrefs = [
   "/admin/restaurant-fallback",
   "/admin/grocery-partners",
   "/admin/system",
+  "/admin/system/health",
+  "/admin/system/integrations",
+  "/admin/system/logs",
+  "/admin/system/alerts",
   "/admin/storage",
   "/admin/storage/configuration",
   "/admin/storage/files",
@@ -112,6 +116,11 @@ const countryManagerHrefs = [
   "/admin/dropbox",
   "/admin/dropbox/files",
   "/admin/dropbox/folders",
+  "/admin/system",
+  "/admin/system/health",
+  "/admin/system/integrations",
+  "/admin/system/logs",
+  "/admin/system/alerts",
 ] as const;
 
 const supportAdminHrefs = [
@@ -127,6 +136,11 @@ const supportAdminHrefs = [
   "/admin/dropbox",
   "/admin/dropbox/files",
   "/admin/dropbox/folders",
+  "/admin/system",
+  "/admin/system/health",
+  "/admin/system/integrations",
+  "/admin/system/logs",
+  "/admin/system/alerts",
 ] as const;
 
 const auditorHrefs = [
@@ -134,6 +148,11 @@ const auditorHrefs = [
   "/admin/audit-logs",
   "/admin/organizations",
   "/admin/users",
+  "/admin/system",
+  "/admin/system/health",
+  "/admin/system/integrations",
+  "/admin/system/logs",
+  "/admin/system/alerts",
 ] as const;
 
 export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
@@ -287,6 +306,10 @@ function labelForHref(href: string) {
     "/admin/grocery-engine": "Grocery Engine",
     "/admin/meal-planner": "Meal Planner",
     "/admin/system": "System Status",
+    "/admin/system/health": "Health Checks",
+    "/admin/system/integrations": "Integrations",
+    "/admin/system/logs": "System Logs",
+    "/admin/system/alerts": "System Alerts",
     "/admin/storage": "Storage",
     "/admin/storage/configuration": "Storage Config",
     "/admin/storage/files": "Storage Files",

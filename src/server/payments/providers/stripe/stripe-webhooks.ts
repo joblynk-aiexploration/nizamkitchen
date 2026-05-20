@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { createAdminNotification } from "@/server/notifications/notification-service";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
 
@@ -47,6 +48,13 @@ export async function handleStripeWebhook(params: { rawBody: string; signature?:
       data: { status: "failed", errorMessage: error instanceof Error ? error.message : "Unknown Stripe webhook error" },
     });
     await createAuditEvent({ action: "payment_webhook.failed", targetType: "payment_webhook", targetId: event.id, details: { eventType: event.type } });
+    await createSystemAlertForFailure({
+      type: "stripe_webhook_failure",
+      title: "Stripe webhook processing failed",
+      message: error instanceof Error ? error.message : "Unknown Stripe webhook error",
+      severity: "critical",
+      metadataJson: { eventId: event.id, eventType: event.type, provider: "stripe" },
+    });
     throw error;
   }
 }

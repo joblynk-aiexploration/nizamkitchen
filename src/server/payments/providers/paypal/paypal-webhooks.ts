@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { getPayPalAccessToken, getPayPalGateway, getPayPalSecrets, paypalApiBase, paypalFetch } from "@/server/payments/providers/paypal/paypal-client";
 
 type PayPalWebhookEvent = {
@@ -44,11 +45,27 @@ export async function handlePayPalWebhook(params: { rawBody: string; headers: He
     update: { status: "received", rawJson: event as unknown as Prisma.InputJsonValue, signatureValid, errorMessage: null },
     create: { provider: "paypal", gatewayId: params.gatewayId ?? null, eventId: event.id, eventType: event.event_type, status: "received", rawJson: event as unknown as Prisma.InputJsonValue, signatureValid },
   });
-  if (!signatureValid) throw new Error("PayPal webhook signature verification failed.");
-  await processPayPalEvent(event);
-  await prisma.paymentWebhookEvent.update({ where: { provider_eventId: { provider: "paypal", eventId: event.id } }, data: { status: "processed", processedAt: new Date() } });
-  await createAuditEvent({ action: "payment_webhook.processed", targetType: "payment_webhook", targetId: event.id, details: { provider: "paypal", eventType: event.event_type } });
-  return { status: "processed" as const, eventId: event.id };
+  try {
+    if (!signatureValid) throw new Error("PayPal webhook signature verification failed.");
+    await processPayPalEvent(event);
+    await prisma.paymentWebhookEvent.update({ where: { provider_eventId: { provider: "paypal", eventId: event.id } }, data: { status: "processed", processedAt: new Date() } });
+    await createAuditEvent({ action: "payment_webhook.processed", targetType: "payment_webhook", targetId: event.id, details: { provider: "paypal", eventType: event.event_type } });
+    return { status: "processed" as const, eventId: event.id };
+  } catch (error) {
+    await prisma.paymentWebhookEvent.update({
+      where: { provider_eventId: { provider: "paypal", eventId: event.id } },
+      data: { status: "failed", errorMessage: error instanceof Error ? error.message : "Unknown PayPal webhook error" },
+    });
+    await createAuditEvent({ action: "payment_webhook.failed", targetType: "payment_webhook", targetId: event.id, details: { provider: "paypal", eventType: event.event_type } });
+    await createSystemAlertForFailure({
+      type: "paypal_webhook_failure",
+      title: "PayPal webhook processing failed",
+      message: error instanceof Error ? error.message : "Unknown PayPal webhook error",
+      severity: "critical",
+      metadataJson: { eventId: event.id, eventType: event.event_type, provider: "paypal" },
+    });
+    throw error;
+  }
 }
 
 async function processPayPalEvent(event: PayPalWebhookEvent) {

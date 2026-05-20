@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { decryptGatewayCredential, encryptGatewayCredential, isPaymentEncryptionConfigured, maskCredentialPreview } from "@/server/payments/credentials";
 import { createAuditEvent } from "@/server/audit";
+import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { DEFAULT_ALLOWED_MIME_TYPES, parseAllowedMimeTypes, storageConfigurationSchema, storageUploadSchema, validateFileInput } from "@/server/storage/file-validation";
 import { buildStorageObjectKey } from "@/server/storage/storage-keys";
 import { S3StorageProvider } from "@/server/storage/providers/s3-provider";
@@ -325,19 +326,38 @@ export async function runStorageTest(session: StorageSession, kind: "connection"
   const config = await getActiveStorageConfiguration();
   const provider = providerForConfiguration(config);
   let result: { ok: boolean; message: string; objectKey?: string };
-  if (kind === "connection") result = await provider.testConnection();
-  else if (kind === "upload") result = await provider.testUpload();
-  else {
-    const uploaded = await provider.testUpload();
-    if (!uploaded.objectKey) throw new Error("Storage test upload did not return an object key.");
-    result = kind === "read" ? await provider.testRead({ objectKey: uploaded.objectKey }) : await provider.testDelete({ objectKey: uploaded.objectKey });
+  try {
+    if (kind === "connection") result = await provider.testConnection();
+    else if (kind === "upload") result = await provider.testUpload();
+    else {
+      const uploaded = await provider.testUpload();
+      if (!uploaded.objectKey) throw new Error("Storage test upload did not return an object key.");
+      result = kind === "read" ? await provider.testRead({ objectKey: uploaded.objectKey }) : await provider.testDelete({ objectKey: uploaded.objectKey });
+    }
+  } catch (error) {
+    result = { ok: false, message: error instanceof Error ? error.message : "Storage test failed." };
   }
+  const sanitizedMessage = safeMessage(result.message);
   await prisma.storageConfiguration.update({
     where: { id: config.id },
-    data: { lastTestedAt: new Date(), lastTestStatus: result.ok ? "success" : "failed", lastTestMessage: safeMessage(result.message), status: result.ok && config.status === "error" ? "active" : config.status as StorageConfigurationStatus },
+    data: { lastTestedAt: new Date(), lastTestStatus: result.ok ? "success" : "failed", lastTestMessage: sanitizedMessage, status: result.ok && config.status === "error" ? "active" : config.status as StorageConfigurationStatus },
   }).catch(() => null);
-  await createAuditEvent({ actorUserId: session.user.id, action: `storage_configuration.test_${kind}`, targetType: "storage_configuration", targetId: config.id, details: { ok: result.ok, message: safeMessage(result.message) } });
-  return { ...result, message: safeMessage(result.message) };
+  await createAuditEvent({ actorUserId: session.user.id, action: `storage_configuration.test_${kind}`, targetType: "storage_configuration", targetId: config.id, details: { ok: result.ok, message: sanitizedMessage } });
+  if (!result.ok) {
+    await createSystemAlertForFailure({
+      type: "storage_test_failure",
+      title: "Storage test failed",
+      message: `Storage ${kind} test failed: ${sanitizedMessage}`,
+      severity: "warning",
+      metadataJson: {
+        kind,
+        provider: config.provider,
+        configurationId: config.id,
+        displayName: config.displayName,
+      },
+    });
+  }
+  return { ...result, message: sanitizedMessage };
 }
 
 function providerForConfiguration(configuration: StorageConfigurationWithSecrets): StorageProviderClient {

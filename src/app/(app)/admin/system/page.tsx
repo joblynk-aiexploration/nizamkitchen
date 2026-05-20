@@ -16,10 +16,14 @@ export default async function AdminSystemPage() {
   const status = await getAdminSystemStatus(session);
 
   const integrations = [
-    ["MapTiler", status.integrations.mapTiler, "Restaurant fallback map search"],
-    ["YouTube", status.integrations.youtube, "Recipe video discovery"],
-    ["SMTP", status.integrations.smtp, "Transactional email delivery"],
-    ["Stripe", status.integrations.stripe, "Billing placeholder"],
+    ["MapTiler", status.integrations.mapTiler.configured, "Restaurant fallback map search"],
+    ["YouTube", status.integrations.youtube.configured, "Recipe video discovery"],
+    ["SMTP", status.integrations.smtp.configured, "Transactional email delivery"],
+    ["Stripe", status.integrations.stripe.configured, "Hosted checkout and subscriptions"],
+    ["PayPal", status.integrations.paypal.configured, "PayPal checkout"],
+    ["S3 storage", status.integrations.storage.configured, "Uploaded files and documents"],
+    ["KYC providers", status.integrations.kyc.configured, "Identity and background provider setup"],
+    ["Error tracking", status.integrations.errorTracking.configured, "External error tracking placeholder"],
   ] as const;
 
   return (
@@ -49,6 +53,24 @@ export default async function AdminSystemPage() {
           <p className="text-sm font-semibold text-[var(--color-muted)]">Environment</p>
           <p className="mt-2 text-3xl font-bold text-[var(--color-ink)]">{status.app.environment}</p>
           <p className="mt-2 text-sm text-[var(--color-muted)]">Runtime label only, not secret config.</p>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <p className="text-sm font-semibold text-[var(--color-muted)]">Open alerts</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--color-ink)]">{status.alerts.open}</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">{status.alerts.critical} critical, {status.alerts.warning} warning</p>
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-[var(--color-muted)]">Failed webhooks</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--color-ink)]">{status.integrations.paymentHealth.failedWebhooks}</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Stored provider events needing review.</p>
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-[var(--color-muted)]">Storage failures</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--color-ink)]">{status.failures.storageFailures.length}</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Recent failed S3/storage checks.</p>
         </Card>
       </div>
 
@@ -117,6 +139,15 @@ export default async function AdminSystemPage() {
             </Link>
             <Link className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold hover:bg-slate-50" href="/admin/feature-flags">
               Disable feature flags
+            </Link>
+            <Link className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold hover:bg-slate-50" href="/admin/system/health">
+              Open health checks
+            </Link>
+            <Link className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold hover:bg-slate-50" href="/admin/system/alerts">
+              Review system alerts
+            </Link>
+            <Link className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold hover:bg-slate-50" href="/admin/system/integrations">
+              Integration status
             </Link>
             <a className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold hover:bg-slate-50" href="https://github.com/joblynk-aiexploration/nizamkitchen/blob/main/docs/backup-and-restore.md">
               Backup and restore docs

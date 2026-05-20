@@ -23,8 +23,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       storage: "reachable",
-      endpoint: env.OBJECT_STORAGE_ENDPOINT,
-      bucket: env.OBJECT_STORAGE_BUCKET,
+      configured: Boolean(env.OBJECT_STORAGE_ENDPOINT && env.OBJECT_STORAGE_BUCKET),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -32,8 +31,7 @@ export async function GET() {
       {
         ok: false,
         storage: "unreachable",
-        endpoint: env.OBJECT_STORAGE_ENDPOINT,
-        bucket: env.OBJECT_STORAGE_BUCKET,
+        configured: Boolean(env.OBJECT_STORAGE_ENDPOINT && env.OBJECT_STORAGE_BUCKET),
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 503 },
