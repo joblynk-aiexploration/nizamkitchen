@@ -20,6 +20,7 @@ const iconByHref = {
   "/saved-restaurants": Store,
   "/billing": CircleDollarSign,
   "/support": Inbox,
+  "/privacy-center": Shield,
   "/admin/billing": CircleDollarSign,
   "/admin/billing/plans": CircleDollarSign,
   "/admin/billing/subscriptions": CircleDollarSign,

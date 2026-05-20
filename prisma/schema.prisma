@@ -372,6 +372,8 @@ model User {
   platformIntegrationCredentialsUpdated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialUpdatedBy")
   platformIntegrationTests         PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
   oauthAccounts                    OAuthAccount[]
+  userActivities                   UserActivity[]
+  privacySetting                   UserPrivacySetting?
   locations                        Location[]
 }
 
@@ -490,6 +492,7 @@ model Organization {
   legalDocumentAcceptances   LegalDocumentAcceptance[]
   legalConsentEvents         LegalConsentEvent[]
   dataPrivacyRequests        DataPrivacyRequest[]
+  userActivities             UserActivity[]
   locations                  Location[]
 
   @@index([countryCode])
@@ -1535,8 +1538,10 @@ enum PolicyOverrideStatus {
 }
 
 enum LegalDocumentType {
+  user_terms
   terms_of_service
   privacy_policy
+  seller_terms
   seller_agreement
   home_chef_agreement
   home_catering_agreement
@@ -1615,6 +1620,33 @@ enum RetentionAction {
 enum DataRetentionPolicyStatus {
   active
   disabled
+}
+
+enum UserActivityVisibility {
+  private
+  organization
+  admin_only
+}
+
+enum UserActivityType {
+  login
+  logout
+  recipe_viewed
+  recipe_favorited
+  meal_plan_created
+  grocery_list_created
+  order_created
+  support_ticket_created
+  profile_updated
+  file_uploaded
+  privacy_action
+  other
+}
+
+enum UserProfileVisibility {
+  private
+  organization
+  public
 }
 
 enum SellerVerificationLevel {
@@ -3443,6 +3475,47 @@ model DataRetentionPolicy {
   @@index([status])
   @@index([createdById])
   @@index([updatedById])
+}
+
+model UserActivity {
+  id             String                 @id @default(cuid())
+  userId         String
+  organizationId String?
+  activityType   UserActivityType
+  title          String
+  description    String?
+  entityType     String?
+  entityId       String?
+  metadataJson   Json?
+  visibility     UserActivityVisibility @default(private)
+  createdAt      DateTime               @default(now())
+  deletedAt      DateTime?
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([activityType])
+  @@index([visibility])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model UserPrivacySetting {
+  id                                  String                @id @default(cuid())
+  userId                              String                @unique
+  profileVisibility                   UserProfileVisibility @default(private)
+  activityRetentionDays               Int?
+  marketingEmailsEnabled              Boolean               @default(false)
+  analyticsConsent                    Boolean               @default(false)
+  personalizedRecommendationsEnabled  Boolean               @default(true)
+  createdAt                           DateTime              @default(now())
+  updatedAt                           DateTime              @updatedAt
+  user                                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([profileVisibility])
+  @@index([analyticsConsent])
+  @@index([marketingEmailsEnabled])
 }
 
 model SellerVerificationItem {

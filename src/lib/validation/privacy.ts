@@ -46,5 +46,17 @@ export const dataRetentionPolicySchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+export const userPrivacySettingSchema = z.object({
+  profileVisibility: z.enum(["private", "organization", "public"]).default("private"),
+  activityRetentionDays: z.preprocess(
+    (value) => (value === "" || value === null || value === undefined ? null : Number(value)),
+    z.number().int().positive().max(3650).nullable(),
+  ),
+  marketingEmailsEnabled: z.preprocess((value) => value === "on" || value === true, z.boolean()),
+  analyticsConsent: z.preprocess((value) => value === "on" || value === true, z.boolean()),
+  personalizedRecommendationsEnabled: z.preprocess((value) => value === "on" || value === true, z.boolean()),
+});
+
 export type DataPrivacyRequestCreateInput = z.infer<typeof dataPrivacyRequestCreateSchema>;
 export type DataRetentionPolicyInput = z.infer<typeof dataRetentionPolicySchema>;
+export type UserPrivacySettingInput = z.infer<typeof userPrivacySettingSchema>;

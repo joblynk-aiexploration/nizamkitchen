@@ -26,8 +26,10 @@ const LEGAL_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"];
 const LEGAL_READ_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "support_admin", "auditor"];
 
 const publicSlugByType: Partial<Record<LegalDocumentType, string>> = {
+  user_terms: "terms-of-service",
   terms_of_service: "terms-of-service",
   privacy_policy: "privacy-policy",
+  seller_terms: "seller-agreement",
   refund_policy: "refund-policy",
   cancellation_policy: "cancellation-policy",
   food_safety_policy: "food-safety-policy",

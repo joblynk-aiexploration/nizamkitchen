@@ -13,6 +13,7 @@ import {
   adminDataPrivacyRequestUpdateSchema,
   dataPrivacyRequestCreateSchema,
   dataRetentionPolicySchema,
+  userPrivacySettingSchema,
 } from "@/lib/validation/privacy";
 import { createAuditEvent } from "@/server/audit";
 import { getStorageProvider } from "@/server/storage/storage-service";
@@ -24,6 +25,45 @@ const PRIVACY_MANAGE_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"
 export type PrivacySession = {
   user: { id: string; email?: string; status?: UserStatus; platformRole: PlatformRole | null };
   activeOrganization?: { id: string; countryCode: string; organizationType?: string | null } | null;
+};
+
+type UserActivityRecord = {
+  id: string;
+  userId: string;
+  organizationId: string | null;
+  activityType: string;
+  title: string;
+  description: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  metadataJson: Prisma.JsonValue | null;
+  visibility: string;
+  createdAt: Date;
+  deletedAt: Date | null;
+};
+
+type UserPrivacySettingRecord = {
+  id: string;
+  userId: string;
+  profileVisibility: "private" | "organization" | "public";
+  activityRetentionDays: number | null;
+  marketingEmailsEnabled: boolean;
+  analyticsConsent: boolean;
+  personalizedRecommendationsEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UserActivityDelegate = {
+  findMany(args: unknown): Promise<UserActivityRecord[]>;
+  create(args: unknown): Promise<UserActivityRecord>;
+  updateMany(args: unknown): Promise<{ count: number }>;
+};
+
+type UserPrivacySettingDelegate = {
+  findUnique(args: unknown): Promise<UserPrivacySettingRecord | null>;
+  create(args: unknown): Promise<UserPrivacySettingRecord>;
+  upsert(args: unknown): Promise<UserPrivacySettingRecord>;
 };
 
 export async function createDataPrivacyRequest(session: PrivacySession, input: unknown) {
@@ -65,6 +105,283 @@ export async function listUserPrivacyRequests(session: PrivacySession) {
     include: requestInclude,
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function getUserPrivacyCenterData(session: PrivacySession) {
+  const organizationId = session.activeOrganization?.id;
+  const [
+    user,
+    memberships,
+    householdProfile,
+    mealPlans,
+    groceryLists,
+    foodOrders,
+    savedRestaurants,
+    favoriteRecipes,
+    supportTickets,
+    notifications,
+    storageFiles,
+    legalAcceptances,
+    paymentSummaries,
+    auditEntries,
+    userActivities,
+    privacySetting,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        status: true,
+        headline: true,
+        bio: true,
+        locationText: true,
+        phone: true,
+        preferredLanguage: true,
+        publicProfileEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.membership.findMany({
+      where: { userId: session.user.id },
+      include: { organization: { select: { id: true, name: true, organizationType: true, countryCode: true, status: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    organizationId ? prisma.householdProfile.findUnique({ where: { organizationId } }) : null,
+    organizationId ? prisma.mealPlan.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 25 }) : [],
+    organizationId ? prisma.groceryList.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 25 }) : [],
+    prisma.foodOrder.findMany({
+      where: organizationId
+        ? { OR: [{ customerOrganizationId: organizationId }, { sellerOrganizationId: organizationId }, { organizationId }] }
+        : { customerUserId: session.user.id },
+      select: { id: true, status: true, sellerType: true, subtotalAmount: true, currencyCode: true, createdAt: true, updatedAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    organizationId ? prisma.savedRestaurant.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 25 }) : [],
+    organizationId ? prisma.favoriteRecipe.findMany({
+      where: { organizationId },
+      include: { recipe: { select: { id: true, name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }) : [],
+    prisma.supportTicket.findMany({
+      where: organizationId ? { organizationId } : { createdById: session.user.id },
+      select: { id: true, type: true, status: true, priority: true, title: true, createdAt: true, updatedAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    prisma.notification.findMany({
+      where: organizationId ? { OR: [{ userId: session.user.id }, { organizationId }] } : { userId: session.user.id },
+      select: { id: true, type: true, title: true, status: true, priority: true, readAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    prisma.storageFile.findMany({
+      where: organizationId ? { OR: [{ userId: session.user.id }, { uploadedById: session.user.id }, { organizationId }] } : { OR: [{ userId: session.user.id }, { uploadedById: session.user.id }] },
+      select: { id: true, originalFilename: true, mimeType: true, sizeBytes: true, visibility: true, status: true, purpose: true, module: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    prisma.legalDocumentAcceptance.findMany({
+      where: organizationId ? { OR: [{ userId: session.user.id }, { organizationId }] } : { userId: session.user.id },
+      include: { document: { select: { title: true, documentType: true, slug: true, version: true } } },
+      orderBy: { acceptedAt: "desc" },
+      take: 25,
+    }),
+    prisma.paymentOrder.findMany({
+      where: organizationId
+        ? { OR: [{ organizationId }, { customerOrganizationId: organizationId }, { sellerOrganizationId: organizationId }] }
+        : { customerUserId: session.user.id },
+      select: { id: true, module: true, status: true, amount: true, currencyCode: true, paidAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    prisma.auditLog.findMany({
+      where: { actorUserId: session.user.id },
+      select: { id: true, action: true, targetType: true, targetId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
+    listUserActivities(session),
+    getOrCreateUserPrivacySetting(session),
+  ]);
+
+  return {
+    user,
+    memberships,
+    householdProfile,
+    mealPlans,
+    groceryLists,
+    foodOrders,
+    savedRestaurants,
+    favoriteRecipes,
+    supportTickets,
+    notifications,
+    storageFiles,
+    legalAcceptances,
+    paymentSummaries,
+    auditEntries,
+    userActivities,
+    privacySetting,
+    protectedDataNotice: [
+      "Payment ledger records cannot be deleted directly from the privacy center.",
+      "Audit logs are preserved for security and accounting review.",
+      "KYC and verification records follow retention policies and require admin review.",
+      "Active orders cannot be removed from user controls.",
+    ],
+  };
+}
+
+export async function listUserActivities(session: PrivacySession) {
+  const userActivity = userActivitiesDelegate();
+  if (!userActivity) return [];
+  return userActivity.findMany({
+    where: {
+      userId: session.user.id,
+      deletedAt: null,
+      visibility: { in: ["private", "organization"] },
+      ...(session.activeOrganization?.id ? { OR: [{ organizationId: session.activeOrganization.id }, { organizationId: null }] } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+}
+
+export async function recordUserActivity(session: PrivacySession, input: {
+  activityType?: "privacy_action" | "other";
+  title: string;
+  description?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  metadataJson?: Prisma.InputJsonValue;
+}) {
+  const userActivity = userActivitiesDelegate();
+  if (!userActivity) return null;
+  return userActivity.create({
+    data: {
+      userId: session.user.id,
+      organizationId: session.activeOrganization?.id ?? null,
+      activityType: input.activityType ?? "privacy_action",
+      title: input.title,
+      description: input.description ?? null,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+      metadataJson: input.metadataJson ?? Prisma.JsonNull,
+      visibility: "private",
+    },
+  });
+}
+
+export async function clearUserActivity(session: PrivacySession) {
+  const userActivity = userActivitiesDelegate();
+  if (!userActivity) return { count: 0 };
+  const result = await userActivity.updateMany({
+    where: { userId: session.user.id, deletedAt: null, visibility: { in: ["private", "organization"] } },
+    data: { deletedAt: new Date() },
+  });
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    organizationId: session.activeOrganization?.id ?? null,
+    countryCode: session.activeOrganization?.countryCode ?? null,
+    action: "privacy_activity.cleared",
+    targetType: "user_activity",
+    targetId: session.user.id,
+    details: { count: result.count },
+  });
+  return result;
+}
+
+export async function getOrCreateUserPrivacySetting(session: PrivacySession) {
+  const userPrivacySetting = userPrivacySettingsDelegate();
+  if (!userPrivacySetting) {
+    return {
+      id: "privacy-setting-unavailable",
+      userId: session.user.id,
+      profileVisibility: "private" as const,
+      activityRetentionDays: null,
+      marketingEmailsEnabled: false,
+      analyticsConsent: false,
+      personalizedRecommendationsEnabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+  const existing = await userPrivacySetting.findUnique({ where: { userId: session.user.id } });
+  if (existing) return existing;
+  return userPrivacySetting.create({ data: { userId: session.user.id } });
+}
+
+export async function updateUserPrivacySetting(session: PrivacySession, input: unknown) {
+  const userPrivacySetting = userPrivacySettingsDelegate();
+  if (!userPrivacySetting) throw new Error("User privacy settings are not available.");
+  const parsed = userPrivacySettingSchema.parse(input);
+  const setting = await userPrivacySetting.upsert({
+    where: { userId: session.user.id },
+    update: parsed,
+    create: { userId: session.user.id, ...parsed },
+  });
+  await recordUserActivity(session, {
+    title: "Privacy settings updated",
+    metadataJson: { profileVisibility: setting.profileVisibility, analyticsConsent: setting.analyticsConsent },
+  });
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    organizationId: session.activeOrganization?.id ?? null,
+    countryCode: session.activeOrganization?.countryCode ?? null,
+    action: "privacy_settings.updated",
+    targetType: "user_privacy_setting",
+    targetId: setting.id,
+    details: { profileVisibility: setting.profileVisibility },
+  });
+  return setting;
+}
+
+export async function cleanupUserPrivacyData(session: PrivacySession, cleanupType: string) {
+  if (!session.activeOrganization?.id) throw new Error("An active organization is required.");
+  const organizationId = session.activeOrganization.id;
+  let result: { count: number };
+  let title: string;
+
+  if (cleanupType === "saved_restaurants") {
+    result = await prisma.savedRestaurant.deleteMany({ where: { organizationId } });
+    title = "Saved restaurants deleted";
+  } else if (cleanupType === "favorite_recipes") {
+    result = await prisma.favoriteRecipe.deleteMany({ where: { organizationId, createdById: session.user.id } });
+    title = "Favorite recipes removed";
+  } else if (cleanupType === "old_grocery_lists") {
+    result = await prisma.groceryList.updateMany({
+      where: { organizationId, createdById: session.user.id, status: { in: ["draft", "completed"] } },
+      data: { status: "archived" },
+    });
+    title = "Old grocery lists archived";
+  } else if (cleanupType === "old_meal_plans") {
+    result = await prisma.mealPlan.updateMany({
+      where: { organizationId, createdById: session.user.id, status: { in: ["draft", "completed"] } },
+      data: { status: "archived" },
+    });
+    title = "Old meal plans archived";
+  } else {
+    throw new Error("Unsupported privacy cleanup action.");
+  }
+
+  await recordUserActivity(session, {
+    title,
+    metadataJson: { cleanupType, count: result.count },
+  });
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    organizationId,
+    countryCode: session.activeOrganization.countryCode,
+    action: "privacy_cleanup.completed",
+    targetType: cleanupType,
+    targetId: organizationId,
+    details: { count: result.count },
+  });
+  return result;
 }
 
 export async function getUserPrivacyRequest(session: PrivacySession, requestId: string) {
@@ -288,7 +605,7 @@ export function retentionWarningForCategory(category: DataCategory) {
 
 async function buildPrivacyExportPayload(userId: string, organizationId?: string | null) {
   const organizationWhere = organizationId ? { id: organizationId } : { memberships: { some: { userId } } };
-  const [user, memberships, organizations, householdProfile, mealPlans, groceryLists, foodOrders, supportTickets, notifications, storageFiles, legalAcceptances, paymentOrders, verificationProfile] = await Promise.all([
+  const [user, memberships, organizations, householdProfile, mealPlans, groceryLists, foodOrders, supportTickets, notifications, storageFiles, legalAcceptances, paymentOrders, verificationProfile, privacySetting, userActivities] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -383,6 +700,12 @@ async function buildPrivacyExportPayload(userId: string, organizationId?: string
       where: { organizationId },
       select: { id: true, sellerType: true, status: true, verificationLevel: true, submittedAt: true, reviewedAt: true, rejectionReason: true, createdAt: true, updatedAt: true },
     }) : null,
+    userPrivacySettingsDelegate()?.findUnique({ where: { userId } }) ?? Promise.resolve(null),
+    userActivitiesDelegate()?.findMany({
+      where: { userId, deletedAt: null, visibility: { in: ["private", "organization"] } },
+      orderBy: { createdAt: "desc" },
+      take: 250,
+    }) ?? Promise.resolve([]),
   ]);
 
   return {
@@ -399,6 +722,8 @@ async function buildPrivacyExportPayload(userId: string, organizationId?: string
     notifications,
     uploadedFilesMetadata: storageFiles,
     legalAcceptances,
+    userActivities,
+    privacySettings: privacySetting,
     paymentSummaries: paymentOrders,
     kycSummary: verificationProfile,
     excludedSensitiveData: [
@@ -468,6 +793,14 @@ function hashIdentifier(value: string) {
 function privacyJsonReplacer(_key: string, value: unknown) {
   if (value instanceof Prisma.Decimal) return value.toString();
   return value;
+}
+
+function userActivitiesDelegate() {
+  return (prisma as unknown as { userActivity?: UserActivityDelegate }).userActivity;
+}
+
+function userPrivacySettingsDelegate() {
+  return (prisma as unknown as { userPrivacySetting?: UserPrivacySettingDelegate }).userPrivacySetting;
 }
 
 const requestInclude = {

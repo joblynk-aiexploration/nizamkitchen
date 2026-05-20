@@ -160,6 +160,8 @@ describe("legal documents and consent center", () => {
 
   it("adds public and admin legal routes", () => {
     const root = process.cwd();
+    expect(existsSync(join(root, "src/app/(public)/terms/page.tsx"))).toBe(true);
+    expect(existsSync(join(root, "src/app/(public)/privacy/page.tsx"))).toBe(true);
     expect(existsSync(join(root, "src/app/(public)/legal/terms/page.tsx"))).toBe(true);
     expect(existsSync(join(root, "src/app/(public)/legal/privacy/page.tsx"))).toBe(true);
     expect(existsSync(join(root, "src/app/(app)/admin/legal/documents/page.tsx"))).toBe(true);

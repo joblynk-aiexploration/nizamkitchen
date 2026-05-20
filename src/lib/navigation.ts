@@ -237,7 +237,7 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/reports", label: "Reports" },
     { href: "/billing", label: "Billing" },
     { href: "/support", label: "Support" },
-    { href: "/privacy", label: "Privacy" },
+    { href: "/privacy-center", label: "Privacy" },
     { href: "/settings", label: "Settings" },
   ];
 

@@ -8,8 +8,10 @@ import { createLegalDocumentAction } from "../../actions";
 export const dynamic = "force-dynamic";
 
 const documentTypes = [
+  "user_terms",
   "terms_of_service",
   "privacy_policy",
+  "seller_terms",
   "seller_agreement",
   "home_chef_agreement",
   "home_catering_agreement",
