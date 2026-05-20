@@ -44,7 +44,7 @@ export default async function AdminRecipeDetailPage({
     session.user.platformRole === "platform_admin";
 
   const sections = groupIngredientsBySection(recipe.ingredients);
-  const discoveryAvailable = isYouTubeDiscoveryAvailable();
+  const discoveryAvailable = await isYouTubeDiscoveryAvailable();
 
   const youtubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")

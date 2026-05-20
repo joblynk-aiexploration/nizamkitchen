@@ -74,7 +74,16 @@ export async function getAdminSystemStatus(session: SystemStatusSession) {
 }
 
 export async function getIntegrationStatuses() {
-  const [storageActive, storageError, stripeGateway, paypalGateway, failedPaymentWebhooks, failedPayments, kycProviders] = await Promise.all([
+  const [
+    storageActive,
+    storageError,
+    stripeGateway,
+    paypalGateway,
+    failedPaymentWebhooks,
+    failedPayments,
+    kycProviders,
+    vaultIntegrations,
+  ] = await Promise.all([
     prisma.storageConfiguration.count({ where: { status: "active" } }),
     prisma.storageConfiguration.count({ where: { OR: [{ status: "error" }, { lastTestStatus: "failed" }] } }),
     prisma.paymentGateway.count({ where: { provider: "stripe", status: "active" } }),
@@ -82,7 +91,16 @@ export async function getIntegrationStatuses() {
     prisma.paymentWebhookEvent.count({ where: { status: "failed" } }),
     prisma.paymentOrder.count({ where: { status: "failed" } }),
     prisma.kycProviderConfiguration.count({ where: { status: "active" } }),
+    prisma.platformIntegration.findMany({
+      where: { status: "active" },
+      select: { provider: true },
+    }),
   ]);
+
+  const vaultProviderCount = vaultIntegrations.reduce<Record<string, number>>((accumulator, integration) => {
+    accumulator[integration.provider] = (accumulator[integration.provider] ?? 0) + 1;
+    return accumulator;
+  }, {});
 
   return {
     mapTiler: {
@@ -90,28 +108,28 @@ export async function getIntegrationStatuses() {
       enabled: Boolean(env.MAPTILER_RESTAURANT_DISCOVERY_ENABLED),
     },
     youtube: {
-      configured: Boolean(env.YOUTUBE_DATA_API_KEY),
+      configured: (vaultProviderCount.youtube_data ?? 0) > 0 || Boolean(env.YOUTUBE_DATA_API_KEY),
       enabled: Boolean(env.YOUTUBE_DISCOVERY_ENABLED),
     },
     smtp: {
-      configured: Boolean(env.SMTP_HOST && env.EMAIL_FROM && env.SMTP_HOST !== "localhost"),
+      configured: (vaultProviderCount.smtp ?? 0) > 0 || Boolean(env.SMTP_HOST && env.EMAIL_FROM && env.SMTP_HOST !== "localhost"),
     },
     stripe: {
-      configured: stripeGateway > 0 || Boolean(process.env.STRIPE_SECRET_KEY),
-      activeGateways: stripeGateway,
+      configured: stripeGateway > 0 || (vaultProviderCount.stripe ?? 0) > 0 || Boolean(process.env.STRIPE_SECRET_KEY),
+      activeGateways: stripeGateway + (vaultProviderCount.stripe ?? 0),
     },
     paypal: {
-      configured: paypalGateway > 0 || Boolean(process.env.PAYPAL_CLIENT_ID),
-      activeGateways: paypalGateway,
+      configured: paypalGateway > 0 || (vaultProviderCount.paypal ?? 0) > 0 || Boolean(process.env.PAYPAL_CLIENT_ID),
+      activeGateways: paypalGateway + (vaultProviderCount.paypal ?? 0),
     },
     storage: {
-      configured: storageActive > 0,
-      activeConfigurations: storageActive,
+      configured: storageActive > 0 || (vaultProviderCount.aws_s3 ?? 0) > 0,
+      activeConfigurations: storageActive + (vaultProviderCount.aws_s3 ?? 0),
       failingConfigurations: storageError,
     },
     kyc: {
-      configured: kycProviders > 0,
-      activeProviders: kycProviders,
+      configured: kycProviders > 0 || (vaultProviderCount.kyc_provider ?? 0) > 0 || (vaultProviderCount.background_check_provider ?? 0) > 0,
+      activeProviders: kycProviders + (vaultProviderCount.kyc_provider ?? 0) + (vaultProviderCount.background_check_provider ?? 0),
     },
     errorTracking: {
       configured: Boolean(env.ERROR_TRACKING_ENABLED && (env.ERROR_TRACKING_DSN || env.SENTRY_DSN)),

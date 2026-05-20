@@ -18,6 +18,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     paymentOrder: { count: vi.fn(), findMany: vi.fn() },
     paymentRefund: { count: vi.fn() },
     kycProviderConfiguration: { count: vi.fn() },
+    platformIntegration: { findMany: vi.fn() },
     systemAlert: { count: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
 }));
@@ -32,6 +33,7 @@ describe("operations health check", () => {
     mockPrisma.paymentWebhookEvent.count.mockResolvedValue(0);
     mockPrisma.paymentOrder.count.mockResolvedValue(0);
     mockPrisma.paymentRefund.count.mockResolvedValue(0);
+    mockPrisma.platformIntegration.findMany.mockResolvedValue([]);
   });
 
   it("/api/health returns safe JSON when database and migrations are reachable", async () => {
@@ -88,6 +90,7 @@ describe("admin system status", () => {
     mockPrisma.paymentOrder.count.mockResolvedValue(0);
     mockPrisma.paymentOrder.findMany.mockResolvedValue([]);
     mockPrisma.kycProviderConfiguration.count.mockResolvedValue(0);
+    mockPrisma.platformIntegration.findMany.mockResolvedValue([]);
     mockPrisma.systemAlert.count.mockResolvedValue(0);
     mockPrisma.systemAlert.findMany.mockResolvedValue([]);
     mockPrisma.auditLog.findMany.mockResolvedValue([

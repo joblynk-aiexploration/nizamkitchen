@@ -23,8 +23,8 @@ export async function POST(request: Request) {
       return respond(request, { error: "Too many YouTube discovery requests. Please wait and try again." }, 429, "Too many YouTube discovery requests. Please wait and try again.");
     }
 
-    if (!isYouTubeDiscoveryAvailable()) {
-      const cfg = getYouTubeDiscoveryConfig();
+    if (!(await isYouTubeDiscoveryAvailable())) {
+      const cfg = await getYouTubeDiscoveryConfig();
       const message = cfg.enabled ? "YouTube discovery configuration is invalid." : (cfg as { enabled: false; reason: string }).reason;
       return respond(request, { error: message }, 422, message);
     }

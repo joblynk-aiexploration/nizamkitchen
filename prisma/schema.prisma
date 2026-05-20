@@ -212,6 +212,61 @@ enum StorageFileAction {
   restored
 }
 
+enum IntegrationProvider {
+  google_maps
+  google_places
+  google_geocoding
+  google_oauth
+  facebook_oauth
+  google_analytics
+  google_search_console
+  google_recaptcha
+  google_adsense
+  youtube_data
+  aws_s3
+  smtp
+  stripe
+  paypal
+  google_pay
+  kyc_provider
+  background_check_provider
+  custom
+}
+
+enum IntegrationCategory {
+  maps
+  auth
+  analytics
+  seo
+  ads
+  storage
+  payments
+  email
+  verification
+  security
+  marketplace
+  other
+}
+
+enum IntegrationStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum IntegrationEnvironment {
+  sandbox
+  production
+  development
+}
+
+enum IntegrationTestStatus {
+  not_tested
+  success
+  failed
+}
+
 model User {
   id                               String                         @id @default(cuid())
   email                            String                         @unique
@@ -278,6 +333,7 @@ model User {
   sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
   permissionOverrides              UserPermissionOverride[]        @relation("UserPermissionOverrideUser")
   permissionOverridesCreated       UserPermissionOverride[]        @relation("UserPermissionOverrideCreatedBy")
+  resolvedSystemAlerts             SystemAlert[]                  @relation("SystemAlertResolvedBy")
   marketplacePoliciesCreated       MarketplacePolicy[]             @relation("MarketplacePolicyCreatedBy")
   marketplacePoliciesUpdated       MarketplacePolicy[]             @relation("MarketplacePolicyUpdatedBy")
   marketplacePolicyOverrides       MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideUser")
@@ -293,6 +349,11 @@ model User {
   dataPrivacyRequestsCompleted     DataPrivacyRequest[]             @relation("DataPrivacyRequestCompletedBy")
   dataRetentionPoliciesCreated     DataRetentionPolicy[]            @relation("DataRetentionPolicyCreatedBy")
   dataRetentionPoliciesUpdated     DataRetentionPolicy[]            @relation("DataRetentionPolicyUpdatedBy")
+  platformIntegrationsCreated      PlatformIntegration[]            @relation("PlatformIntegrationCreatedBy")
+  platformIntegrationsUpdated      PlatformIntegration[]            @relation("PlatformIntegrationUpdatedBy")
+  platformIntegrationCredentialsCreated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialCreatedBy")
+  platformIntegrationCredentialsUpdated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialUpdatedBy")
+  platformIntegrationTests         PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
 }
 
 model Session {
@@ -850,6 +911,94 @@ model StorageFileVersion {
   @@index([createdById])
 }
 
+model PlatformIntegration {
+  id              String                 @id @default(cuid())
+  provider        IntegrationProvider
+  category        IntegrationCategory
+  displayName     String
+  description     String?
+  status          IntegrationStatus      @default(draft)
+  environment     IntegrationEnvironment @default(production)
+  countryCode     String?
+  region          String?
+  isGlobal        Boolean                @default(true)
+  isDefault       Boolean                @default(false)
+  createdById     String
+  updatedById     String?
+  lastTestedAt    DateTime?
+  lastTestStatus  IntegrationTestStatus  @default(not_tested)
+  lastTestMessage String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  createdBy       User                   @relation("PlatformIntegrationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?                  @relation("PlatformIntegrationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  credentials     PlatformIntegrationCredential[]
+  settings        PlatformIntegrationSetting[]
+  testLogs        PlatformIntegrationTestLog[]
+
+  @@index([provider])
+  @@index([category])
+  @@index([status])
+  @@index([environment])
+  @@index([countryCode])
+  @@index([isDefault])
+}
+
+model PlatformIntegrationCredential {
+  id                 String              @id @default(cuid())
+  integrationId      String
+  keyName            String
+  encryptedValue     String
+  valuePreview       String
+  isPublicClientValue Boolean            @default(false)
+  createdById        String
+  updatedById        String?
+  rotatedAt          DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  integration        PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  createdBy          User                @relation("PlatformIntegrationCredentialCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User?               @relation("PlatformIntegrationCredentialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([integrationId, keyName])
+  @@index([integrationId])
+  @@index([keyName])
+  @@index([isPublicClientValue])
+}
+
+model PlatformIntegrationSetting {
+  id               String              @id @default(cuid())
+  integrationId    String
+  settingKey       String
+  settingValueJson Json
+  isSecret         Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  integration      PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, settingKey])
+  @@index([integrationId])
+  @@index([isSecret])
+}
+
+model PlatformIntegrationTestLog {
+  id           String                @id @default(cuid())
+  integrationId String
+  testType     String
+  status       IntegrationTestStatus @default(not_tested)
+  message      String
+  metadataJson Json?
+  testedById   String
+  createdAt    DateTime              @default(now())
+  integration  PlatformIntegration   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  testedBy     User                  @relation("PlatformIntegrationTestedBy", fields: [testedById], references: [id], onDelete: Restrict)
+
+  @@index([integrationId])
+  @@index([status])
+  @@index([testedById])
+  @@index([createdAt])
+}
+
 model EmailLog {
   id                String        @id @default(cuid())
   organizationId    String?
@@ -876,6 +1025,38 @@ model SystemSetting {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum SystemAlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum SystemAlertStatus {
+  open
+  resolved
+  ignored
+}
+
+model SystemAlert {
+  id          String              @id @default(cuid())
+  type        String
+  severity    SystemAlertSeverity @default(info)
+  status      SystemAlertStatus   @default(open)
+  title       String
+  message     String
+  metadataJson Json?
+  resolvedById String?
+  resolvedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  resolvedBy  User?               @relation("SystemAlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([severity])
+  @@index([type])
 }
 
 // ─── Food Foundation ─────────────────────────────────────────────────────────

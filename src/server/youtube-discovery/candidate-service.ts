@@ -117,7 +117,7 @@ export async function importCandidate(params: {
 
   // Verify availability via YouTube API before creating a RecipeMediaReference.
   // If no API key is configured, skip the check (treat as unchecked).
-  const cfg = getYouTubeDiscoveryConfig();
+  const cfg = await getYouTubeDiscoveryConfig();
   let availabilityData: {
     availabilityStatus: "available" | "unavailable" | "unchecked";
     isEmbeddable: boolean;

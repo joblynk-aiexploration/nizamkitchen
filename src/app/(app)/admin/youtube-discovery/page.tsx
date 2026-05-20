@@ -44,8 +44,10 @@ export default async function YouTubeDiscoveryPage({
   const { message } = await searchParams;
   const canMutate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
 
-  const discoveryAvailable = isYouTubeDiscoveryAvailable();
-  const cfg = getYouTubeDiscoveryConfig();
+  const [discoveryAvailable, cfg] = await Promise.all([
+    isYouTubeDiscoveryAvailable(),
+    getYouTubeDiscoveryConfig(),
+  ]);
 
   const [summary, coverageRows, recentRuns, groupedCandidates] = await Promise.all([
     getCoverageSummary(),
