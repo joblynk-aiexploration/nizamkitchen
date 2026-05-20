@@ -1,6 +1,7 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { listIntegrationTemplates, listPlatformIntegrations, platformConfigurationOperationalStatus } from "@/server/config/platform-config-service";
 
@@ -51,6 +52,21 @@ export default async function AdminConfigurationPage() {
           </p>
         </Card>
       </section>
+
+      <Card className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-ink)]">Social auth providers</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            Google and Facebook login now use this vault too, including callback URLs, allowed domains, auto-create behavior, and login button visibility.
+          </p>
+        </div>
+        <Link
+          href="/admin/configuration/auth"
+          className="inline-flex rounded-2xl border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-ink)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
+        >
+          Open auth providers
+        </Link>
+      </Card>
     </AdminShell>
   );
 }

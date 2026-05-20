@@ -90,8 +90,11 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     publicCredentialKeys: ["client_id"],
     serverCredentialKeys: ["client_secret"],
     settings: [
-      { key: "callbackUrl", description: "OAuth callback URL.", example: "https://app.example.com/api/auth/google/callback" },
+      { key: "callbackUrl", description: "OAuth callback URL.", example: "https://app.example.com/api/auth/oauth/google/callback" },
       { key: "allowedDomains", description: "Optional allowed email domains.", example: "example.com" },
+      { key: "autoCreateUser", description: "Allow new users to create an account with Google.", example: "true" },
+      { key: "defaultOrganizationType", description: "Default onboarding account type.", example: "household" },
+      { key: "loginButtonVisible", description: "Show the Google button on public auth pages.", example: "true" },
     ],
     supportedTestTypes: ["oauth_config"],
   },
@@ -102,7 +105,12 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     description: "Facebook app credentials and callback configuration.",
     publicCredentialKeys: ["app_id"],
     serverCredentialKeys: ["app_secret"],
-    settings: [{ key: "callbackUrl", description: "OAuth callback URL.", example: "https://app.example.com/api/auth/facebook/callback" }],
+    settings: [
+      { key: "callbackUrl", description: "OAuth callback URL.", example: "https://app.example.com/api/auth/oauth/facebook/callback" },
+      { key: "autoCreateUser", description: "Allow new users to create an account with Facebook.", example: "true" },
+      { key: "defaultOrganizationType", description: "Default onboarding account type.", example: "household" },
+      { key: "loginButtonVisible", description: "Show the Facebook button on public auth pages.", example: "true" },
+    ],
     supportedTestTypes: ["oauth_config"],
   },
   google_analytics: {
@@ -465,6 +473,20 @@ export async function savePlatformIntegration(session: AdminSession, input: unkn
     },
   });
 
+  if (integration.provider === IntegrationProvider.google_oauth || integration.provider === IntegrationProvider.facebook_oauth) {
+    await createAuditEvent({
+      actorUserId: session.user.id,
+      countryCode: integration.countryCode,
+      action:
+        integration.status === IntegrationStatus.disabled
+          ? "oauth_provider.disabled"
+          : "oauth_provider.enabled",
+      targetType: "platform_integration",
+      targetId: integration.id,
+      details: { provider: integration.provider, environment: integration.environment },
+    });
+  }
+
   return integration;
 }
 
@@ -535,6 +557,17 @@ export async function savePlatformIntegrationCredential(session: AdminSession, i
       isPublicClientValue: credential.isPublicClientValue,
     },
   });
+
+  if (integration.provider === IntegrationProvider.google_oauth || integration.provider === IntegrationProvider.facebook_oauth) {
+    await createAuditEvent({
+      actorUserId: session.user.id,
+      countryCode: integration.countryCode,
+      action: "oauth_provider.credentials_updated",
+      targetType: "platform_integration_credential",
+      targetId: credential.id,
+      details: { provider: integration.provider, keyName: credential.keyName },
+    });
+  }
 
   return redactCredentialRecord(credential);
 }

@@ -212,6 +212,18 @@ enum StorageFileAction {
   restored
 }
 
+enum LocationProvider {
+  google
+  manual
+}
+
+enum LocationVisibility {
+  private
+  organization
+  public_city_only
+  public_full
+}
+
 enum IntegrationProvider {
   google_maps
   google_places
@@ -265,6 +277,11 @@ enum IntegrationTestStatus {
   not_tested
   success
   failed
+}
+
+enum OAuthProvider {
+  google
+  facebook
 }
 
 model User {
@@ -354,6 +371,8 @@ model User {
   platformIntegrationCredentialsCreated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialCreatedBy")
   platformIntegrationCredentialsUpdated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialUpdatedBy")
   platformIntegrationTests         PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
+  oauthAccounts                    OAuthAccount[]
+  locations                        Location[]
 }
 
 model Session {
@@ -372,6 +391,29 @@ model Session {
   @@index([userId])
   @@index([activeOrganizationId])
   @@index([expiresAt])
+}
+
+model OAuthAccount {
+  id                    String        @id @default(cuid())
+  userId                String
+  provider              OAuthProvider
+  providerAccountId     String
+  email                 String?
+  emailVerified         Boolean       @default(false)
+  displayName           String?
+  avatarUrl             String?
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime?
+  rawProfileJson        Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([email])
 }
 
 model Organization {
@@ -448,6 +490,7 @@ model Organization {
   legalDocumentAcceptances   LegalDocumentAcceptance[]
   legalConsentEvents         LegalConsentEvent[]
   dataPrivacyRequests        DataPrivacyRequest[]
+  locations                  Location[]
 
   @@index([countryCode])
   @@index([status])
@@ -3875,7 +3918,7 @@ enum RestaurantFallbackSearchStatus {
 }
 
 enum RestaurantProvider {
-  maptiler
+  google
   manual
 }
 
@@ -3911,13 +3954,17 @@ model RestaurantFallbackResult {
   searchId        String
   organizationId  String
   countryCode     String
-  provider        RestaurantProvider       @default(maptiler)
+  provider        RestaurantProvider       @default(google)
   providerPlaceId String?
   name            String
   address         String?
   latitude        Float?
   longitude       Float?
   category        String?
+  rating          Float?
+  ratingCount     Int?
+  priceLevel      Int?
+  openNow         Boolean?
   distanceMeters  Float?
   mapUrl          String?
   rawJson         Json?
@@ -3939,6 +3986,10 @@ model SavedRestaurant {
   latitude        Float?
   longitude       Float?
   category        String?
+  rating          Float?
+  ratingCount     Int?
+  priceLevel      Int?
+  openNow         Boolean?
   mapUrl          String?
   notes           String?
   createdAt       DateTime           @default(now())
@@ -3947,6 +3998,37 @@ model SavedRestaurant {
 
   @@index([organizationId])
   @@index([countryCode])
+}
+
+model Location {
+  id              String             @id @default(cuid())
+  organizationId  String?
+  userId          String?
+  entityType      String
+  entityId        String
+  label           String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  region          String?
+  countryCode     String
+  postalCode      String?
+  latitude        Float?
+  longitude       Float?
+  provider        LocationProvider   @default(manual)
+  providerPlaceId String?
+  isPrimary       Boolean            @default(true)
+  visibility      LocationVisibility @default(private)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId, isPrimary])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([countryCode])
+  @@index([entityType, entityId])
 }
 
 model ContactLead {

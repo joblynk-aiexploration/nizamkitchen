@@ -13,6 +13,15 @@ function checkboxValue(formData: FormData, key: string) {
   return formData.get(key) === "on" || formData.get(key) === "true";
 }
 
+function redirectTarget(formData: FormData, fallback: string) {
+  const candidate = formData.get("returnTo")?.toString();
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) {
+    return fallback;
+  }
+
+  return candidate;
+}
+
 export async function savePlatformIntegrationAction(formData: FormData) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
   const id = formData.get("id")?.toString() || undefined;
@@ -30,7 +39,7 @@ export async function savePlatformIntegrationAction(formData: FormData) {
     isDefault: checkboxValue(formData, "isDefault"),
   });
 
-  redirect(`/admin/configuration/integrations/${integration.id}?message=Integration saved.`);
+  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integration.id}`)}?message=Integration saved.`);
 }
 
 export async function savePlatformIntegrationCredentialAction(formData: FormData) {
@@ -43,7 +52,7 @@ export async function savePlatformIntegrationCredentialAction(formData: FormData
     isPublicClientValue: checkboxValue(formData, "isPublicClientValue"),
   });
 
-  redirect(`/admin/configuration/integrations/${integrationId}?message=Encrypted credential saved. Full secret remains hidden.`);
+  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Encrypted credential saved. Full secret remains hidden.`);
 }
 
 export async function savePlatformIntegrationSettingAction(formData: FormData) {
@@ -57,7 +66,7 @@ export async function savePlatformIntegrationSettingAction(formData: FormData) {
     isSecret: checkboxValue(formData, "isSecret"),
   });
 
-  redirect(`/admin/configuration/integrations/${integrationId}?message=Integration setting saved.`);
+  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Integration setting saved.`);
 }
 
 export async function runPlatformIntegrationTestAction(formData: FormData) {
@@ -68,5 +77,5 @@ export async function runPlatformIntegrationTestAction(formData: FormData) {
     testType: formData.get("testType")?.toString() ?? "configuration_check",
   });
 
-  redirect(`/admin/configuration/integrations/${integrationId}?message=Integration test logged.`);
+  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Integration test logged.`);
 }

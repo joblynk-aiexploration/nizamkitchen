@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { listVisibleSocialAuthProvidersSafe } from "@/server/auth/oauth-service";
 import { RegisterForm } from "./_register-form";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export default async function RegisterPage({
 }) {
   const params = await searchParams;
   const message = typeof params.message === "string" ? params.message : undefined;
+  const socialProviders = await listVisibleSocialAuthProvidersSafe("register");
 
   const [countries, cuisines] = await Promise.all([
     prisma.country.findMany({
@@ -24,5 +26,12 @@ export default async function RegisterPage({
     }),
   ]);
 
-  return <RegisterForm countries={countries} cuisines={cuisines} message={message} />;
+  return (
+    <RegisterForm
+      countries={countries}
+      cuisines={cuisines}
+      message={message}
+      socialProviders={socialProviders}
+    />
+  );
 }

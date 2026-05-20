@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { TextInput } from "@/components/ui/text-input";
+import { listVisibleSocialAuthProvidersSafe } from "@/server/auth/oauth-service";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const message = typeof params.message === "string" ? params.message : undefined;
+  const socialProviders = await listVisibleSocialAuthProvidersSafe("login");
 
   return (
     <AuthShell
@@ -28,6 +31,7 @@ export default async function LoginPage({
       }
     >
       <FormMessage message={message} />
+      <SocialAuthButtons providers={socialProviders} />
       <form action="/api/auth/login" method="post" className="space-y-4">
         <TextInput
           label="Email address"

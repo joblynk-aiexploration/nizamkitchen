@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 
 type Country = { countryCode: string; countryName: string };
 type Cuisine = { id: string; name: string };
@@ -66,10 +67,12 @@ export function RegisterForm({
   countries,
   cuisines,
   message,
+  socialProviders,
 }: {
   countries: Country[];
   cuisines: Cuisine[];
   message?: string;
+  socialProviders: Array<{ provider: "google" | "facebook"; label: string; href: string }>;
 }) {
   const [step, setStep] = useState(1);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
@@ -118,6 +121,12 @@ export function RegisterForm({
           {message}
         </div>
       )}
+
+      {step === 1 ? (
+        <div className="mt-6">
+          <SocialAuthButtons providers={socialProviders} />
+        </div>
+      ) : null}
 
       {/* ── Step 1: Account type ── */}
       {step === 1 && (
