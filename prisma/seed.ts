@@ -13,6 +13,7 @@ import {
   OrganizationStatus,
   OrganizationType,
   PermissionAction,
+  MarketplacePolicyModule,
   PlatformRole,
   PrismaClient,
   RecipeDifficulty,
@@ -138,6 +139,75 @@ const PLATFORM_ROLE_PERMISSION_SEEDS = {
   auditor: ["admin.access", "audit.read", "reports.read"],
 } as const;
 
+const MARKETPLACE_POLICY_SEEDS = [
+  {
+    name: "Seller verification required before menu publishing",
+    module: MarketplacePolicyModule.menu_publishing,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "Complete seller verification before publishing menu items." },
+  },
+  {
+    name: "Seller verification required before order acceptance",
+    module: MarketplacePolicyModule.food_orders,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "This seller cannot accept orders until verification is approved." },
+  },
+  {
+    name: "Payout onboarding required before live checkout",
+    module: MarketplacePolicyModule.payments,
+    priority: 90,
+    rulesJson: { requirePayoutOnboarding: true, message: "Payout setup must be completed before live checkout can be enabled." },
+  },
+  {
+    name: "Payout onboarding required before payouts",
+    module: MarketplacePolicyModule.payouts,
+    priority: 90,
+    rulesJson: { requireSellerVerified: true, requirePayoutOnboarding: true, message: "Seller verification and payout setup are required before payouts." },
+  },
+  {
+    name: "Manual payment requires admin approval for unverified sellers",
+    module: MarketplacePolicyModule.payments,
+    priority: 60,
+    rulesJson: { allowManualPayment: true, requireAdminApproval: true, message: "Manual payment for unverified sellers requires platform admin approval." },
+  },
+  {
+    name: "Public profile hidden when seller is suspended",
+    module: MarketplacePolicyModule.public_profiles,
+    priority: 100,
+    rulesJson: { hideSuspendedSeller: true, message: "Suspended sellers are hidden from public profiles." },
+  },
+  {
+    name: "Refunds require platform admin approval",
+    module: MarketplacePolicyModule.refunds,
+    priority: 80,
+    rulesJson: { requireAdminApproval: true, message: "This action requires platform admin approval." },
+  },
+  {
+    name: "Cancellation allowed before seller accepts order",
+    module: MarketplacePolicyModule.cancellations,
+    priority: 70,
+    rulesJson: { allowBeforeAcceptanceOnly: true, message: "Cancellation is allowed before the seller accepts the order." },
+  },
+  {
+    name: "Food orders require active menu item",
+    module: MarketplacePolicyModule.food_orders,
+    priority: 80,
+    rulesJson: { requireActiveMenuItem: true, message: "Food orders require an active menu item." },
+  },
+  {
+    name: "Home chef requests require verified chef before assignment",
+    module: MarketplacePolicyModule.home_chef_requests,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "Chef verification is required before assignment." },
+  },
+  {
+    name: "S3 verification documents private by default",
+    module: MarketplacePolicyModule.storage,
+    priority: 100,
+    rulesJson: { privateByDefault: true, message: "Verification documents are private by default." },
+  },
+] as const;
+
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
   { countryCode: "IN", countryName: "India", currencyCode: "INR", defaultTimezone: "Asia/Kolkata", defaultLocale: "en-IN", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+91" },
@@ -239,6 +309,45 @@ async function seedRbacCatalog() {
           roleScope: "platform",
           roleName,
           permissionId,
+        },
+      });
+    }
+  }
+}
+
+async function seedMarketplacePolicies(createdById: string) {
+  for (const policy of MARKETPLACE_POLICY_SEEDS) {
+    const existing = await prisma.marketplacePolicy.findFirst({
+      where: {
+        name: policy.name,
+        module: policy.module,
+        countryCode: null,
+        region: null,
+        sellerType: null,
+        organizationType: null,
+      },
+    });
+    const data = {
+      description: `Default platform policy: ${policy.name}.`,
+      status: "active" as const,
+      priority: policy.priority,
+      rulesJson: policy.rulesJson,
+      updatedById: createdById,
+    };
+
+    if (existing) {
+      await prisma.marketplacePolicy.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.marketplacePolicy.create({
+        data: {
+          name: policy.name,
+          module: policy.module,
+          countryCode: null,
+          region: null,
+          sellerType: null,
+          organizationType: null,
+          createdById,
+          ...data,
         },
       });
     }
@@ -1857,6 +1966,10 @@ async function main() {
 
   // Remove discontinued AI flags from the database.
   await prisma.featureFlag.deleteMany({ where: { key: { in: ["ai_video_analysis", "ai_training", "ai_suggestions"] } } });
+
+  const platformOwner = Array.from(users.values()).find((user) => user.platformRole === PlatformRole.platform_owner);
+  if (!platformOwner) throw new Error("Platform owner seed is required before marketplace policies.");
+  await seedMarketplacePolicies(platformOwner.id);
 
   const sellerRequirementSeeds = [
     { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },

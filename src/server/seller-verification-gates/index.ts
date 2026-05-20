@@ -7,6 +7,7 @@ import {
   sellerVerificationPolicySchema,
 } from "@/lib/validation/seller-verification-gates";
 import { createAuditEvent } from "@/server/audit";
+import { evaluatePolicy } from "@/server/policies/policy-service";
 
 type GateCapability = "public_profile" | "menu_publishing" | "order_acceptance" | "payouts" | "home_chef_assignment";
 
@@ -103,14 +104,27 @@ export async function getSellerVerificationGate(params: {
     !forceBlocked &&
     (overrideActive || allowedBeforeVerification || !capabilityBlocked || missingRequirements.length === 0);
 
-  return {
-    allowed,
+  const marketplacePolicy = await evaluatePolicy({
+    module: policyModuleForCapability(params.capability),
+    action: params.capability,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode ?? null,
     sellerType: params.sellerType,
-    policyId: policy.id,
-    policyName: policy.policyName,
-    missingRequirements,
+    metadata: {
+      sellerVerified: missingRequirements.length === 0 && !forceBlocked,
+      payoutReady: isPayoutReady(payoutAccount),
+      sellerSuspended: forceBlocked,
+    },
+  });
+
+  return {
+    allowed: allowed && marketplacePolicy.allowed,
+    sellerType: params.sellerType,
+    policyId: marketplacePolicy.policyId ?? policy.id,
+    policyName: marketplacePolicy.policyName ?? policy.policyName,
+    missingRequirements: marketplacePolicy.allowed ? missingRequirements : [...missingRequirements, marketplacePolicy.reason ?? "Blocked by marketplace policy."],
     blockedCapabilities,
-    overrideActive,
+    overrideActive: overrideActive || marketplacePolicy.overrideActive,
   };
 }
 
@@ -325,4 +339,13 @@ function policyScore(policy: { countryCode: string | null; region: string | null
   if (policy.countryCode && policy.countryCode === params.countryCode && !policy.region) return 3;
   if (!policy.countryCode && !policy.region) return 1;
   return 0;
+}
+
+function policyModuleForCapability(capability: GateCapability) {
+  if (capability === "public_profile") return "public_profiles";
+  if (capability === "menu_publishing") return "menu_publishing";
+  if (capability === "order_acceptance") return "food_orders";
+  if (capability === "payouts") return "payouts";
+  if (capability === "home_chef_assignment") return "home_chef_requests";
+  return "general";
 }

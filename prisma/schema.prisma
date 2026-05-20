@@ -276,6 +276,12 @@ model User {
   sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
   permissionOverrides              UserPermissionOverride[]        @relation("UserPermissionOverrideUser")
   permissionOverridesCreated       UserPermissionOverride[]        @relation("UserPermissionOverrideCreatedBy")
+  marketplacePoliciesCreated       MarketplacePolicy[]             @relation("MarketplacePolicyCreatedBy")
+  marketplacePoliciesUpdated       MarketplacePolicy[]             @relation("MarketplacePolicyUpdatedBy")
+  marketplacePolicyOverrides       MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideUser")
+  marketplacePolicyOverridesCreated MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideCreatedBy")
+  marketplacePolicyOverridesRevoked MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideRevokedBy")
+  marketplacePolicyLogs            MarketplacePolicyEvaluationLog[]
 }
 
 model Session {
@@ -365,6 +371,8 @@ model Organization {
   sellerTrialReviews         SellerTrialReview[]
   identityVerifications      IdentityVerification[]
   sellerVerificationOverrides SellerVerificationOverride[]
+  marketplacePolicyOverrides MarketplacePolicyOverride[]
+  marketplacePolicyLogs      MarketplacePolicyEvaluationLog[]
 
   @@index([countryCode])
   @@index([status])
@@ -1250,6 +1258,41 @@ enum SellerVerificationStatus {
 enum SellerVerificationPolicyStatus {
   active
   disabled
+}
+
+enum MarketplacePolicyStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum MarketplacePolicyModule {
+  seller_verification
+  menu_publishing
+  food_orders
+  home_chef_requests
+  payments
+  payouts
+  public_profiles
+  refunds
+  cancellations
+  storage
+  support
+  general
+}
+
+enum MarketplacePolicyResult {
+  allowed
+  denied
+  warning
+  needs_review
+}
+
+enum PolicyOverrideStatus {
+  active
+  revoked
+  expired
 }
 
 enum SellerVerificationLevel {
@@ -2872,6 +2915,86 @@ model SellerVerificationOverride {
   @@index([grantedById])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model MarketplacePolicy {
+  id               String                         @id @default(cuid())
+  name             String
+  description      String?
+  countryCode      String?
+  region           String?
+  sellerType       SellerType?
+  organizationType OrganizationType?
+  module           MarketplacePolicyModule
+  status           MarketplacePolicyStatus        @default(draft)
+  priority         Int                            @default(0)
+  rulesJson        Json                           @default("{}")
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  createdBy        User                           @relation("MarketplacePolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        User?                          @relation("MarketplacePolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  overrides        MarketplacePolicyOverride[]
+  evaluationLogs   MarketplacePolicyEvaluationLog[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([organizationType])
+  @@index([module])
+  @@index([status])
+  @@index([priority])
+}
+
+model MarketplacePolicyOverride {
+  id             String               @id @default(cuid())
+  policyId       String
+  organizationId String?
+  userId         String?
+  reason         String
+  status         PolicyOverrideStatus @default(active)
+  expiresAt      DateTime?
+  createdById    String
+  revokedById    String?
+  revokedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  policy         MarketplacePolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  organization   Organization?         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?                 @relation("MarketplacePolicyOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("MarketplacePolicyOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedBy      User?                 @relation("MarketplacePolicyOverrideRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([policyId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model MarketplacePolicyEvaluationLog {
+  id             String                  @id @default(cuid())
+  policyId       String?
+  organizationId String?
+  userId         String?
+  module         MarketplacePolicyModule
+  action         String
+  result         MarketplacePolicyResult
+  reason         String?
+  metadataJson   Json?
+  createdAt      DateTime                @default(now())
+  policy         MarketplacePolicy?       @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([policyId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([result])
+  @@index([createdAt])
 }
 
 model SellerVerificationItem {
