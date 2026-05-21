@@ -1,14 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 import { createAdminNotification } from "@/server/notifications/notification-service";
-import { isRestaurantDiscoveryAvailable } from "@/lib/restaurant-config";
 import {
   buildRestaurantQueriesForRecipe,
   buildRestaurantQueriesForQuery,
 } from "@/lib/restaurant-search";
-import { searchMapTilerPlaces } from "./maptiler-service";
 import type { Prisma } from "@prisma/client";
 import type { RestaurantSearchInput, SavedRestaurantCreateInput } from "@/lib/validation/restaurants";
+import { getGooglePlacesSearchConfig } from "@/server/maps/google-maps-config";
+import { searchGooglePlaces } from "@/server/maps/google-places-service";
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
@@ -46,10 +46,11 @@ export async function runRestaurantSearch(params: {
     details: { query: input.query, city: input.city } as Prisma.InputJsonValue,
   });
 
-  if (!isRestaurantDiscoveryAvailable()) {
+  const placesConfig = await getGooglePlacesSearchConfig(countryCode);
+  if (!placesConfig.enabled) {
     await prisma.restaurantFallbackSearch.update({
       where: { id: search.id },
-      data: { status: "failed", errorMessage: "MapTiler not configured." },
+      data: { status: "failed", errorMessage: placesConfig.reason },
     });
     await createAuditEvent({
       actorUserId,
@@ -58,14 +59,14 @@ export async function runRestaurantSearch(params: {
       action: "restaurant_fallback.search_failed",
       targetType: "restaurant_fallback_search",
       targetId: search.id,
-      details: { reason: "MapTiler not configured" } as Prisma.InputJsonValue,
+      details: { reason: placesConfig.reason } as Prisma.InputJsonValue,
     });
     await createAdminNotification({
       organizationId,
       countryCode,
       type: "restaurant_search_failed",
       title: "Restaurant search failed",
-      body: `Restaurant fallback search for "${input.query}" failed because MapTiler is not configured.`,
+      body: `Restaurant fallback search for "${input.query}" failed because Google Maps is not configured.`,
       actionUrl: "/admin/restaurant-fallback",
       priority: "high",
     });
@@ -89,11 +90,12 @@ export async function runRestaurantSearch(params: {
 
     // Run only the first 2 queries to avoid over-querying
     const seenIds = new Set<string>();
-    const allResults: Awaited<ReturnType<typeof searchMapTilerPlaces>> = [];
+    const allResults: Awaited<ReturnType<typeof searchGooglePlaces>> = [];
 
     for (const q of queries.slice(0, 2)) {
-      const results = await searchMapTilerPlaces({
+      const results = await searchGooglePlaces({
         query: q,
+        countryCode,
         latitude: input.latitude,
         longitude: input.longitude,
         limit: 10,
@@ -114,13 +116,17 @@ export async function runRestaurantSearch(params: {
           searchId: search.id,
           organizationId,
           countryCode,
-          provider: "maptiler" as const,
+          provider: "google" as const,
           providerPlaceId: r.providerPlaceId,
           name: r.name,
           address: r.address,
           latitude: r.latitude,
           longitude: r.longitude,
           category: r.category,
+          rating: r.rating,
+          ratingCount: r.ratingCount,
+          priceLevel: r.priceLevel,
+          openNow: r.openNow,
           mapUrl: r.mapUrl,
           rawJson: r.rawJson as Prisma.InputJsonValue,
         })),
@@ -203,6 +209,10 @@ export async function saveRestaurant(params: {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       category: input.category ?? null,
+      rating: input.rating ?? null,
+      ratingCount: input.ratingCount ?? null,
+      priceLevel: input.priceLevel ?? null,
+      openNow: input.openNow ?? null,
       mapUrl: input.mapUrl ?? null,
       notes: input.notes ?? null,
     },

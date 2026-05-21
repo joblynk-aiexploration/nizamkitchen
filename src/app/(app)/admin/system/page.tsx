@@ -16,7 +16,7 @@ export default async function AdminSystemPage() {
   const status = await getAdminSystemStatus(session);
 
   const integrations = [
-    ["MapTiler", status.integrations.mapTiler.configured, "Restaurant fallback map search"],
+    ["Google Maps Platform", status.integrations.googleMaps.configured, "Maps, Places, geocoding, and restaurant fallback search"],
     ["YouTube", status.integrations.youtube.configured, "Recipe video discovery"],
     ["SMTP", status.integrations.smtp.configured, "Transactional email delivery"],
     ["Stripe", status.integrations.stripe.configured, "Hosted checkout and subscriptions"],

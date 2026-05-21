@@ -32,12 +32,12 @@ export default async function AdminRestaurantFallbackPage() {
     <AdminShell
       session={session}
       title="Restaurant Fallback"
-      description="MapTiler-powered restaurant discovery usage and metrics."
+      description="Google Places-powered restaurant discovery usage and metrics."
     >
       <div className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard label="Total searches" value={metrics.totalSearches} hint="All time" />
-          <MetricCard label="Failed searches" value={metrics.failedSearches} hint="MapTiler errors" />
+          <MetricCard label="Failed searches" value={metrics.failedSearches} hint="Google Maps / Places errors" />
           <MetricCard label="Saved restaurants" value={metrics.savedCount} hint="Across all orgs" />
         </div>
 
@@ -92,7 +92,7 @@ export default async function AdminRestaurantFallbackPage() {
         )}
 
         <p className="text-xs text-[var(--color-muted)]">
-          Success rate: {successRate}% · Results sourced from MapTiler geocoding API.
+          Success rate: {successRate}% · Results sourced from Google Places text search.
         </p>
       </div>
     </AdminShell>

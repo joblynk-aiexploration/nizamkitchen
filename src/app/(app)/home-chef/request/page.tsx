@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LocationPicker } from "@/components/maps/LocationPicker";
 import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessMealPlanner, listMealPlans } from "@/server/meal-plans";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
+import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { createHomeChefRequestAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -62,13 +64,14 @@ export default async function NewHomeChefRequestPage({
     platformRole: session.user.platformRole,
   });
 
-  const [recipes, mealPlans] = await Promise.all([
+  const [recipes, mealPlans, mapsConfig] = await Promise.all([
     listRecipes({
       organizationId: session.activeOrganization.id,
       countryCode: session.activeOrganization.countryCode,
       publishedOnly: true,
     }),
     mealPlannerEnabled ? listMealPlans(session.activeOrganization.id) : Promise.resolve([]),
+    getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
   ]);
 
   const type = requestTypeOptions.some((option) => option.value === params.type) ? params.type : "custom";
@@ -144,12 +147,25 @@ export default async function NewHomeChefRequestPage({
 
           <Card className="space-y-5">
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Service details</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextInput label="Address line 1" name="serviceAddressLine1" placeholder="123 Main St" />
-              <TextInput label="Address line 2" name="serviceAddressLine2" placeholder="Apt, suite, floor" />
-              <TextInput label="City" name="city" />
-              <TextInput label="Region/state" name="region" />
-              <TextInput label="Postal code" name="postalCode" />
+            <div className="space-y-4">
+              <LocationPicker
+                label="Service location"
+                mapsConfig={mapsConfig}
+                hint="Google autocomplete helps fill the address when configured. Manual entry always stays available."
+                fieldNames={{
+                  addressLine1: "serviceAddressLine1",
+                  addressLine2: "serviceAddressLine2",
+                  city: "city",
+                  region: "region",
+                  countryCode: "locationCountryCode",
+                  postalCode: "postalCode",
+                  latitude: "locationLatitude",
+                  longitude: "locationLongitude",
+                  providerPlaceId: "locationProviderPlaceId",
+                }}
+                defaultValue={{ countryCode: session.activeOrganization.countryCode }}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
               <TextInput label="Phone" name="phone" />
               <TextInput label="Preferred language" name="preferredLanguage" placeholder="English, Urdu, Hindi" />
               <SelectInput label="Chef gender preference" name="genderPreference" options={genderOptions} />
@@ -160,6 +176,7 @@ export default async function NewHomeChefRequestPage({
                 defaultValue={session.activeOrganization.currencyCode}
                 maxLength={3}
               />
+              </div>
             </div>
             <TextArea label="Notes" name="notes" placeholder="Anything support should know before reviewing this request." />
             <DocumentUploadField

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
+import { upsertPrimaryLocation } from "@/server/maps/location-service";
 import {
   canAccessHomeCatering,
   isHomeCateringBusiness,
@@ -25,10 +26,16 @@ async function requireHomeCateringAccess() {
   return session;
 }
 
+function parseLocationNumber(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function upsertHomeCateringProfileAction(formData: FormData) {
   try {
     const session = await requireHomeCateringAccess();
-    await upsertHomeCateringProfile({
+    const profile = await upsertHomeCateringProfile({
       organizationId: session.activeOrganization.id,
       countryCode: session.activeOrganization.countryCode,
       actorUserId: session.user.id,
@@ -54,6 +61,22 @@ export async function upsertHomeCateringProfileAction(formData: FormData) {
         minimumNoticeHours: formData.get("minimumNoticeHours"),
         submitForVerification: formData.get("submitForVerification") === "on",
       },
+    });
+    await upsertPrimaryLocation({
+      organizationId: session.activeOrganization.id,
+      userId: session.user.id,
+      entityType: "home_catering_profile",
+      entityId: profile.id,
+      label: "Primary service location",
+      addressLine1: String(formData.get("serviceAddressLine1") ?? ""),
+      addressLine2: String(formData.get("serviceAddressLine2") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      region: String(formData.get("region") ?? ""),
+      countryCode: String(formData.get("locationCountryCode") ?? session.activeOrganization.countryCode),
+      postalCode: String(formData.get("postalCode") ?? ""),
+      latitude: parseLocationNumber(formData.get("locationLatitude")),
+      longitude: parseLocationNumber(formData.get("locationLongitude")),
+      providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
     });
     revalidateCateringPaths();
     redirect("/catering/profile?message=Home catering profile saved.");

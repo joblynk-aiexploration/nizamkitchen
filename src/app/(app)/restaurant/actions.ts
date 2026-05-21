@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
+import { upsertPrimaryLocation } from "@/server/maps/location-service";
 import { updateOrganizationMedia } from "@/server/organizations/media";
 
 async function requireRestaurantAccess() {
@@ -13,6 +14,12 @@ async function requireRestaurantAccess() {
     redirect("/dashboard?message=Restaurant tools are only for restaurant organizations.");
   }
   return session;
+}
+
+function parseLocationNumber(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export async function upsertRestaurantSocialLinkAction(formData: FormData) {
@@ -65,6 +72,33 @@ export async function updateRestaurantMediaAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save restaurant images."))}`);
+  }
+}
+
+export async function updateRestaurantLocationAction(formData: FormData) {
+  try {
+    const session = await requireRestaurantAccess();
+    await upsertPrimaryLocation({
+      organizationId: session.activeOrganization.id,
+      userId: session.user.id,
+      entityType: "organization",
+      entityId: session.activeOrganization.id,
+      label: "Restaurant location",
+      addressLine1: String(formData.get("addressLine1") ?? ""),
+      addressLine2: String(formData.get("addressLine2") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      region: String(formData.get("region") ?? ""),
+      countryCode: String(formData.get("locationCountryCode") ?? session.activeOrganization.countryCode),
+      postalCode: String(formData.get("postalCode") ?? ""),
+      latitude: parseLocationNumber(formData.get("locationLatitude")),
+      longitude: parseLocationNumber(formData.get("locationLongitude")),
+      providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
+    });
+    revalidateRestaurantPaths();
+    redirect("/restaurant/profile?message=Restaurant location saved.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save restaurant location."))}`);
   }
 }
 

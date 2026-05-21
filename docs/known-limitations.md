@@ -1,137 +1,46 @@
-# Known Limitations — NizamKitchen Beta
+# Known Limitations
 
-This document records known limitations, placeholders, and intentional design trade-offs in the current beta release. These are not bugs; they are deliberate decisions or deferred features.
+This document tracks intentional beta-stage limitations and placeholders. These are not hidden features and should be reviewed before production launch.
 
----
+## Marketplace and ordering
 
-## Mapping & restaurant discovery
+- Food orders are request workflows first. Some seller flows still rely on manual confirmation, especially when payout onboarding or country-specific policies block live checkout.
+- Delivery tracking is not implemented.
+- Restaurant partner experiences are functional for profile, menu, and order-request workflows, but they are not full restaurant POS replacements.
 
-### MapTiler does not provide Google Maps-style data
+## Payments
 
-NizamKitchen uses **MapTiler** for restaurant geo-search in the "Order Instead" section.
-MapTiler is a tile provider and geocoder — it does **not** supply:
+- Stripe and PayPal flows exist, but not every future gateway is live. Adapter shells for additional providers are placeholders only.
+- Direct Google Pay token processing is intentionally disabled. Google Pay may appear only through supported hosted gateway experiences.
+- Some dispute and payout operations still require manual operator review.
 
-- Business ratings or review scores
-- Opening hours
-- Phone numbers or websites
-- Photos
+## Storage and uploads
 
-The `RestaurantFallbackSearch` results show restaurant names, addresses, and map positions.
-Ratings and hours must be added manually via the "saved restaurants" feature if needed.
+- Production is designed for S3-compatible object storage. Local development uses MinIO-style placeholders.
+- Broken or missing files should degrade safely to placeholders, but operational recovery of orphaned files is still an admin workflow.
 
-**Workaround:** Households can bookmark restaurants and add notes manually. Google Maps
-integration is not planned (cost and privacy reasons).
+## Seller verification and KYC
 
----
+- Verification requirements are configurable, but some provider integrations remain manual or placeholder-based until real provider credentials are configured.
+- Background checks require consent and provider configuration. Provider-specific report automation is not fully live by default.
+- Public badges intentionally expose only safe verification summaries, never raw documents or report contents.
 
-## YouTube video discovery
+## Optional integrations
 
-### Requires a YouTube Data API v3 key
+- Google Maps Platform, YouTube discovery, SMTP, Stripe, PayPal, storage, KYC providers, and error tracking must all fail gracefully when not configured.
+- Missing integrations should show setup or disabled states rather than crash, but the related business workflow may remain unavailable until configured.
 
-The admin YouTube Discovery tool (`/admin/youtube-discovery`) calls the YouTube Data API.
-Without a valid `YOUTUBE_API_KEY` environment variable, the discovery search is disabled.
+## Legal and privacy
 
-Existing video references on recipes continue to work (they are stored in the database and
-embed the YouTube player directly — no API key needed for playback).
+- Legal document templates are placeholders and must be replaced with counsel-reviewed final text before a real launch.
+- Privacy export, deletion, and anonymization controls are operational workflows, not fully automated self-service deletion.
 
-**Quota:** The free YouTube API tier allows 10,000 units/day. A single search costs ~100 units.
+## Demo and seed data
 
----
+- Demo accounts and sample marketplace data are for local/CI environments only.
+- Demo payment records, if present in development, must remain clearly marked as demo/manual data and must never be treated as real settlement data.
+- Seed data should remain focused on real Hyderabadi recipes and realistic seller/menu examples.
 
-## Payments and billing
+## Legacy Video Analysis
 
-### Stripe integration is a placeholder
-
-Billing plan pages (`/billing`, `/billing/plans`) are fully built but Stripe payment
-processing is not wired up. The `BillingSubscription` model tracks plan assignments
-manually via the admin panel.
-
-**What works:**
-- Plan creation and management in the admin panel
-- Subscription assignment to organisations (manual, by admins)
-- Plan limits enforcement in code
-- Usage record creation
-
-**What does not work:**
-- Stripe checkout or payment processing
-- Automatic subscription upgrades/downgrades
-- Webhook handling for payment events
-- Invoicing
-
-**Timeline:** Stripe integration is planned post-beta based on actual payment demand.
-
----
-
-## Grocery partner checkout
-
-### Grocery export is placeholder
-
-The `GroceryPartner` model and grocery partner pages exist in the admin panel, but the
-actual checkout integration with external grocery retailers is not implemented.
-
-**What works:**
-- CSV export of grocery lists
-- Shareable public grocery list links
-- Manual shopping preference notes
-
-**What does not work:**
-- One-click cart population at a partner grocery website
-- Real-time stock or price data from partners
-
----
-
-## Chef verification
-
-### Manual review process only
-
-The chef verification workflow (`/admin/chef-verifications`) accepts document uploads
-and status updates, but there is no automated identity verification integration.
-
-All chef verifications must be reviewed and approved manually by a platform admin.
-
-**Verification statuses:** `pending` → `in_review` → `verified` / `rejected`
-
----
-
-## AI video analysis
-
-**AI video analysis has been intentionally removed and will not be re-added.**
-
-An earlier version of the platform included AI-powered video content analysis.
-This feature was removed due to:
-- Cost unpredictability at scale
-- Accuracy concerns with culinary content
-- Privacy implications of automated media analysis
-
-YouTube video references on recipes are managed manually by platform admins via
-the YouTube Discovery tool.
-
----
-
-## Restaurant workspace
-
-The restaurant partner workspace (`/restaurant`) is a placeholder.
-Restaurant organisations can log in, but full order management and menu tools
-are not implemented in this beta.
-
----
-
-## Email delivery
-
-### SMTP is optional; no fallback queue
-
-Transactional email (notifications, account events) requires an SMTP server.
-If `SMTP_HOST` is not set, emails are silently dropped — they are not queued for
-later delivery.
-
-All notification events are still stored in the database and visible in the
-in-app notification inbox (`/notifications`).
-
----
-
-## Multi-tenancy edge cases
-
-- An organisation can only be assigned to one country at registration. Country changes
-  require a platform admin to update records directly.
-- Household members must be invited — there is no self-service invitation link yet.
-- Organisation deletion is not supported in the UI; contact a platform admin.
+Legacy video-analysis automation has been intentionally removed and must not be reintroduced.

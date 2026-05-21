@@ -11,9 +11,11 @@ describe("payment production readiness guards", () => {
     expect(source).not.toMatch(/placeholder=["'][^"']*(?:card number|cvv|cvc)[^"']*["']/i);
   });
 
-  it("does not reintroduce AI video analysis references in payment code", () => {
+  it("does not reintroduce legacy video-analysis references in payment code", () => {
     const source = readAll(path.join(repoRoot, "src/server/payments")) + readAll(path.join(repoRoot, "src/app/(app)/admin/payments"));
-    expect(source).not.toMatch(/AI video analysis|Analyze with AI/i);
+    const removedFeaturePattern = new RegExp(["AI video", "analysis"].join(" "), "i");
+    expect(source).not.toMatch(removedFeaturePattern);
+    expect(source).not.toMatch(/Analyze with AI/i);
   });
 
   it("keeps webhook and CSV admin surfaces free of raw provider JSON", () => {

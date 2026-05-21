@@ -181,6 +181,26 @@ describe("platform configuration vault", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "platform_integration.created" }));
   });
 
+  it("allows platform owner to manage every supported integration template", async () => {
+    const templates = listIntegrationTemplates();
+
+    for (const template of templates) {
+      await savePlatformIntegration(adminSession(), {
+        provider: template.provider,
+        category: template.category,
+        displayName: template.displayName,
+        status: "active",
+        environment: "production",
+        countryCode: template.provider === "custom" ? "US" : "",
+        isGlobal: template.provider !== "custom",
+        isDefault: true,
+      });
+    }
+
+    expect(mockPrisma.platformIntegration.create).toHaveBeenCalledTimes(templates.length);
+    expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "platform_integration.created" }));
+  });
+
   it("blocks non-admin users from managing integrations", async () => {
     await expect(savePlatformIntegration(adminSession(null), {
       provider: "google_oauth",
@@ -288,6 +308,10 @@ describe("platform configuration vault", () => {
       "google_geocoding",
       "google_oauth",
       "facebook_oauth",
+      "google_analytics",
+      "google_search_console",
+      "google_recaptcha",
+      "google_adsense",
       "youtube_data",
       "aws_s3",
       "s3_compatible",
@@ -299,6 +323,8 @@ describe("platform configuration vault", () => {
       "stripe_connect",
       "persona_placeholder",
       "checkr_placeholder",
+      "kyc_provider",
+      "background_check_provider",
       "custom",
     ]));
 

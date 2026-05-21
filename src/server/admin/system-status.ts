@@ -103,9 +103,27 @@ export async function getIntegrationStatuses() {
   }, {});
 
   return {
-    mapTiler: {
-      configured: Boolean(env.MAPTILER_API_KEY || env.NEXT_PUBLIC_MAPTILER_API_KEY),
-      enabled: Boolean(env.MAPTILER_RESTAURANT_DISCOVERY_ENABLED),
+    googleMaps: {
+      configured:
+        (vaultProviderCount.google_maps ?? 0) > 0 ||
+        (vaultProviderCount.google_places ?? 0) > 0 ||
+        (vaultProviderCount.google_geocoding ?? 0) > 0 ||
+        Boolean(
+          process.env.GOOGLE_MAPS_BROWSER_API_KEY ||
+            process.env.GOOGLE_MAPS_SERVER_API_KEY ||
+            process.env.GOOGLE_PLACES_SERVER_API_KEY ||
+            process.env.GOOGLE_GEOCODING_API_KEY,
+        ),
+      enabled:
+        (vaultProviderCount.google_maps ?? 0) > 0 ||
+        (vaultProviderCount.google_places ?? 0) > 0 ||
+        Boolean(process.env.GOOGLE_MAPS_BROWSER_API_KEY || process.env.GOOGLE_PLACES_SERVER_API_KEY),
+      mapsJavascriptConfigured:
+        (vaultProviderCount.google_maps ?? 0) > 0 || Boolean(process.env.GOOGLE_MAPS_BROWSER_API_KEY),
+      placesConfigured:
+        (vaultProviderCount.google_places ?? 0) > 0 || Boolean(process.env.GOOGLE_PLACES_SERVER_API_KEY),
+      geocodingConfigured:
+        (vaultProviderCount.google_geocoding ?? 0) > 0 || Boolean(process.env.GOOGLE_GEOCODING_API_KEY),
     },
     youtube: {
       configured: (vaultProviderCount.youtube_data ?? 0) > 0 || Boolean(env.YOUTUBE_DATA_API_KEY),

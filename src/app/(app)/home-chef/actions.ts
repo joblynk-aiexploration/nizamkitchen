@@ -15,6 +15,7 @@ import {
 } from "@/server/home-chef";
 import { createStripeHomeChefCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 import { createPayPalHomeChefCheckout } from "@/server/payments/providers/paypal/paypal-adapter";
+import { upsertPrimaryLocation } from "@/server/maps/location-service";
 
 async function requireHomeChefHouseholdAccess() {
   const session = await requireMembership();
@@ -60,6 +61,12 @@ function requestInputFromForm(formData: FormData) {
   };
 }
 
+function parseLocationNumber(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function createHomeChefRequestAction(formData: FormData) {
   try {
     const session = await requireHomeChefHouseholdAccess();
@@ -69,6 +76,22 @@ export async function createHomeChefRequestAction(formData: FormData) {
       createdById: session.user.id,
       defaultCurrencyCode: session.activeOrganization.currencyCode,
       input: requestInputFromForm(formData),
+    });
+    await upsertPrimaryLocation({
+      organizationId: session.activeOrganization.id,
+      userId: session.user.id,
+      entityType: "home_chef_request",
+      entityId: request.id,
+      label: "Service address",
+      addressLine1: String(formData.get("serviceAddressLine1") ?? ""),
+      addressLine2: String(formData.get("serviceAddressLine2") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      region: String(formData.get("region") ?? ""),
+      countryCode: String(formData.get("locationCountryCode") ?? session.activeOrganization.countryCode),
+      postalCode: String(formData.get("postalCode") ?? ""),
+      latitude: parseLocationNumber(formData.get("locationLatitude")),
+      longitude: parseLocationNumber(formData.get("locationLongitude")),
+      providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
     });
 
     revalidatePath("/home-chef");
@@ -91,6 +114,22 @@ export async function updateHomeChefRequestAction(formData: FormData) {
       actorUserId: session.user.id,
       defaultCurrencyCode: session.activeOrganization.currencyCode,
       input: requestInputFromForm(formData),
+    });
+    await upsertPrimaryLocation({
+      organizationId: session.activeOrganization.id,
+      userId: session.user.id,
+      entityType: "home_chef_request",
+      entityId: requestId,
+      label: "Service address",
+      addressLine1: String(formData.get("serviceAddressLine1") ?? ""),
+      addressLine2: String(formData.get("serviceAddressLine2") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      region: String(formData.get("region") ?? ""),
+      countryCode: String(formData.get("locationCountryCode") ?? session.activeOrganization.countryCode),
+      postalCode: String(formData.get("postalCode") ?? ""),
+      latitude: parseLocationNumber(formData.get("locationLatitude")),
+      longitude: parseLocationNumber(formData.get("locationLongitude")),
+      providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
     });
 
     revalidatePath(`/home-chef/requests/${requestId}`);

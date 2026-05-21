@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapView } from "@/components/restaurants/map-view";
+import { GoogleMap } from "@/components/maps/GoogleMap";
 import { RestaurantResultCard } from "@/components/restaurants/restaurant-result-card";
 
 type Result = {
@@ -14,13 +14,18 @@ type Result = {
   longitude: number | null;
   provider: string;
   providerPlaceId: string | null;
+  rating: number | null;
+  ratingCount: number | null;
+  priceLevel: number | null;
+  openNow: boolean | null;
 };
 
 type Props = {
   results: Result[];
+  browserApiKey?: string | null;
 };
 
-export function SearchResultsClient({ results }: Props) {
+export function SearchResultsClient({ results, browserApiKey }: Props) {
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set());
 
   function onSaved(placeId: string) {
@@ -39,7 +44,11 @@ export function SearchResultsClient({ results }: Props) {
   return (
     <div className="space-y-6">
       {mapMarkers.length > 0 && (
-        <MapView markers={mapMarkers} className="h-72 w-full rounded-xl border border-[var(--color-border)]" />
+        <GoogleMap
+          browserApiKey={browserApiKey}
+          markers={mapMarkers}
+          className="h-72 w-full rounded-xl border border-[var(--color-border)]"
+        />
       )}
 
       <div className="space-y-3">

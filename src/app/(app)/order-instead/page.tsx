@@ -39,7 +39,7 @@ export default async function OrderInsteadPage() {
       <PageHeader
         eyebrow="Order Instead"
         title="Find a restaurant near you"
-        description="Search for local restaurants serving the dishes you love. Results come from MapTiler's place index."
+        description="Search for local restaurants serving the dishes you love. Results come from Google Places when Google Maps is configured."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

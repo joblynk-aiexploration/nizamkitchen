@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { requireMembership } from "@/lib/auth/session";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { getSearchWithResults } from "@/server/restaurants/restaurant-fallback-service";
 import { SearchResultsClient } from "./search-results-client";
 
@@ -28,7 +29,10 @@ export default async function SearchResultPage({
   if (!enabled) redirect("/order-instead");
 
   const { id } = await params;
-  const search = await getSearchWithResults(id, orgId);
+  const [search, mapsConfig] = await Promise.all([
+    getSearchWithResults(id, orgId),
+    getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
+  ]);
   if (!search) notFound();
 
   const tone = statusTone[search.status as keyof typeof statusTone] ?? "neutral";
@@ -60,7 +64,10 @@ export default async function SearchResultPage({
       )}
 
       {search.results.length > 0 ? (
-        <SearchResultsClient results={search.results} />
+        <SearchResultsClient
+          results={search.results}
+          browserApiKey={mapsConfig.enabled ? mapsConfig.browserApiKey : null}
+        />
       ) : search.status === "completed" ? (
         <Card className="p-6 text-center">
           <p className="text-sm text-[var(--color-muted)]">No restaurants found for this search. Try a different query or city.</p>
@@ -68,7 +75,7 @@ export default async function SearchResultPage({
       ) : null}
 
       <div className="text-xs text-[var(--color-muted)]">
-        Results sourced from MapTiler. Accuracy depends on map data coverage in your region.
+        Results sourced from Google Places. Ratings, price levels, and open-now labels appear only when Google returns them.
       </div>
     </div>
   );

@@ -30,12 +30,14 @@ const { mockPrisma } = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/server/audit", () => ({ createAuditEvent: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@/lib/restaurant-config", () => ({
-  isRestaurantDiscoveryAvailable: vi.fn(),
-  getRestaurantConfig: vi.fn(),
+vi.mock("@/server/maps/google-maps-config", () => ({
+  getGooglePlacesSearchConfig: vi.fn(),
 }));
-vi.mock("@/server/restaurants/maptiler-service", () => ({
-  searchMapTilerPlaces: vi.fn(),
+vi.mock("@/server/maps/google-places-service", () => ({
+  searchGooglePlaces: vi.fn(),
+}));
+vi.mock("@/server/notifications/notification-service", () => ({
+  createAdminNotification: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -44,11 +46,11 @@ import {
   unsaveRestaurant,
 } from "@/server/restaurants/restaurant-fallback-service";
 import { buildRestaurantQueriesForRecipe, buildRestaurantQueriesForQuery } from "@/lib/restaurant-search";
-import { isRestaurantDiscoveryAvailable } from "@/lib/restaurant-config";
-import { searchMapTilerPlaces } from "@/server/restaurants/maptiler-service";
+import { getGooglePlacesSearchConfig } from "@/server/maps/google-maps-config";
+import { searchGooglePlaces } from "@/server/maps/google-places-service";
 
-const mockIsAvailable = vi.mocked(isRestaurantDiscoveryAvailable);
-const mockSearch = vi.mocked(searchMapTilerPlaces);
+const mockPlacesConfig = vi.mocked(getGooglePlacesSearchConfig);
+const mockSearch = vi.mocked(searchGooglePlaces);
 
 const BASE_PARAMS = {
   actorUserId: "user-1",
@@ -116,10 +118,23 @@ describe("runRestaurantSearch", () => {
     mockPrisma.restaurantFallbackSearch.create.mockResolvedValue({ id: "search-1" });
     mockPrisma.restaurantFallbackSearch.update.mockResolvedValue({});
     mockPrisma.restaurantFallbackResult.createMany.mockResolvedValue({ count: 1 });
+    mockPlacesConfig.mockResolvedValue({
+      enabled: true,
+      apiKey: "server-key",
+      defaultRadiusMeters: 5000,
+      regionCode: null,
+      reason: null,
+    });
   });
 
   it("marks search as failed when discovery is unavailable", async () => {
-    mockIsAvailable.mockReturnValue(false);
+    mockPlacesConfig.mockResolvedValue({
+      enabled: false,
+      apiKey: null,
+      defaultRadiusMeters: 5000,
+      regionCode: null,
+      reason: "Google Maps is not configured. Platform Owner must configure Google Maps keys in Admin Configuration.",
+    });
 
     const result = await runRestaurantSearch({ ...BASE_PARAMS, input: BASE_INPUT });
 
@@ -132,8 +147,7 @@ describe("runRestaurantSearch", () => {
     expect(mockSearch).not.toHaveBeenCalled();
   });
 
-  it("calls MapTiler and stores results when available", async () => {
-    mockIsAvailable.mockReturnValue(true);
+  it("calls Google Places and stores results when available", async () => {
     mockSearch.mockResolvedValue([
       {
         name: "Biryani Palace",
@@ -141,8 +155,12 @@ describe("runRestaurantSearch", () => {
         latitude: 17.38,
         longitude: 78.48,
         category: "restaurant",
+        rating: 4.5,
+        ratingCount: 120,
+        priceLevel: 2,
+        openNow: true,
         providerPlaceId: "place-abc",
-        mapUrl: "https://www.maptiler.com/maps/#Biryani%20Palace",
+        mapUrl: "https://www.google.com/maps/place/?q=place_id:place-abc",
         rawJson: {} as never,
       },
     ]);
@@ -159,27 +177,28 @@ describe("runRestaurantSearch", () => {
   });
 
   it("does not run more than 2 queries", async () => {
-    mockIsAvailable.mockReturnValue(true);
     mockSearch.mockResolvedValue([]);
+    mockPrisma.recipe.findUnique.mockResolvedValue({ name: "Chicken Biryani" });
 
     await runRestaurantSearch({
       ...BASE_PARAMS,
       input: { query: "biryani", recipeId: "recipe-1" },
     });
 
-    mockPrisma.recipe.findUnique.mockResolvedValue({ name: "Chicken Biryani" });
-
     expect(mockSearch.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   it("deduplicates results across queries", async () => {
-    mockIsAvailable.mockReturnValue(true);
     const place = {
       name: "Biryani Hut",
       address: null,
       latitude: 17.0,
       longitude: 78.0,
       category: null,
+      rating: null,
+      ratingCount: null,
+      priceLevel: null,
+      openNow: null,
       providerPlaceId: "same-id",
       mapUrl: null,
       rawJson: {} as never,
@@ -193,16 +212,15 @@ describe("runRestaurantSearch", () => {
     expect(ids.filter((id) => id === "same-id").length).toBe(1);
   });
 
-  it("handles MapTiler errors gracefully", async () => {
-    mockIsAvailable.mockReturnValue(true);
-    mockSearch.mockRejectedValue(new Error("MapTiler 500"));
+  it("handles Google Places errors gracefully", async () => {
+    mockSearch.mockRejectedValue(new Error("Google Places 500"));
 
     const result = await runRestaurantSearch({ ...BASE_PARAMS, input: BASE_INPUT });
 
     expect(result.searchId).toBe("search-1");
     expect(mockPrisma.restaurantFallbackSearch.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "failed", errorMessage: "MapTiler 500" }),
+        data: expect.objectContaining({ status: "failed", errorMessage: "Google Places 500" }),
       }),
     );
   });
@@ -217,7 +235,7 @@ describe("saveRestaurant", () => {
 
     const result = await saveRestaurant({
       ...BASE_PARAMS,
-      input: { name: "Test Place", provider: "maptiler" },
+      input: { name: "Test Place", provider: "google" },
     });
 
     expect(result.id).toBe("saved-1");
@@ -253,9 +271,9 @@ describe("unsaveRestaurant", () => {
   });
 });
 
-// ─── AI video analysis guard ──────────────────────────────────────────────────
+// ─── Legacy automation guard ──────────────────────────────────────────────────
 
-describe("AI video analysis is not reintroduced", () => {
+describe("legacy video-analysis automation is not reintroduced", () => {
   it("restaurant-fallback-service has no AI analysis imports", async () => {
     const fs = await import("fs");
     const path = await import("path");
@@ -268,10 +286,10 @@ describe("AI video analysis is not reintroduced", () => {
     expect(content).not.toMatch(/openai|anthropic|gemini/i);
   });
 
-  it("maptiler-service has no AI analysis imports", async () => {
+  it("google-places-service has no AI analysis imports", async () => {
     const fs = await import("fs");
     const path = await import("path");
-    const filePath = path.resolve("src/server/restaurants/maptiler-service.ts");
+    const filePath = path.resolve("src/server/maps/google-places-service.ts");
     const content = fs.readFileSync(filePath, "utf-8");
 
     expect(content).not.toMatch(/ai[_-]video/i);
@@ -279,7 +297,7 @@ describe("AI video analysis is not reintroduced", () => {
     expect(content).not.toMatch(/openai|anthropic|gemini/i);
   });
 
-  it("prisma schema has no AI video analysis models", async () => {
+  it("prisma schema has no legacy video-analysis models", async () => {
     const fs = await import("fs");
     const path = await import("path");
     const schema = fs.readFileSync(path.resolve("prisma/schema.prisma"), "utf-8");
@@ -287,5 +305,23 @@ describe("AI video analysis is not reintroduced", () => {
     expect(schema).not.toMatch(/model RecipeVideoAnalysis/);
     expect(schema).not.toMatch(/model AiTrainingExample/);
     expect(schema).not.toMatch(/model VideoAnalysisJob/);
+  });
+
+  it("active restaurant fallback code has no legacy map provider implementation", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const activeFiles = [
+      "src/server/restaurants/restaurant-fallback-service.ts",
+      "src/server/maps/google-places-service.ts",
+      "src/server/maps/google-maps-config.ts",
+      "src/components/restaurants/restaurant-search-form.tsx",
+      "src/components/restaurants/restaurant-result-card.tsx",
+    ];
+    const legacyProviderPattern = new RegExp(["map", "tiler"].join(""), "i");
+
+    for (const file of activeFiles) {
+      const content = fs.readFileSync(path.resolve(file), "utf-8");
+      expect(content).not.toMatch(legacyProviderPattern);
+    }
   });
 });

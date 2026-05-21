@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { LocationPicker } from "@/components/maps/LocationPicker";
 import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,8 @@ import {
   isHomeCateringBusiness,
 } from "@/server/home-catering";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
+import { getPrimaryLocation } from "@/server/maps/location-service";
 import { prisma } from "@/lib/prisma";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
 import { getBusinessProfileCompletion } from "@/server/users/profile";
@@ -36,10 +39,12 @@ export default async function CateringProfilePage() {
     getHomeCateringProfileForOrganization(session.activeOrganization.id),
     listBusinessSocialLinks(session.activeOrganization.id),
   ]);
-  const [profileImageUrl, coverImageUrl, menuItemCount] = await Promise.all([
+  const [profileImageUrl, coverImageUrl, menuItemCount, mapsConfig, primaryLocation] = await Promise.all([
     getStorageImageUrl(session, profile?.profilePhotoFileId, profile?.profilePhotoUrl),
     getStorageImageUrl(session, profile?.coverPhotoFileId, profile?.coverPhotoUrl),
     prisma.menuItem.count({ where: { organizationId: session.activeOrganization.id } }),
+    getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
+    profile ? getPrimaryLocation("home_catering_profile", profile.id) : Promise.resolve(null),
   ]);
   const completion = profile ? getBusinessProfileCompletion(profile, { menuItems: menuItemCount, socialLinks: socialLinks.length }) : 0;
   const specialties = Array.isArray(profile?.cuisineSpecialtiesJson) ? profile.cuisineSpecialtiesJson.join(", ") : "";
@@ -81,14 +86,38 @@ export default async function CateringProfilePage() {
             <TextInput label="Legacy cover photo URL fallback" name="coverPhotoUrl" defaultValue={profile?.coverPhotoUrl ?? ""} />
             <TextInput label="Cuisine specialties" name="cuisineSpecialties" defaultValue={specialties} hint="Comma-separated, e.g. biryani, haleem, sweets" />
             <TextInput label="Languages" name="languages" defaultValue={languages} hint="Comma-separated, e.g. English, Urdu, Hindi" />
-            <TextInput label="City" name="city" defaultValue={profile?.city ?? ""} />
-            <TextInput label="Region" name="region" defaultValue={profile?.region ?? ""} />
-            <TextInput label="Postal code" name="postalCode" defaultValue={profile?.postalCode ?? ""} />
             <TextInput label="Phone" name="phone" defaultValue={profile?.phone ?? ""} />
             <TextInput label="Email" name="email" type="email" defaultValue={profile?.email ?? ""} />
             <TextInput label="Minimum notice hours" name="minimumNoticeHours" type="number" min={0} defaultValue={profile?.minimumNoticeHours ?? ""} />
           </div>
           <TextArea label="Bio" name="bio" defaultValue={profile?.bio ?? ""} />
+          <LocationPicker
+            label="Primary service location"
+            mapsConfig={mapsConfig}
+            hint="Store a private service location for routing and admin review. Public caterer pages remain city-level only."
+            fieldNames={{
+              addressLine1: "serviceAddressLine1",
+              addressLine2: "serviceAddressLine2",
+              city: "city",
+              region: "region",
+              countryCode: "locationCountryCode",
+              postalCode: "postalCode",
+              latitude: "locationLatitude",
+              longitude: "locationLongitude",
+              providerPlaceId: "locationProviderPlaceId",
+            }}
+            defaultValue={{
+              addressLine1: primaryLocation?.addressLine1 ?? null,
+              addressLine2: primaryLocation?.addressLine2 ?? null,
+              city: primaryLocation?.city ?? profile?.city ?? null,
+              region: primaryLocation?.region ?? profile?.region ?? null,
+              countryCode: primaryLocation?.countryCode ?? session.activeOrganization.countryCode,
+              postalCode: primaryLocation?.postalCode ?? profile?.postalCode ?? null,
+              latitude: primaryLocation?.latitude ?? null,
+              longitude: primaryLocation?.longitude ?? null,
+              providerPlaceId: primaryLocation?.providerPlaceId ?? null,
+            }}
+          />
           <TextArea label="Service area notes" name="serviceAreaText" defaultValue={profile?.serviceAreaText ?? ""} />
         </Card>
 

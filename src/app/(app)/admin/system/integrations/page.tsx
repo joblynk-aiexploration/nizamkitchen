@@ -10,7 +10,13 @@ export default async function AdminSystemIntegrationsPage() {
   const session = await requirePlatformRole(["platform_owner", "platform_admin", "support_admin", "auditor"]);
   const integrations = await getIntegrationStatuses();
   const rows = [
-    { name: "MapTiler", configured: integrations.mapTiler.configured, detail: integrations.mapTiler.enabled ? "Discovery enabled" : "Discovery disabled" },
+    {
+      name: "Google Maps Platform",
+      configured: integrations.googleMaps.configured,
+      detail: integrations.googleMaps.enabled
+        ? `${integrations.googleMaps.mapsJavascriptConfigured ? "Maps JS" : "Maps JS missing"} · ${integrations.googleMaps.placesConfigured ? "Places" : "Places missing"} · ${integrations.googleMaps.geocodingConfigured ? "Geocoding" : "Geocoding missing"}`
+        : "Location services disabled or not configured",
+    },
     { name: "YouTube", configured: integrations.youtube.configured, detail: integrations.youtube.enabled ? "Discovery enabled" : "Discovery disabled" },
     { name: "SMTP", configured: integrations.smtp.configured, detail: "Transactional email delivery" },
     { name: "Stripe", configured: integrations.stripe.configured, detail: `${integrations.stripe.activeGateways} active gateways` },
