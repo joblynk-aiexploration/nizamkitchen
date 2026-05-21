@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { createFoodOrderAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -20,19 +21,22 @@ export default async function NewFoodOrderPage({
   }
   const { menuItemId } = await searchParams;
   if (!menuItemId) notFound();
-  const item = await prisma.menuItem.findFirst({
-    where: {
-      id: menuItemId,
-      status: "active",
-      menu: { status: "active", visibility: "public" },
-      organization: { status: { in: ["active", "paused"] } },
-    },
-    include: {
-      organization: {
-        select: { id: true, name: true, organizationType: true },
+  const [item, mapsConfig] = await Promise.all([
+    prisma.menuItem.findFirst({
+      where: {
+        id: menuItemId,
+        status: "active",
+        menu: { status: "active", visibility: "public" },
+        organization: { status: { in: ["active", "paused"] } },
       },
-    },
-  });
+      include: {
+        organization: {
+          select: { id: true, name: true, organizationType: true },
+        },
+      },
+    }),
+    getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
+  ]);
   if (!item) notFound();
 
   return (
@@ -47,6 +51,7 @@ export default async function NewFoodOrderPage({
         item={item}
         customerName={session.user.fullName}
         customerEmail={session.user.email}
+        mapsConfig={mapsConfig}
       />
       <CommerceSafetyNotice />
     </div>

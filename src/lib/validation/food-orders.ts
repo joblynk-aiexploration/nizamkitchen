@@ -31,7 +31,11 @@ export const foodOrderCreateSchema = z.object({
   deliveryAddressLine2: nullableString(220).optional(),
   deliveryCity: nullableString(120).optional(),
   deliveryRegion: nullableString(120).optional(),
+  deliveryCountryCode: nullableString(2).optional(),
   deliveryPostalCode: nullableString(40).optional(),
+  deliveryLatitude: z.coerce.number().finite().nullable().optional(),
+  deliveryLongitude: z.coerce.number().finite().nullable().optional(),
+  deliveryProviderPlaceId: nullableString(180).optional(),
   customerNotes: nullableString(1000).optional(),
   itemNotes: nullableString(500).optional(),
 });

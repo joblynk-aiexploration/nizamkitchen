@@ -1,10 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LocationPicker } from "@/components/maps/LocationPicker";
 import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
+import type { GoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 
 type MenuItemForOrder = {
   id: string;
@@ -37,11 +39,13 @@ export function FoodOrderRequestForm({
   item,
   customerName,
   customerEmail,
+  mapsConfig,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   item: MenuItemForOrder;
   customerName: string;
   customerEmail: string;
+  mapsConfig: GoogleMapsPublicConfig;
 }) {
   const fulfillmentOptions = [
     item.pickupAvailable ? { value: "pickup", label: "Pickup" } : null,
@@ -78,12 +82,24 @@ export function FoodOrderRequestForm({
           <TextInput label="Your name" name="customerName" defaultValue={customerName} />
           <TextInput label="Phone" name="customerPhone" />
           <TextInput label="Email" name="customerEmail" type="email" defaultValue={customerEmail} />
-          <TextInput label="Delivery city" name="deliveryCity" />
-          <TextInput label="Delivery region" name="deliveryRegion" />
-          <TextInput label="Delivery postal code" name="deliveryPostalCode" />
         </div>
-        <TextInput label="Delivery address line 1" name="deliveryAddressLine1" />
-        <TextInput label="Delivery address line 2" name="deliveryAddressLine2" />
+        <LocationPicker
+          label="Delivery address"
+          mapsConfig={mapsConfig}
+          hint="Google autocomplete fills delivery address details when configured. Manual entry always remains available."
+          fieldNames={{
+            addressLine1: "deliveryAddressLine1",
+            addressLine2: "deliveryAddressLine2",
+            city: "deliveryCity",
+            region: "deliveryRegion",
+            countryCode: "deliveryCountryCode",
+            postalCode: "deliveryPostalCode",
+            latitude: "deliveryLatitude",
+            longitude: "deliveryLongitude",
+            providerPlaceId: "deliveryProviderPlaceId",
+          }}
+          defaultValue={{ countryCode: mapsConfig.defaultCountry }}
+        />
         <TextArea label="Order notes" name="customerNotes" />
         <TextArea label="Item notes" name="itemNotes" />
         <DocumentUploadField

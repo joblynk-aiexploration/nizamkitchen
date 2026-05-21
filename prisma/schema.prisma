@@ -371,6 +371,7 @@ model User {
   foodOrders                       FoodOrder[]                    @relation("FoodOrderCustomerUser")
   foodOrderMessages                FoodOrderMessage[]             @relation("FoodOrderMessageSender")
   foodOrderStatusChanges           FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
+  foodOrderFulfillmentEvents       FoodOrderFulfillmentEvent[]    @relation("FoodOrderFulfillmentEventActor")
   storageConfigurationsCreated     StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
   storageConfigurationsUpdated     StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
   storageFilesUploaded             StorageFile[]                  @relation("StorageFileUploadedBy")
@@ -516,6 +517,10 @@ model Organization {
   foodOrders                 FoodOrder[]                  @relation("FoodOrderTenantOrganization")
   customerFoodOrders         FoodOrder[]                  @relation("FoodOrderCustomerOrganization")
   sellerFoodOrders           FoodOrder[]                  @relation("FoodOrderSellerOrganization")
+  fulfillmentPickupLocations FulfillmentPickupLocation[]
+  fulfillmentDeliveryZones   FulfillmentDeliveryZone[]
+  fulfillmentTimeSlots       FulfillmentTimeSlot[]
+  fulfillmentEvents          FoodOrderFulfillmentEvent[]
   businessSocialLinks        BusinessSocialLink[]
   paymentGateways            PaymentGateway[]
   paymentOrders              PaymentOrder[]
@@ -1570,6 +1575,31 @@ enum FoodOrderFulfillmentType {
   delivery
   preorder
   inquiry_only
+}
+
+enum FulfillmentRecordStatus {
+  active
+  disabled
+  archived
+}
+
+enum FulfillmentTimeSlotType {
+  pickup
+  delivery
+  preorder
+}
+
+enum FulfillmentEventType {
+  scheduled
+  accepted
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  completed
+  cancelled
+  delivery_zone_applied
+  pickup_location_applied
+  note_added
 }
 
 enum ModulePaymentStatus {
@@ -2990,9 +3020,17 @@ model FoodOrder {
   sellerType             FoodOrderSellerType
   status                 FoodOrderStatus          @default(submitted)
   fulfillmentType        FoodOrderFulfillmentType
+  fulfillmentStatus      String                   @default("scheduled")
+  pickupLocationId       String?
+  deliveryZoneId         String?
+  fulfillmentTimeSlotId  String?
   requestedDate          DateTime?
   requestedTimeWindow    String?
+  preparationMinutes     Int?
+  cutoffAt               DateTime?
+  promisedReadyAt        DateTime?
   subtotalAmount         Float?
+  deliveryFeeAmount      Float?
   currencyCode           String
   customerName           String?
   customerPhone          String?
@@ -3002,7 +3040,11 @@ model FoodOrder {
   deliveryAddressLine2   String?
   deliveryCity           String?
   deliveryRegion         String?
+  deliveryCountryCode    String?
   deliveryPostalCode     String?
+  deliveryLatitude       Float?
+  deliveryLongitude      Float?
+  deliveryProviderPlaceId String?
   customerNotes          String?
   sellerNotes            String?
   adminNotes             String?
@@ -3018,9 +3060,13 @@ model FoodOrder {
   customerOrganization   Organization             @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
   customerUser           User                     @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
   sellerOrganization     Organization             @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  pickupLocation         FulfillmentPickupLocation? @relation(fields: [pickupLocationId], references: [id], onDelete: SetNull)
+  deliveryZone           FulfillmentDeliveryZone?   @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  fulfillmentTimeSlot    FulfillmentTimeSlot?       @relation(fields: [fulfillmentTimeSlotId], references: [id], onDelete: SetNull)
   items                  FoodOrderItem[]
   messages               FoodOrderMessage[]
   statusHistory          FoodOrderStatusHistory[]
+  fulfillmentEvents      FoodOrderFulfillmentEvent[]
 
   @@index([organizationId])
   @@index([customerOrganizationId])
@@ -3029,6 +3075,10 @@ model FoodOrder {
   @@index([countryCode])
   @@index([sellerType])
   @@index([status])
+  @@index([fulfillmentStatus])
+  @@index([pickupLocationId])
+  @@index([deliveryZoneId])
+  @@index([fulfillmentTimeSlotId])
   @@index([paymentStatus])
   @@index([paymentOrderId])
   @@index([createdAt])
@@ -3080,6 +3130,108 @@ model FoodOrderStatusHistory {
   @@index([orderId])
   @@index([changedById])
   @@index([newStatus])
+}
+
+model FulfillmentPickupLocation {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  label           String
+  instructions    String?
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  region          String?
+  postalCode      String?
+  latitude        Float?
+  longitude       Float?
+  providerPlaceId String?
+  timezone        String?
+  isDefault       Boolean                 @default(false)
+  status          FulfillmentRecordStatus @default(active)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders      FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([isDefault])
+}
+
+model FulfillmentDeliveryZone {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  countryCode        String
+  name               String
+  description        String?
+  city               String?
+  region             String?
+  postalCodesJson    Json?
+  centerLatitude     Float?
+  centerLongitude    Float?
+  radiusKm           Float?
+  minimumOrderAmount Float?
+  deliveryFeeAmount  Float                   @default(0)
+  freeDeliveryAt     Float?
+  estimatedMinutes   Int?
+  status             FulfillmentRecordStatus @default(active)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders         FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+}
+
+model FulfillmentTimeSlot {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  countryCode        String
+  label              String
+  slotType           FulfillmentTimeSlotType
+  dayOfWeek          Int
+  startTime          String
+  endTime            String
+  capacity           Int?
+  preparationMinutes Int?
+  cutoffMinutes      Int?
+  status             FulfillmentRecordStatus @default(active)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders         FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([slotType])
+  @@index([dayOfWeek])
+  @@index([status])
+}
+
+model FoodOrderFulfillmentEvent {
+  id             String               @id @default(cuid())
+  orderId        String
+  organizationId String
+  countryCode    String
+  eventType      FulfillmentEventType
+  statusSnapshot String?
+  note           String?
+  metadataJson   Json?
+  actorUserId    String?
+  createdAt      DateTime             @default(now())
+  order          FoodOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User?                @relation("FoodOrderFulfillmentEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([eventType])
+  @@index([createdAt])
 }
 
 model BusinessSocialLink {

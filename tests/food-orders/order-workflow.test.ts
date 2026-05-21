@@ -11,6 +11,10 @@ const { mockPrisma } = vi.hoisted(() => ({
       update: vi.fn(),
     },
     foodOrderMessage: { create: vi.fn() },
+    foodOrderFulfillmentEvent: { create: vi.fn() },
+    fulfillmentPickupLocation: { findFirst: vi.fn() },
+    fulfillmentDeliveryZone: { findMany: vi.fn() },
+    fulfillmentTimeSlot: { findMany: vi.fn() },
     membership: { findMany: vi.fn() },
     sellerVerificationPolicy: { findMany: vi.fn() },
     sellerVerificationProfile: { findUnique: vi.fn() },
@@ -112,6 +116,10 @@ describe("food order request workflow", () => {
     vi.resetAllMocks();
     mockPrisma.menuItem.findFirst.mockResolvedValue(activeMenuItem());
     mockPrisma.foodOrder.create.mockResolvedValue(createdOrder());
+    mockPrisma.foodOrderFulfillmentEvent.create.mockResolvedValue({ id: "fulfillment-event-1" });
+    mockPrisma.fulfillmentPickupLocation.findFirst.mockResolvedValue(null);
+    mockPrisma.fulfillmentDeliveryZone.findMany.mockResolvedValue([]);
+    mockPrisma.fulfillmentTimeSlot.findMany.mockResolvedValue([]);
     mockPrisma.membership.findMany.mockResolvedValue([{ userId: "seller-user" }]);
     mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
     mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);

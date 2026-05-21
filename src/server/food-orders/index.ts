@@ -17,6 +17,7 @@ import {
   sellerFoodOrderStatusSchema,
 } from "@/lib/validation/food-orders";
 import { createAuditEvent } from "@/server/audit";
+import { recordFulfillmentEvent, resolveOrderFulfillment } from "@/server/fulfillment/fulfillment-service";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
 import { assertSellerGate } from "@/server/seller-verification-gates";
@@ -41,9 +42,13 @@ const orderDetailArgs = Prisma.validator<Prisma.FoodOrderDefaultArgs>()({
     items: { include: { menuItem: { select: { id: true, name: true, slug: true, status: true } } } },
     messages: { include: { sender: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: "asc" } },
     statusHistory: { include: { changedBy: { select: { id: true, fullName: true, email: true } } }, orderBy: { createdAt: "asc" } },
+    fulfillmentEvents: { orderBy: { createdAt: "asc" } },
     customerOrganization: { select: { id: true, name: true, organizationType: true } },
     sellerOrganization: { select: { id: true, name: true, organizationType: true, slug: true } },
     customerUser: { select: { id: true, fullName: true, email: true } },
+    pickupLocation: true,
+    deliveryZone: true,
+    fulfillmentTimeSlot: true,
   },
 });
 
@@ -108,6 +113,20 @@ export async function createFoodOrder(params: {
   validateQuantity(parsed.quantity, item.minimumOrderQuantity);
 
   const subtotalAmount = item.priceAmount == null ? null : roundMoney(item.priceAmount * parsed.quantity);
+  const resolvedFulfillment = await resolveOrderFulfillment({
+    sellerOrganizationId: item.organizationId,
+    countryCode: item.countryCode,
+    fulfillmentType: parsed.fulfillmentType,
+    subtotalAmount,
+    requestedDate: parsed.requestedDate ?? null,
+    requestedTimeWindow: parsed.requestedTimeWindow ?? null,
+    deliveryCity: parsed.deliveryCity ?? null,
+    deliveryRegion: parsed.deliveryRegion ?? null,
+    deliveryPostalCode: parsed.deliveryPostalCode ?? null,
+    deliveryLatitude: parsed.deliveryLatitude ?? null,
+    deliveryLongitude: parsed.deliveryLongitude ?? null,
+  });
+  const preparationMinutes = resolvedFulfillment.preparationMinutes ?? (item.minimumNoticeHours == null ? null : item.minimumNoticeHours * 60);
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.foodOrder.create({
       data: {
@@ -119,18 +138,31 @@ export async function createFoodOrder(params: {
         countryCode: item.countryCode,
         status: "submitted",
         fulfillmentType: parsed.fulfillmentType,
+        fulfillmentStatus: "scheduled",
+        pickupLocationId: resolvedFulfillment.pickupLocationId ?? null,
+        deliveryZoneId: resolvedFulfillment.deliveryZoneId ?? null,
+        fulfillmentTimeSlotId: resolvedFulfillment.fulfillmentTimeSlotId ?? null,
         requestedDate: parsed.requestedDate ?? null,
         requestedTimeWindow: parsed.requestedTimeWindow ?? null,
+        preparationMinutes,
+        cutoffAt: resolvedFulfillment.cutoffAt ?? null,
+        promisedReadyAt: resolvedFulfillment.promisedReadyAt ?? null,
         subtotalAmount,
+        deliveryFeeAmount: resolvedFulfillment.deliveryFeeAmount ?? null,
         currencyCode: item.currencyCode,
         customerName: parsed.customerName ?? params.session.user.fullName,
         customerPhone: parsed.customerPhone ?? null,
         customerEmail: parsed.customerEmail ?? params.session.user.email,
+        pickupAddressSnapshot: resolvedFulfillment.pickupAddressSnapshot ?? null,
         deliveryAddressLine1: parsed.deliveryAddressLine1 ?? null,
         deliveryAddressLine2: parsed.deliveryAddressLine2 ?? null,
         deliveryCity: parsed.deliveryCity ?? null,
         deliveryRegion: parsed.deliveryRegion ?? null,
+        deliveryCountryCode: parsed.deliveryCountryCode ?? item.countryCode,
         deliveryPostalCode: parsed.deliveryPostalCode ?? null,
+        deliveryLatitude: parsed.deliveryLatitude ?? null,
+        deliveryLongitude: parsed.deliveryLongitude ?? null,
+        deliveryProviderPlaceId: parsed.deliveryProviderPlaceId ?? null,
         customerNotes: parsed.customerNotes ?? null,
         items: {
           create: {
@@ -163,6 +195,20 @@ export async function createFoodOrder(params: {
     targetType: "food_order",
     targetId: order.id,
     details: { sellerOrganizationId: order.sellerOrganizationId, sellerType: order.sellerType, subtotalAmount },
+  });
+  await recordFulfillmentEvent({
+    orderId: order.id,
+    sellerOrganizationId: order.sellerOrganizationId,
+    countryCode: order.countryCode,
+    eventType: "scheduled",
+    statusSnapshot: order.fulfillmentStatus,
+    actorUserId: params.session.user.id,
+    metadata: {
+      fulfillmentType: order.fulfillmentType,
+      pickupLocationId: order.pickupLocationId,
+      deliveryZoneId: order.deliveryZoneId,
+      deliveryFeeAmount: order.deliveryFeeAmount,
+    },
   });
   await notifySellerMembers(order, "food_order.submitted", "New food order request", `${order.customerOrganization.name} submitted an order request.`, sellerOrderPath(order));
   await createAdminNotification({
@@ -373,6 +419,7 @@ async function updateFoodOrderStatus(params: {
     where: { id: params.order.id },
     data: {
       status: params.newStatus,
+      fulfillmentStatus: fulfillmentStatusFromFoodOrderStatus(params.newStatus),
       ...(params.sellerNotes !== null ? { sellerNotes: params.sellerNotes } : {}),
       ...(params.adminNotes !== null ? { adminNotes: params.adminNotes } : {}),
       ...(params.newStatus === "cancelled" ? { cancelledAt: now } : {}),
@@ -397,6 +444,16 @@ async function updateFoodOrderStatus(params: {
     targetType: "food_order",
     targetId: updated.id,
     details: { oldStatus: params.order.status, newStatus: updated.status },
+  });
+  await recordFulfillmentEvent({
+    orderId: updated.id,
+    sellerOrganizationId: updated.sellerOrganizationId,
+    countryCode: updated.countryCode,
+    eventType: fulfillmentEventFromFoodOrderStatus(params.newStatus),
+    statusSnapshot: updated.fulfillmentStatus,
+    note: params.note,
+    actorUserId: params.actorUserId,
+    metadata: { oldStatus: params.order.status, newStatus: updated.status },
   });
   await notifyFoodOrderStatus(updated);
   return updated;
@@ -450,6 +507,26 @@ function statusAuditAction(status: FoodOrderStatus) {
   if (status === "cancelled") return "food_order.cancelled";
   if (status === "completed") return "food_order.completed";
   return "food_order.status_changed";
+}
+
+function fulfillmentStatusFromFoodOrderStatus(status: FoodOrderStatus) {
+  if (status === "accepted") return "accepted";
+  if (status === "preparing") return "preparing";
+  if (status === "ready_for_pickup") return "ready_for_pickup";
+  if (status === "out_for_delivery") return "out_for_delivery";
+  if (status === "completed") return "completed";
+  if (status === "cancelled" || status === "declined") return "cancelled";
+  return "scheduled";
+}
+
+function fulfillmentEventFromFoodOrderStatus(status: FoodOrderStatus) {
+  if (status === "accepted") return "accepted";
+  if (status === "preparing") return "preparing";
+  if (status === "ready_for_pickup") return "ready_for_pickup";
+  if (status === "out_for_delivery") return "out_for_delivery";
+  if (status === "completed") return "completed";
+  if (status === "cancelled" || status === "declined") return "cancelled";
+  return "scheduled";
 }
 
 async function notifySellerMembers(order: FoodOrderDetail, type: string, title: string, body: string, actionUrl: string) {

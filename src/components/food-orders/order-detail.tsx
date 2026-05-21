@@ -29,8 +29,12 @@ export function FoodOrderSummary({ order, showInternal = false }: { order: FoodO
         </div>
         <dl className="mt-6 grid gap-4 md:grid-cols-2">
           <Info label="Fulfillment" value={order.fulfillmentType.replace(/_/g, " ")} />
+          <Info label="Fulfillment status" value={order.fulfillmentStatus.replace(/_/g, " ")} />
           <Info label="Requested date" value={order.requestedDate ? order.requestedDate.toLocaleDateString() : "Not specified"} />
           <Info label="Time window" value={order.requestedTimeWindow || "Not specified"} />
+          <Info label="Pickup location" value={order.pickupAddressSnapshot || order.pickupLocation?.label || "Not assigned"} />
+          <Info label="Delivery zone" value={order.deliveryZone?.name || "Not matched"} />
+          <Info label="Delivery fee" value={order.deliveryFeeAmount != null ? `${order.currencyCode} ${order.deliveryFeeAmount}` : "Not applied"} />
           <Info label="Estimated subtotal" value={order.subtotalAmount ? `${order.currencyCode} ${order.subtotalAmount}` : "To be confirmed"} />
         </dl>
         {order.customerNotes ? <p className="mt-5 text-sm text-[var(--color-muted)]"><span className="font-semibold text-[var(--color-ink)]">Customer notes:</span> {order.customerNotes}</p> : null}
@@ -49,6 +53,20 @@ export function FoodOrderSummary({ order, showInternal = false }: { order: FoodO
             </div>
           ))}
         </div>
+        {order.fulfillmentEvents.length > 0 ? (
+          <>
+            <h3 className="mt-6 font-semibold text-[var(--color-ink)]">Fulfillment tracking</h3>
+            <div className="mt-4 space-y-4">
+              {order.fulfillmentEvents.map((event) => (
+                <div key={event.id} className="border-l-2 border-emerald-500 pl-4">
+                  <p className="text-sm font-semibold text-[var(--color-ink)]">{event.eventType.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{event.createdAt.toLocaleString()}</p>
+                  {event.note ? <p className="mt-1 text-sm text-[var(--color-muted)]">{event.note}</p> : null}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
       </Card>
     </div>
   );
