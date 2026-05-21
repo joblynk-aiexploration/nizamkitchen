@@ -190,6 +190,7 @@ export async function createHomeChefMessageAction(formData: FormData) {
 export async function createHomeChefCheckoutAction(formData: FormData) {
   const requestId = String(formData.get("requestId") ?? "");
   const paymentType = formData.get("paymentType") === "deposit" ? "deposit" : "full";
+  const promotionCode = String(formData.get("promoCode") ?? "").trim() || null;
   try {
     const session = await requireHomeChefHouseholdAccess();
     const result = await createStripeHomeChefCheckout({
@@ -197,6 +198,7 @@ export async function createHomeChefCheckoutAction(formData: FormData) {
       userId: session.user.id,
       appUrl: env.APP_URL,
       paymentType,
+      promotionCode,
     });
     if (!result.checkoutUrl) throw new Error("Stripe checkout could not be created.");
     redirect(result.checkoutUrl);
@@ -209,6 +211,7 @@ export async function createHomeChefCheckoutAction(formData: FormData) {
 export async function createPayPalHomeChefCheckoutAction(formData: FormData) {
   const requestId = String(formData.get("requestId") ?? "");
   const paymentType = formData.get("paymentType") === "deposit" ? "deposit" : "full";
+  const promotionCode = String(formData.get("promoCode") ?? "").trim() || null;
   try {
     const session = await requireHomeChefHouseholdAccess();
     const result = await createPayPalHomeChefCheckout({
@@ -216,6 +219,7 @@ export async function createPayPalHomeChefCheckoutAction(formData: FormData) {
       userId: session.user.id,
       appUrl: env.APP_URL,
       paymentType,
+      promotionCode,
     });
     if (!result.checkoutUrl) throw new Error("PayPal checkout could not be created.");
     redirect(result.checkoutUrl);

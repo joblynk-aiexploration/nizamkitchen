@@ -429,6 +429,8 @@ model User {
   seoSettingsCreated               SeoSetting[]                     @relation("SeoSettingCreatedBy")
   seoSettingsUpdated               SeoSetting[]                     @relation("SeoSettingUpdatedBy")
   locations                        Location[]
+  promotionsCreated                Promotion[]                      @relation("PromotionCreatedBy")
+  promotionsUpdated                Promotion[]                      @relation("PromotionUpdatedBy")
 }
 
 model Session {
@@ -559,6 +561,7 @@ model Organization {
   dataPrivacyRequests        DataPrivacyRequest[]
   userActivities             UserActivity[]
   locations                  Location[]
+  sellerPromotions           Promotion[]                 @relation("SellerPromotions")
 
   @@index([countryCode])
   @@index([status])
@@ -2191,6 +2194,73 @@ enum ComplaintStatus {
   dismissed
 }
 
+enum PromotionType {
+  promo_code
+  seller_discount
+  referral_reward
+  loyalty_credit
+  manual_credit
+}
+
+enum PromotionDiscountType {
+  percent
+  fixed_amount
+  free_delivery
+  credit_amount
+}
+
+enum PromotionStatus {
+  draft
+  active
+  disabled
+  expired
+  archived
+}
+
+enum PromotionScope {
+  platform
+  seller
+}
+
+enum PromotionModule {
+  food_order
+  home_chef_request
+  subscription
+}
+
+enum PromotionRedemptionStatus {
+  reserved
+  applied
+  voided
+  refunded
+}
+
+enum PlatformCreditAccountStatus {
+  active
+  disabled
+}
+
+enum PlatformCreditLedgerType {
+  grant
+  redeem
+  refund
+  adjustment
+  expiry
+}
+
+enum ReferralCodeStatus {
+  active
+  disabled
+  archived
+}
+
+enum ReferralEventStatus {
+  started
+  qualified
+  rewarded
+  cancelled
+}
+
 model Cuisine {
   id                         String                      @id @default(cuid())
   name                       String
@@ -3104,6 +3174,9 @@ model FoodOrder {
   paymentRequired        Boolean                  @default(false)
   paymentStatus          ModulePaymentStatus      @default(not_required)
   paymentOrderId         String?
+  promotionCode          String?
+  promotionDiscountAmount Float?
+  platformCreditAppliedAmount Float?
   paidAt                 DateTime?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
@@ -3405,6 +3478,10 @@ model PaymentOrder {
   platformFeeAmount         Decimal?             @db.Decimal(10, 2)
   sellerAmount              Decimal?             @db.Decimal(10, 2)
   taxAmount                 Decimal?             @db.Decimal(10, 2)
+  discountAmount            Decimal?             @db.Decimal(10, 2)
+  platformCreditAmount      Decimal?             @db.Decimal(10, 2)
+  promotionCode             String?
+  promotionRedemptionId     String?
   providerOrderId           String?
   providerPaymentIntentId   String?
   providerCheckoutSessionId String?
@@ -3917,6 +3994,165 @@ model TrustComplaint {
   @@index([reporterUserId])
   @@index([sellerOrganizationId])
   @@index([subjectType, subjectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Promotion {
+  id                         String                @id @default(cuid())
+  code                       String                @unique
+  name                       String
+  description                String?
+  promotionType              PromotionType         @default(promo_code)
+  discountType               PromotionDiscountType
+  status                     PromotionStatus       @default(draft)
+  scope                      PromotionScope        @default(platform)
+  sellerOrganizationId       String?
+  countryCode                String?
+  region                     String?
+  city                       String?
+  currencyCode               String?
+  percentOff                 Decimal?              @db.Decimal(5, 2)
+  amountOff                  Decimal?              @db.Decimal(10, 2)
+  minOrderAmount             Decimal?              @db.Decimal(10, 2)
+  maxDiscountAmount          Decimal?              @db.Decimal(10, 2)
+  startsAt                   DateTime?
+  endsAt                     DateTime?
+  usageLimit                 Int?
+  perUserLimit               Int?
+  appliesToFoodOrders        Boolean               @default(true)
+  appliesToHomeChefRequests  Boolean               @default(true)
+  appliesToSubscriptions     Boolean               @default(false)
+  createdById                String
+  updatedById                String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  sellerOrganization         Organization?         @relation("SellerPromotions", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  createdBy                  User                  @relation("PromotionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                  User?                 @relation("PromotionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  redemptions                PromotionRedemption[]
+
+  @@index([code])
+  @@index([status])
+  @@index([scope])
+  @@index([sellerOrganizationId])
+  @@index([countryCode, region, city])
+  @@index([currencyCode])
+  @@index([startsAt, endsAt])
+  @@index([createdAt])
+}
+
+model PromotionRedemption {
+  id                    String                    @id @default(cuid())
+  promotionId           String
+  userId                String?
+  organizationId        String?
+  sellerOrganizationId  String?
+  countryCode           String?
+  city                  String?
+  module                PromotionModule
+  moduleEntityId        String
+  foodOrderId           String?
+  homeChefRequestId     String?
+  billingSubscriptionId String?
+  paymentOrderId        String?
+  originalAmount        Decimal                   @db.Decimal(10, 2)
+  discountAmount        Decimal                   @db.Decimal(10, 2)
+  currencyCode          String
+  status                PromotionRedemptionStatus @default(applied)
+  metadataJson          Json?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  promotion             Promotion                 @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+
+  @@unique([promotionId, module, moduleEntityId])
+  @@index([promotionId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode, city])
+  @@index([module, moduleEntityId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PlatformCreditAccount {
+  id             String                      @id @default(cuid())
+  organizationId String?
+  userId         String?
+  currencyCode   String
+  balanceAmount  Decimal                     @default(0) @db.Decimal(10, 2)
+  status         PlatformCreditAccountStatus @default(active)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  ledgerEntries  PlatformCreditLedgerEntry[]
+
+  @@unique([organizationId, currencyCode])
+  @@unique([userId, currencyCode])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([currencyCode])
+  @@index([status])
+}
+
+model PlatformCreditLedgerEntry {
+  id                     String                   @id @default(cuid())
+  accountId              String
+  entryType              PlatformCreditLedgerType
+  amount                 Decimal                  @db.Decimal(10, 2)
+  balanceAfter           Decimal                  @db.Decimal(10, 2)
+  reason                 String?
+  createdById            String?
+  promotionRedemptionId  String?
+  metadataJson           Json?
+  createdAt              DateTime                 @default(now())
+  account                PlatformCreditAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([entryType])
+  @@index([createdById])
+  @@index([promotionRedemptionId])
+  @@index([createdAt])
+}
+
+model ReferralCode {
+  id                 String             @id @default(cuid())
+  code               String             @unique
+  ownerUserId        String
+  ownerOrganizationId String?
+  countryCode        String?
+  city               String?
+  status             ReferralCodeStatus @default(active)
+  usageLimit         Int?
+  usageCount         Int                @default(0)
+  rewardCreditAmount Decimal?           @db.Decimal(10, 2)
+  rewardCurrencyCode String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  events             ReferralEvent[]
+
+  @@index([ownerUserId])
+  @@index([ownerOrganizationId])
+  @@index([countryCode, city])
+  @@index([status])
+}
+
+model ReferralEvent {
+  id                      String              @id @default(cuid())
+  referralCodeId          String
+  referredUserId          String
+  referredOrganizationId  String?
+  status                  ReferralEventStatus @default(started)
+  rewardCreditAmount      Decimal?            @db.Decimal(10, 2)
+  rewardCurrencyCode      String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  referralCode            ReferralCode        @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([referralCodeId, referredUserId])
+  @@index([referralCodeId])
+  @@index([referredUserId])
+  @@index([referredOrganizationId])
   @@index([status])
   @@index([createdAt])
 }
@@ -4610,6 +4846,9 @@ model HomeChefRequest {
   paymentRequired            Boolean                        @default(false)
   paymentStatus              ModulePaymentStatus            @default(not_required)
   paymentOrderId             String?
+  promotionCode              String?
+  promotionDiscountAmount    Float?
+  platformCreditAppliedAmount Float?
   quotedAmount               Float?
   depositAmount              Float?
   currencyCode               String                         @default("USD")

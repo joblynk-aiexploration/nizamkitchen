@@ -71,5 +71,6 @@ export const paymentOrderCreateSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(160),
   returnUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
+  promotionCode: z.string().trim().max(40).optional().or(z.literal("")),
   metadataJson: z.record(z.string(), z.unknown()).optional(),
 });

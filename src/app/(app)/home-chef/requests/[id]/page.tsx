@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReviewCreateForm } from "@/components/reviews/review-components";
 import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessHomeChefs, getHomeChefRequest, isHouseholdRequestOrganization } from "@/server/home-chef";
 import { getCustomerHomeChefRequestReview } from "@/server/trust/review-service";
@@ -87,6 +88,7 @@ export default async function HomeChefRequestDetailPage({
                   <form action={createHomeChefCheckoutAction}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <input type="hidden" name="paymentType" value="deposit" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
                     <Button type="submit" className="w-full">Pay deposit {request.currencyCode} {request.depositAmount}</Button>
                   </form>
                 ) : null}
@@ -94,6 +96,7 @@ export default async function HomeChefRequestDetailPage({
                   <form action={createPayPalHomeChefCheckoutAction}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <input type="hidden" name="paymentType" value="deposit" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
                     <Button type="submit" variant="secondary" className="w-full">Pay deposit with PayPal</Button>
                   </form>
                 ) : null}
@@ -101,6 +104,7 @@ export default async function HomeChefRequestDetailPage({
                   <form action={createHomeChefCheckoutAction}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <input type="hidden" name="paymentType" value="full" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
                     <Button type="submit" variant="secondary" className="w-full">Pay full quote {request.currencyCode} {request.quotedAmount}</Button>
                   </form>
                 ) : null}
@@ -108,6 +112,7 @@ export default async function HomeChefRequestDetailPage({
                   <form action={createPayPalHomeChefCheckoutAction}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <input type="hidden" name="paymentType" value="full" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
                     <Button type="submit" variant="secondary" className="w-full">Pay full quote with PayPal</Button>
                   </form>
                 ) : null}

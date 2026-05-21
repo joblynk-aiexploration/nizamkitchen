@@ -7,6 +7,7 @@ import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { getPayPalAccessToken, getPayPalGateway, getPayPalSecrets, paypalApiBase, paypalFetch } from "@/server/payments/providers/paypal/paypal-client";
 import { handlePayPalWebhook, markPayPalOrderPaid, validatePayPalWebhook } from "@/server/payments/providers/paypal/paypal-webhooks";
+import { calculateNetPayable } from "@/server/promotions";
 
 type PayPalOrderResponse = {
   id: string;
@@ -154,6 +155,8 @@ export async function createPayPalCheckoutForPaymentOrder(paymentOrderId: string
 export async function createPayPalFoodOrderCheckout(params: { foodOrderId: string; userId: string; appUrl: string }) {
   const order = await prisma.foodOrder.findUniqueOrThrow({ where: { id: params.foodOrderId } });
   if (!order.subtotalAmount || order.subtotalAmount <= 0) throw new Error("This order does not have a payable amount.");
+  const payableAmount = calculateNetPayable(order.subtotalAmount, order.promotionDiscountAmount, order.platformCreditAppliedAmount);
+  if (payableAmount <= 0) throw new Error("This order total is zero after discounts. Hosted checkout is not required.");
   const paymentOrder = await createPaymentOrderForModule({
     organizationId: order.organizationId,
     countryCode: order.countryCode,
@@ -163,15 +166,23 @@ export async function createPayPalFoodOrderCheckout(params: { foodOrderId: strin
     module: "food_order",
     moduleEntityId: order.id,
     provider: "paypal",
-    amount: order.subtotalAmount,
+    amount: payableAmount,
     currencyCode: order.currencyCode,
     idempotencyKey: `food-order:${order.id}:paypal`,
+  });
+  await prisma.paymentOrder.update({
+    where: { id: paymentOrder.id },
+    data: {
+      promotionCode: order.promotionCode,
+      discountAmount: new Prisma.Decimal(order.promotionDiscountAmount ?? 0),
+      platformCreditAmount: new Prisma.Decimal(order.platformCreditAppliedAmount ?? 0),
+    },
   });
   await prisma.foodOrder.update({ where: { id: order.id }, data: { paymentRequired: true, paymentStatus: "pending", paymentOrderId: paymentOrder.id } });
   return createPayPalCheckoutForPaymentOrder(paymentOrder.id, `${params.appUrl}/api/payments/paypal/capture?orderId=${paymentOrder.id}`, `${params.appUrl}/orders/${order.id}?payment=cancelled`);
 }
 
-export async function createPayPalHomeChefCheckout(params: { requestId: string; userId: string; appUrl: string; paymentType: "deposit" | "full" }) {
+export async function createPayPalHomeChefCheckout(params: { requestId: string; userId: string; appUrl: string; paymentType: "deposit" | "full"; promotionCode?: string | null }) {
   const request = await prisma.homeChefRequest.findUniqueOrThrow({ where: { id: params.requestId } });
   const amount = params.paymentType === "deposit" ? request.depositAmount : request.quotedAmount;
   if (!amount || amount <= 0) throw new Error("This home chef request does not have a payable quote yet.");
@@ -187,9 +198,19 @@ export async function createPayPalHomeChefCheckout(params: { requestId: string; 
     amount,
     currencyCode: request.currencyCode,
     idempotencyKey: `home-chef:${request.id}:${params.paymentType}:paypal`,
+    promotionCode: params.promotionCode ?? undefined,
     metadataJson: { paymentType: params.paymentType },
   });
-  await prisma.homeChefRequest.update({ where: { id: request.id }, data: { paymentRequired: true, paymentStatus: "pending", paymentOrderId: paymentOrder.id } });
+  await prisma.homeChefRequest.update({
+    where: { id: request.id },
+    data: {
+      paymentRequired: true,
+      paymentStatus: "pending",
+      paymentOrderId: paymentOrder.id,
+      promotionCode: paymentOrder.promotionCode,
+      promotionDiscountAmount: paymentOrder.discountAmount ? Number(paymentOrder.discountAmount) : null,
+    },
+  });
   return createPayPalCheckoutForPaymentOrder(paymentOrder.id, `${params.appUrl}/api/payments/paypal/capture?orderId=${paymentOrder.id}`, `${params.appUrl}/home-chef/requests/${request.id}?payment=cancelled`);
 }
 

@@ -20,6 +20,7 @@ import { createAuditEvent } from "@/server/audit";
 import { recordFulfillmentEvent, resolveOrderFulfillment } from "@/server/fulfillment/fulfillment-service";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
+import { redeemPromotion, validatePromotionForCheckout } from "@/server/promotions";
 import { assertSellerGate } from "@/server/seller-verification-gates";
 import type { getCurrentSession } from "@/lib/session";
 
@@ -113,6 +114,19 @@ export async function createFoodOrder(params: {
   validateQuantity(parsed.quantity, item.minimumOrderQuantity);
 
   const subtotalAmount = item.priceAmount == null ? null : roundMoney(item.priceAmount * parsed.quantity);
+  const promotion = subtotalAmount
+    ? await validatePromotionForCheckout({
+        code: parsed.promoCode,
+        module: "food_order",
+        userId: params.session.user.id,
+        organizationId: params.session.activeOrganization.id,
+        sellerOrganizationId: item.organizationId,
+        countryCode: item.countryCode,
+        city: parsed.deliveryCity ?? null,
+        amount: subtotalAmount,
+        currencyCode: item.currencyCode,
+      })
+    : null;
   const resolvedFulfillment = await resolveOrderFulfillment({
     sellerOrganizationId: item.organizationId,
     countryCode: item.countryCode,
@@ -148,6 +162,9 @@ export async function createFoodOrder(params: {
         cutoffAt: resolvedFulfillment.cutoffAt ?? null,
         promisedReadyAt: resolvedFulfillment.promisedReadyAt ?? null,
         subtotalAmount,
+        promotionCode: promotion?.promotion.code ?? null,
+        promotionDiscountAmount: promotion?.discountAmount ?? null,
+        platformCreditAppliedAmount: null,
         deliveryFeeAmount: resolvedFulfillment.deliveryFeeAmount ?? null,
         currencyCode: item.currencyCode,
         customerName: parsed.customerName ?? params.session.user.fullName,
@@ -184,6 +201,19 @@ export async function createFoodOrder(params: {
       },
       ...orderDetailArgs,
     });
+    if (promotion) {
+      await redeemPromotion({
+        ...promotion,
+        userId: params.session.user.id,
+        organizationId: params.session.activeOrganization.id,
+        sellerOrganizationId: item.organizationId,
+        countryCode: item.countryCode,
+        city: parsed.deliveryCity ?? null,
+        module: "food_order",
+        moduleEntityId: created.id,
+        currencyCode: item.currencyCode,
+      });
+    }
     return created;
   });
 
@@ -194,7 +224,7 @@ export async function createFoodOrder(params: {
     action: "food_order.submitted",
     targetType: "food_order",
     targetId: order.id,
-    details: { sellerOrganizationId: order.sellerOrganizationId, sellerType: order.sellerType, subtotalAmount },
+    details: { sellerOrganizationId: order.sellerOrganizationId, sellerType: order.sellerType, subtotalAmount, promotionCode: order.promotionCode, promotionDiscountAmount: order.promotionDiscountAmount },
   });
   await recordFulfillmentEvent({
     orderId: order.id,

@@ -82,6 +82,7 @@ export function FoodOrderRequestForm({
           <TextInput label="Your name" name="customerName" defaultValue={customerName} />
           <TextInput label="Phone" name="customerPhone" />
           <TextInput label="Email" name="customerEmail" type="email" defaultValue={customerEmail} />
+          <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
         </div>
         <LocationPicker
           label="Delivery address"

@@ -1,9 +1,10 @@
-import { OrganizationType, PaymentGatewayStatus, PaymentProvider, Prisma, SellerType } from "@prisma/client";
+import { OrganizationType, PaymentGatewayStatus, PaymentModule, PaymentProvider, Prisma, SellerType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { paymentOrderCreateSchema } from "@/lib/validation/payments";
 import { createAuditEvent } from "@/server/audit";
 import { calculatePaymentBreakdown } from "@/server/payments/currency";
 import { PaymentGatewayUnavailableError } from "@/server/payments/payment-errors";
+import { applyPromotionToAmount, redeemPromotion } from "@/server/promotions";
 import { assertSellerGate } from "@/server/seller-verification-gates";
 
 export async function createPaymentOrderForModule(input: unknown) {
@@ -42,11 +43,29 @@ export async function createPaymentOrderForModule(input: unknown) {
     }
   }
 
+  const promotionModule = promotionModuleFromPaymentModule(parsed.module);
+  const promotion = promotionModule
+    ? await applyPromotionToAmount({
+        code: parsed.promotionCode,
+        module: promotionModule,
+        userId: parsed.customerUserId ?? null,
+        organizationId: parsed.customerOrganizationId ?? parsed.organizationId,
+        sellerOrganizationId: parsed.sellerOrganizationId ?? null,
+        countryCode: parsed.countryCode,
+        amount: parsed.amount,
+        currencyCode: parsed.currencyCode,
+      })
+    : { evaluation: null, payableAmount: parsed.amount, discountAmount: 0 };
+  const payableAmount = promotion.payableAmount;
+  if (payableAmount <= 0 && providerRequiresHostedCheckout(parsed.provider)) {
+    throw new PaymentGatewayUnavailableError("This checkout total is zero after discounts. Hosted payment checkout is not required.");
+  }
+
   const configuration = await prisma.paymentConfiguration.findUnique({
     where: { countryCode_currencyCode: { countryCode: parsed.countryCode, currencyCode: parsed.currencyCode } },
   });
   const breakdown = calculatePaymentBreakdown({
-    amount: parsed.amount,
+    amount: payableAmount,
     platformCommissionPercent: configuration?.platformCommissionPercent ? Number(configuration.platformCommissionPercent) : null,
     fixedCommissionAmount: configuration?.fixedCommissionAmount ? Number(configuration.fixedCommissionAmount) : null,
     taxPercent: configuration?.taxPercent ? Number(configuration.taxPercent) : null,
@@ -63,17 +82,33 @@ export async function createPaymentOrderForModule(input: unknown) {
       moduleEntityId: parsed.moduleEntityId,
       provider: parsed.provider,
       gatewayId: parsed.gatewayId ?? null,
-      amount: new Prisma.Decimal(parsed.amount),
+      amount: new Prisma.Decimal(payableAmount),
       currencyCode: parsed.currencyCode,
       platformFeeAmount: new Prisma.Decimal(breakdown.platformFeeAmount),
       sellerAmount: new Prisma.Decimal(breakdown.sellerAmount),
       taxAmount: new Prisma.Decimal(breakdown.taxAmount),
+      discountAmount: new Prisma.Decimal(promotion.discountAmount),
+      promotionCode: promotion.evaluation?.promotion.code ?? null,
       idempotencyKey: parsed.idempotencyKey,
       returnUrl: parsed.returnUrl ?? null,
       cancelUrl: parsed.cancelUrl ?? null,
       metadataJson: parsed.metadataJson ? (parsed.metadataJson as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   });
+  if (promotion.evaluation && promotionModule) {
+    const redemption = await redeemPromotion({
+      ...promotion.evaluation,
+      userId: parsed.customerUserId ?? null,
+      organizationId: parsed.customerOrganizationId ?? parsed.organizationId,
+      sellerOrganizationId: parsed.sellerOrganizationId ?? null,
+      countryCode: parsed.countryCode,
+      module: promotionModule,
+      moduleEntityId: parsed.moduleEntityId,
+      paymentOrderId: order.id,
+      currencyCode: parsed.currencyCode,
+    });
+    await prisma.paymentOrder.update({ where: { id: order.id }, data: { promotionRedemptionId: redemption.id } });
+  }
 
   await createAuditEvent({
     actorUserId: parsed.customerUserId ?? null,
@@ -86,7 +121,9 @@ export async function createPaymentOrderForModule(input: unknown) {
       module: parsed.module,
       moduleEntityId: parsed.moduleEntityId,
       provider: parsed.provider,
-      amount: parsed.amount,
+      amount: payableAmount,
+      originalAmount: parsed.amount,
+      discountAmount: promotion.discountAmount,
       currencyCode: parsed.currencyCode,
     },
   });
@@ -106,5 +143,12 @@ function sellerTypeFromOrganizationType(organizationType: OrganizationType | nul
   if (organizationType === OrganizationType.home_catering) return SellerType.home_catering;
   if (organizationType === OrganizationType.restaurant) return SellerType.restaurant;
   if (organizationType === OrganizationType.chef_business) return SellerType.chef_business;
+  return null;
+}
+
+function promotionModuleFromPaymentModule(module: PaymentModule) {
+  if (module === PaymentModule.food_order) return "food_order";
+  if (module === PaymentModule.home_chef_request) return "home_chef_request";
+  if (module === PaymentModule.subscription) return "subscription";
   return null;
 }

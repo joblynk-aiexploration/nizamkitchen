@@ -38,6 +38,7 @@ export const foodOrderCreateSchema = z.object({
   deliveryProviderPlaceId: nullableString(180).optional(),
   customerNotes: nullableString(1000).optional(),
   itemNotes: nullableString(500).optional(),
+  promoCode: nullableString(40).optional(),
 });
 
 export const foodOrderMessageSchema = z.object({
