@@ -329,6 +329,12 @@ function labelForHref(href: string) {
     "/admin/reports": "Reports",
     "/admin/leads": "Contact Leads",
     "/admin/content": "Content",
+    "/admin/content/pages": "CMS Pages",
+    "/admin/content/pages/new": "New CMS Page",
+    "/admin/content/help": "Help Articles",
+    "/admin/content/help/new": "New Help Article",
+    "/admin/content/faqs": "FAQs",
+    "/admin/content/faqs/new": "New FAQ",
     "/reports": "Reports",
   };
 

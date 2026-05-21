@@ -431,6 +431,15 @@ model User {
   locations                        Location[]
   promotionsCreated                Promotion[]                      @relation("PromotionCreatedBy")
   promotionsUpdated                Promotion[]                      @relation("PromotionUpdatedBy")
+  cmsPagesCreated                  CmsPage[]                        @relation("CmsPageCreatedBy")
+  cmsPagesUpdated                  CmsPage[]                        @relation("CmsPageUpdatedBy")
+  cmsPagesPublished                CmsPage[]                        @relation("CmsPagePublishedBy")
+  helpArticlesCreated              HelpArticle[]                    @relation("HelpArticleCreatedBy")
+  helpArticlesUpdated              HelpArticle[]                    @relation("HelpArticleUpdatedBy")
+  helpArticlesPublished            HelpArticle[]                    @relation("HelpArticlePublishedBy")
+  faqsCreated                      FaqItem[]                        @relation("FaqItemCreatedBy")
+  faqsUpdated                      FaqItem[]                        @relation("FaqItemUpdatedBy")
+  faqsPublished                    FaqItem[]                        @relation("FaqItemPublishedBy")
 }
 
 model Session {
@@ -2259,6 +2268,30 @@ enum ReferralEventStatus {
   qualified
   rewarded
   cancelled
+}
+
+enum ContentStatus {
+  draft
+  published
+  archived
+}
+
+enum ContentAudience {
+  all_users
+  households
+  chefs
+  home_catering
+  restaurants
+  sellers
+  admins
+}
+
+enum HelpArticleType {
+  help_article
+  onboarding_guide
+  seller_guide
+  food_safety_guide
+  support_documentation
 }
 
 model Cuisine {
@@ -4488,6 +4521,93 @@ model LegalConsentEvent {
   @@index([consentType])
   @@index([status])
   @@index([createdAt])
+}
+
+model CmsPage {
+  id              String          @id @default(cuid())
+  title           String
+  slug            String
+  excerpt         String?
+  contentMarkdown String
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  metaTitle       String?
+  metaDescription String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("CmsPageCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("CmsPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("CmsPagePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([slug, countryCode])
+  @@index([slug])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
+}
+
+model HelpArticle {
+  id              String          @id @default(cuid())
+  title           String
+  slug            String          @unique
+  category        String
+  articleType     HelpArticleType @default(help_article)
+  excerpt         String?
+  contentMarkdown String
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("HelpArticleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("HelpArticleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("HelpArticlePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([slug])
+  @@index([category])
+  @@index([articleType])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
+}
+
+model FaqItem {
+  id              String          @id @default(cuid())
+  question        String
+  answerMarkdown  String
+  category        String?
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("FaqItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("FaqItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("FaqItemPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
 }
 
 model DataPrivacyRequest {
