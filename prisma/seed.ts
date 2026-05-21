@@ -6,6 +6,7 @@ import {
   ChefServiceType,
   ChefVerificationStatus,
   DataCategory,
+  DishTemplateCategory,
   GroceryIntegrationType,
   GroceryPartnerStatus,
   IngredientCategory,
@@ -17,6 +18,8 @@ import {
   MarketplacePolicyModule,
   LegalAudience,
   LegalDocumentType,
+  MealType,
+  MenuTemplateType,
   PlatformRole,
   PrismaClient,
   RecipeDifficulty,
@@ -27,6 +30,8 @@ import {
   SpiceLevel,
   PreferredDeliveryMethod,
   RetentionAction,
+  TemplateStatus,
+  TemplateVisibility,
   UnitSystem,
   UnitType,
   UserStatus,
@@ -84,6 +89,7 @@ const PERMISSION_SEEDS = [
   { key: "youtube.manage", name: "Manage YouTube discovery", module: "youtube", action: "manage" },
   { key: "grocery.manage", name: "Manage grocery", module: "grocery", action: "manage" },
   { key: "meal_plans.manage", name: "Manage meal planning", module: "meal_plans", action: "manage" },
+  { key: "templates.manage", name: "Manage dish and menu templates", module: "templates", action: "manage" },
   { key: "home_chefs.manage", name: "Manage home chef requests", module: "home_chefs", action: "manage" },
   { key: "chefs.manage", name: "Manage chef marketplace", module: "chefs", action: "manage" },
   { key: "home_catering.manage", name: "Manage home catering", module: "home_catering", action: "manage" },
@@ -278,7 +284,9 @@ const USER_SEEDS = [
   { email: "country@nizamkitchen.dev", fullName: "Country Manager", platformRole: PlatformRole.country_manager, status: UserStatus.active },
   { email: "household@nizamkitchen.dev", fullName: "Household Owner", platformRole: null, status: UserStatus.active },
   { email: "chef@nizamkitchen.dev", fullName: "Chef Owner", platformRole: null, status: UserStatus.active },
+  { email: "catering@nizamkitchen.dev", fullName: "Home Catering Owner", platformRole: null, status: UserStatus.active },
   { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null, status: UserStatus.active },
+  { email: "support@nizamkitchen.dev", fullName: "Support Admin", platformRole: PlatformRole.support_admin, status: UserStatus.active },
   { email: "disabled@nizamkitchen.dev", fullName: "Disabled User", platformRole: null, status: UserStatus.disabled },
 ];
 
@@ -508,7 +516,13 @@ async function createOrganization(params: { name: string; organizationType: Orga
     },
   });
 
-  const role = params.organizationType === OrganizationType.household ? "org_owner" : params.organizationType === OrganizationType.chef_business ? "chef_owner" : "restaurant_owner";
+  const role = params.organizationType === OrganizationType.household
+    ? "org_owner"
+    : params.organizationType === OrganizationType.chef_business
+      ? "chef_owner"
+      : params.organizationType === OrganizationType.home_catering
+        ? "home_catering_owner"
+        : "restaurant_owner";
   await prisma.membership.upsert({
     where: { userId_organizationId: { userId: params.ownerUserId, organizationId: organization.id } },
     update: { role, status: MembershipStatus.active },
@@ -2036,6 +2050,439 @@ async function seedRecipes(
   }
 }
 
+async function seedTemplateLibrary(
+  createdById: string,
+  cuisineMap: Map<string, string>,
+  ingredientMap: Map<string, string>,
+  unitMap: Map<string, string>,
+) {
+  const hyderabadiCuisineId = cuisineMap.get("hyderabadi") ?? null;
+  const unit = (code: string) => unitMap.get(code) ?? null;
+  const ingredient = (slug: string) => ingredientMap.get(slug) ?? null;
+
+  const dishSeeds = [
+    {
+      name: "Chicken Dum Biryani",
+      slug: "template-chicken-dum-biryani",
+      description: "A platform template for layered Hyderabadi chicken dum biryani with rice, fried onions, mint, and saffron.",
+      category: DishTemplateCategory.biryani,
+      mealType: MealType.dinner,
+      defaultServings: 6,
+      defaultPriceAmount: 85,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "hyderabadi-chicken-biryani",
+      ingredients: [
+        ["chicken", "Chicken", 1000, "gram", "bone-in pieces"],
+        ["basmati-rice", "Basmati Rice", 750, "gram", "soaked and parboiled"],
+        ["yogurt", "Yogurt", 250, "gram", "for marinade"],
+        ["onion", "Onion", 4, "piece", "thinly sliced and fried"],
+        ["mint", "Mint", 1, "bunch", "for layering"],
+        ["ghee", "Ghee", 2, "tablespoon", "for dum finish"],
+      ],
+      steps: [
+        ["Marinate", "Marinate chicken with yogurt, spices, fried onions, and herbs.", 45],
+        ["Layer", "Layer marinated chicken with parboiled rice, mint, onions, and ghee.", 15],
+        ["Dum cook", "Seal and cook on dum until the chicken is tender and rice is fragrant.", 45],
+      ],
+    },
+    {
+      name: "Mutton Biryani",
+      slug: "template-mutton-biryani",
+      description: "A rich Hyderabadi mutton biryani template for weekend menus and occasion catering.",
+      category: DishTemplateCategory.biryani,
+      mealType: MealType.dinner,
+      defaultServings: 8,
+      defaultPriceAmount: 120,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "hyderabadi-mutton-biryani",
+      ingredients: [
+        ["mutton", "Mutton", 1200, "gram", "bone-in pieces"],
+        ["basmati-rice", "Basmati Rice", 900, "gram", "aged preferred"],
+        ["yogurt", "Yogurt", 300, "gram", "for marinade"],
+        ["onion", "Onion", 5, "piece", "fried dark golden"],
+        ["mint", "Mint", 1, "bunch", "for layering"],
+      ],
+      steps: [
+        ["Marinate mutton", "Marinate mutton with yogurt, spices, and fried onions for deep flavor.", 120],
+        ["Parboil rice", "Parboil soaked basmati rice until the grain still has a firm center.", 20],
+        ["Dum cook", "Layer mutton and rice, seal, and dum cook until tender.", 80],
+      ],
+    },
+    {
+      name: "Mirchi ka Salan",
+      slug: "template-mirchi-ka-salan",
+      description: "Classic peanut-sesame-tamarind salan served with biryani and bagara rice.",
+      category: DishTemplateCategory.salan,
+      mealType: MealType.side,
+      defaultServings: 6,
+      defaultPriceAmount: 28,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "mirchi-ka-salan",
+      ingredients: [
+        ["onion", "Onion", 2, "piece", "fried"],
+        ["coriander-powder", "Coriander Powder", 1, "teaspoon", null],
+      ],
+      steps: [
+        ["Prepare masala", "Cook a nutty salan base with fried onions, spices, and tamarind.", 20],
+        ["Simmer", "Add fried chilies and simmer until the gravy thickens.", 15],
+      ],
+    },
+    {
+      name: "Bagara Rice",
+      slug: "template-bagara-rice",
+      description: "Fragrant tempered Hyderabadi rice with fried onions, mint, and whole spices.",
+      category: DishTemplateCategory.rice,
+      mealType: MealType.lunch,
+      defaultServings: 6,
+      defaultPriceAmount: 32,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "bagara-khana",
+      ingredients: [
+        ["basmati-rice", "Basmati Rice", 500, "gram", "soaked"],
+        ["onion", "Onion", 2, "piece", "fried"],
+        ["mint", "Mint", 0.5, "bunch", null],
+        ["ghee", "Ghee", 1, "tablespoon", "for finish"],
+      ],
+      steps: [
+        ["Temper", "Bloom whole spices, onions, and mint in oil.", 8],
+        ["Cook rice", "Cook soaked rice with measured water until fluffy.", 20],
+      ],
+    },
+    {
+      name: "Khatti Dal",
+      slug: "template-khatti-dal",
+      description: "Tangy Hyderabadi toor dal with tamarind and a simple tempering.",
+      category: DishTemplateCategory.curry,
+      mealType: MealType.lunch,
+      defaultServings: 4,
+      defaultPriceAmount: 24,
+      spiceLevel: SpiceLevel.medium,
+      recipeSlug: "khatti-dal",
+      ingredients: [
+        ["toor-dal", "Toor Dal", 200, "gram", "rinsed"],
+        ["onion", "Onion", 1, "piece", "finely chopped"],
+        ["coriander-powder", "Coriander Powder", 1, "teaspoon", null],
+      ],
+      steps: [
+        ["Cook dal", "Pressure cook toor dal until soft and mash lightly.", 20],
+        ["Season", "Simmer with tamarind, spices, and tempering.", 15],
+      ],
+    },
+    {
+      name: "Double ka Meetha",
+      slug: "template-double-ka-meetha",
+      description: "Hyderabadi bread pudding with fried bread, milk, sugar syrup, and saffron.",
+      category: DishTemplateCategory.dessert,
+      mealType: MealType.dessert,
+      defaultServings: 8,
+      defaultPriceAmount: 36,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "double-ka-meetha",
+      ingredients: [
+        ["white-bread", "White Bread", 8, "piece", "cut into triangles"],
+        ["ghee", "Ghee", 3, "tablespoon", "for frying"],
+        ["sugar", "Sugar", 150, "gram", "for syrup"],
+        ["saffron", "Saffron", 1, "pinch", "optional"],
+      ],
+      steps: [
+        ["Fry bread", "Fry bread until golden and crisp.", 15],
+        ["Soak and finish", "Soak with syrup and milk, then garnish.", 15],
+      ],
+    },
+    {
+      name: "Haleem",
+      slug: "template-haleem",
+      description: "Slow-cooked Hyderabadi haleem template for Ramadan and special menus.",
+      category: DishTemplateCategory.special,
+      mealType: MealType.dinner,
+      defaultServings: 8,
+      defaultPriceAmount: 95,
+      spiceLevel: SpiceLevel.medium,
+      recipeSlug: "haleem",
+      ingredients: [
+        ["mutton", "Mutton", 1000, "gram", "for slow cooking"],
+        ["onion", "Onion", 4, "piece", "fried"],
+        ["yogurt", "Yogurt", 200, "gram", null],
+        ["ghee", "Ghee", 4, "tablespoon", "for finishing"],
+      ],
+      steps: [
+        ["Cook meat", "Cook meat and spices until very tender.", 60],
+        ["Beat haleem", "Combine grains, lentils, and meat; beat into a thick texture.", 90],
+      ],
+    },
+    {
+      name: "Qubani ka Meetha",
+      slug: "template-qubani-ka-meetha",
+      description: "Dried apricot dessert cooked into a tangy-sweet compote for celebrations.",
+      category: DishTemplateCategory.dessert,
+      mealType: MealType.dessert,
+      defaultServings: 8,
+      defaultPriceAmount: 42,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "qubani-ka-meetha",
+      ingredients: [
+        ["dried-apricots", "Dried Apricots", 400, "gram", "soaked overnight"],
+        ["sugar", "Sugar", 150, "gram", null],
+        ["saffron", "Saffron", 1, "pinch", "optional"],
+      ],
+      steps: [
+        ["Soak apricots", "Soak dried apricots until plump.", 360],
+        ["Cook compote", "Cook with sugar until thick and glossy.", 30],
+      ],
+    },
+    {
+      name: "Dahi ki Chutney",
+      slug: "template-dahi-ki-chutney",
+      description: "Cooling yogurt chutney with herbs for biryani plates and catering trays.",
+      category: DishTemplateCategory.salan,
+      mealType: MealType.side,
+      defaultServings: 6,
+      defaultPriceAmount: 14,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "dahi-ki-chutney",
+      ingredients: [
+        ["yogurt", "Yogurt", 300, "gram", "whisked"],
+        ["mint", "Mint", 0.25, "bunch", "optional"],
+      ],
+      steps: [
+        ["Blend herbs", "Blend herbs and green chilies with a little yogurt.", 3],
+        ["Fold", "Fold herb paste into whisked yogurt and season.", 3],
+      ],
+    },
+  ] as const;
+
+  const recipeRows = await prisma.recipe.findMany({
+    where: { slug: { in: dishSeeds.map((dish) => dish.recipeSlug) }, organizationId: null },
+    select: { id: true, slug: true },
+  });
+  const recipeMap = new Map(recipeRows.map((recipe) => [recipe.slug, recipe.id]));
+  const dishTemplates = new Map<string, string>();
+
+  for (const dish of dishSeeds) {
+    const data = {
+      name: dish.name,
+      description: dish.description,
+      cuisineId: hyderabadiCuisineId,
+      countryCode: "US",
+      region: dish.slug.includes("mutton") ? "TX" : null,
+      city: dish.slug.includes("chicken-dum") ? "Dallas" : null,
+      mealType: dish.mealType,
+      category: dish.category,
+      defaultServings: dish.defaultServings,
+      defaultPriceAmount: dish.defaultPriceAmount,
+      currencyCode: "USD",
+      spiceLevel: dish.spiceLevel,
+      status: TemplateStatus.active,
+      visibility: TemplateVisibility.public,
+      updatedById: createdById,
+      ingredients: {
+        deleteMany: {},
+        create: dish.ingredients.map(([slug, ingredientName, quantity, unitCode, preparationNote], displayOrder) => ({
+          ingredientId: ingredient(slug) ?? null,
+          ingredientName,
+          quantity,
+          unitId: unit(unitCode) ?? null,
+          preparationNote,
+          displayOrder,
+        })),
+      },
+      steps: {
+        deleteMany: {},
+        create: dish.steps.map(([title, instruction, durationMinutes], displayOrder) => ({
+          stepNumber: displayOrder + 1,
+          title,
+          instruction,
+          durationMinutes,
+          displayOrder,
+        })),
+      },
+    };
+
+    const template = await prisma.dishTemplate.upsert({
+      where: { slug: dish.slug },
+      update: data,
+      create: { ...data, slug: dish.slug, createdById },
+    });
+    dishTemplates.set(dish.slug, template.id);
+  }
+
+  const dishId = (slug: string) => dishTemplates.get(slug) ?? null;
+  const recipeId = (slug: string) => recipeMap.get(slug) ?? null;
+  const menuSeeds = [
+    {
+      name: "Daily Hyderabadi Lunch Template",
+      slug: "daily-hyderabadi-lunch-template",
+      description: "A simple daily lunch structure for families: rice, dal, salan, and chutney.",
+      templateType: MenuTemplateType.daily,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: false,
+      visibility: TemplateVisibility.household_available,
+      items: [
+        ["Bagara Rice", 0, MealType.lunch, DishTemplateCategory.rice, 0, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Khatti Dal", 0, MealType.lunch, DishTemplateCategory.curry, 0, "USD", "template-khatti-dal", "khatti-dal"],
+        ["Dahi ki Chutney", 0, MealType.side, DishTemplateCategory.salan, 0, "USD", "template-dahi-ki-chutney", "dahi-ki-chutney"],
+      ],
+    },
+    {
+      name: "Weekly Hyderabadi Family Meal Plan",
+      slug: "weekly-hyderabadi-family-meal-plan",
+      description: "A week of familiar Hyderabadi family meals for household meal planning.",
+      templateType: MenuTemplateType.weekly,
+      countryCode: "US",
+      region: "TX",
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: false,
+      visibility: TemplateVisibility.household_available,
+      items: [
+        ["Khatti Dal", 0, MealType.lunch, DishTemplateCategory.curry, 0, "USD", "template-khatti-dal", "khatti-dal"],
+        ["Bagara Rice", 1, MealType.dinner, DishTemplateCategory.rice, 0, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Chicken Dum Biryani", 4, MealType.dinner, DishTemplateCategory.biryani, 0, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mirchi ka Salan", 4, MealType.side, DishTemplateCategory.salan, 0, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha", 6, MealType.dessert, DishTemplateCategory.dessert, 0, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+      ],
+    },
+    {
+      name: "Monthly Hyderabadi Menu Rotation",
+      slug: "monthly-hyderabadi-menu-rotation",
+      description: "A rotating monthly menu of biryani, dal, rice, salan, haleem, and desserts.",
+      templateType: MenuTemplateType.monthly,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Chicken Dum Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani", 7, MealType.dinner, DishTemplateCategory.biryani, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Haleem", 14, MealType.dinner, DishTemplateCategory.special, 95, "USD", "template-haleem", "haleem"],
+        ["Qubani ka Meetha", 21, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Ramadan Iftar Menu",
+      slug: "ramadan-iftar-menu",
+      description: "A Ramadan-ready menu featuring haleem, biryani, chutney, and dessert.",
+      templateType: MenuTemplateType.ramadan,
+      countryCode: "US",
+      region: null,
+      city: "Houston",
+      sellerType: SellerType.home_catering,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Haleem", 0, MealType.dinner, DishTemplateCategory.special, 95, "USD", "template-haleem", "haleem"],
+        ["Chicken Dum Biryani", 1, MealType.dinner, DishTemplateCategory.biryani, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Dahi ki Chutney", 1, MealType.side, DishTemplateCategory.salan, 14, "USD", "template-dahi-ki-chutney", "dahi-ki-chutney"],
+        ["Qubani ka Meetha", 2, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Eid Special Menu",
+      slug: "eid-special-menu",
+      description: "A celebratory Eid menu with mutton biryani, salan, and classic sweets.",
+      templateType: MenuTemplateType.eid,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Mutton Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Mirchi ka Salan", 0, MealType.side, DishTemplateCategory.salan, 28, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 36, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+        ["Qubani ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Home Catering Weekend Biryani Menu",
+      slug: "home-catering-weekend-biryani-menu",
+      description: "A seller-ready weekend biryani tray menu for home catering businesses.",
+      templateType: MenuTemplateType.weekly,
+      countryCode: "US",
+      region: "TX",
+      city: "Dallas",
+      sellerType: SellerType.home_catering,
+      householdUseEnabled: false,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.seller_available,
+      items: [
+        ["Chicken Dum Biryani Tray", 0, MealType.dinner, DishTemplateCategory.catering_tray, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani Tray", 0, MealType.dinner, DishTemplateCategory.catering_tray, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Mirchi ka Salan Quart", 0, MealType.side, DishTemplateCategory.salan, 28, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha Tray", 0, MealType.dessert, DishTemplateCategory.dessert, 36, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+      ],
+    },
+    {
+      name: "Restaurant Biryani House Starter Menu",
+      slug: "restaurant-biryani-house-starter-menu",
+      description: "A starter menu for restaurant profiles offering Hyderabadi biryani, salan, rice, and desserts.",
+      templateType: MenuTemplateType.daily,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: SellerType.restaurant,
+      householdUseEnabled: false,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.seller_available,
+      items: [
+        ["Chicken Dum Biryani", 0, MealType.lunch, DishTemplateCategory.biryani, 18, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 22, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Bagara Rice", 0, MealType.side, DishTemplateCategory.rice, 8, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Qubani ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 9, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+  ] as const;
+
+  for (const menu of menuSeeds) {
+    const data = {
+      name: menu.name,
+      description: menu.description,
+      templateType: menu.templateType,
+      countryCode: menu.countryCode,
+      region: menu.region,
+      city: menu.city,
+      sellerType: menu.sellerType,
+      householdUseEnabled: menu.householdUseEnabled,
+      sellerUseEnabled: menu.sellerUseEnabled,
+      status: TemplateStatus.active,
+      visibility: menu.visibility,
+      updatedById: createdById,
+      items: {
+        deleteMany: {},
+        create: menu.items.map(([nameSnapshot, dayOffset, mealSlot, category, priceAmount, currencyCode, dishSlug, recipeSlug], displayOrder) => ({
+          dishTemplateId: dishId(dishSlug),
+          recipeId: recipeId(recipeSlug),
+          nameSnapshot,
+          dayOffset,
+          mealSlot,
+          category,
+          quantity: menu.householdUseEnabled ? 4 : null,
+          priceAmount,
+          currencyCode,
+          displayOrder,
+        })),
+      },
+    };
+
+    await prisma.menuTemplate.upsert({
+      where: { slug: menu.slug },
+      update: data,
+      create: { ...data, slug: menu.slug, createdById },
+    });
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -2065,7 +2512,55 @@ async function main() {
 
   const householdOrg = await createOrganization({ name: "Nizam Family Kitchen", organizationType: OrganizationType.household, countryCode: "US", ownerUserId: users.get("household@nizamkitchen.dev")!.id });
   const chefOrg = await createOrganization({ name: "Hyderabad Home Chefs Demo", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: users.get("chef@nizamkitchen.dev")!.id });
+  const homeCateringOrg = await createOrganization({ name: "Deccan Dastarkhwan", organizationType: OrganizationType.home_catering, countryCode: "US", ownerUserId: users.get("catering@nizamkitchen.dev")!.id });
   const restaurantOrg = await createOrganization({ name: "Biryani House Demo", organizationType: OrganizationType.restaurant, countryCode: "US", ownerUserId: users.get("restaurant@nizamkitchen.dev")!.id });
+
+  await prisma.homeCateringProfile.upsert({
+    where: { organizationId: homeCateringOrg.id },
+    update: {
+      countryCode: "US",
+      displayName: "Deccan Dastarkhwan",
+      slug: "deccan-dastarkhwan",
+      ownerName: "Home Catering Owner",
+      bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
+      status: "draft",
+      verificationStatus: "unverified",
+      cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
+      languagesJson: ["English", "Urdu"],
+      serviceAreaText: "Chicago pickup and nearby preorder delivery.",
+      city: "Chicago",
+      region: "IL",
+      phone: "+1 312 555 0188",
+      email: "catering@nizamkitchen.dev",
+      acceptsPickup: true,
+      acceptsDelivery: true,
+      acceptsPreorders: true,
+      minimumNoticeHours: 24,
+      isPublic: false,
+    },
+    create: {
+      organizationId: homeCateringOrg.id,
+      countryCode: "US",
+      displayName: "Deccan Dastarkhwan",
+      slug: "deccan-dastarkhwan",
+      ownerName: "Home Catering Owner",
+      bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
+      status: "draft",
+      verificationStatus: "unverified",
+      cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
+      languagesJson: ["English", "Urdu"],
+      serviceAreaText: "Chicago pickup and nearby preorder delivery.",
+      city: "Chicago",
+      region: "IL",
+      phone: "+1 312 555 0188",
+      email: "catering@nizamkitchen.dev",
+      acceptsPickup: true,
+      acceptsDelivery: true,
+      acceptsPreorders: true,
+      minimumNoticeHours: 24,
+      isPublic: false,
+    },
+  });
 
   for (const key of FEATURE_FLAGS) {
     const existing = await prisma.featureFlag.findFirst({ where: { key, organizationId: null, countryCode: null } });
@@ -2298,6 +2793,9 @@ async function main() {
 
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
+
+  console.log("Seeding dish and menu templates...");
+  await seedTemplateLibrary(platformOwner.id, cuisineMap, ingredientMap, unitMap);
 
   // Clear then re-seed curated YouTube videos for all platform recipes.
   await prisma.recipeMediaReference.deleteMany({

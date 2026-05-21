@@ -3,8 +3,9 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMealPlanner, getMealPlanPreference } from "@/server/meal-plans";
-import { createMealPlanAction } from "../actions";
+import { createMealPlanAction, createMealPlanFromTemplateAction } from "../actions";
 import { canAccessFamilyProfiles, getHouseholdProfile } from "@/server/household";
+import { listAvailableMenuTemplates } from "@/server/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,10 @@ export default async function NewMealPlanPage() {
     familyProfilesEnabled && session.activeOrganization.organizationType === "household"
       ? await getHouseholdProfile(organizationId)
       : null;
+  const templates = await listAvailableMenuTemplates({
+    usage: "household",
+    countryCode: session.activeOrganization.countryCode,
+  });
   const today = new Date();
   const startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const endDate = addDays(startDate, 6);
@@ -59,6 +64,32 @@ export default async function NewMealPlanPage() {
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
+        <Card className="xl:col-span-2">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Start from template</p>
+              <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">City, state, and country meal plan templates</h2>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">City templates are prioritized first, then state, country, and global defaults.</p>
+            </div>
+          </div>
+          {templates.length === 0 ? (
+            <p className="mt-4 text-sm text-[var(--color-muted)]">No active household templates are available yet.</p>
+          ) : (
+            <form action={createMealPlanFromTemplateAction} className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_160px_160px_auto]">
+              <select name="templateId" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} ({template.templateType}, {template.city || template.region || template.countryCode || "global"})
+                  </option>
+                ))}
+              </select>
+              <input name="startDate" type="date" required defaultValue={toDateInput(startDate)} className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+              <input name="householdSize" type="number" min="1" max="100" required defaultValue={householdProfile?.defaultHouseholdSize ?? preference?.defaultHouseholdSize ?? 4} className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+              <button type="submit" className="rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white">Use template</button>
+            </form>
+          )}
+        </Card>
+
         <Card>
           <form action={createMealPlanAction} className="space-y-8">
             <div className="grid gap-5 md:grid-cols-2">

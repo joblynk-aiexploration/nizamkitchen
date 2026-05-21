@@ -72,6 +72,9 @@ const iconByHref = {
   "/admin/system-settings": Cog,
   "/admin/support": Users,
   "/admin/reports": BarChart3,
+  "/admin/templates": BookOpen,
+  "/admin/templates/dishes": BookOpen,
+  "/admin/templates/menus": ShoppingCart,
   "/admin/leads": Inbox,
   "/reports": BarChart3,
 } as const;

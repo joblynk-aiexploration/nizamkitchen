@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { canAccessMenus, upsertMenu, upsertMenuItem } from "@/server/menus";
+import { applyMenuTemplateToSellerMenu } from "@/server/templates";
 
 async function requireMenuOwnerAccess(expectedType: "home_catering" | "restaurant") {
   const session = await requireMembership();
@@ -73,6 +74,25 @@ export async function upsertCateringMenuAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/catering/menu?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save menu."))}`);
+  }
+}
+
+export async function createCateringMenuFromTemplateAction(formData: FormData) {
+  try {
+    const session = await requireMenuOwnerAccess("home_catering");
+    const menu = await applyMenuTemplateToSellerMenu({
+      templateId: String(formData.get("templateId")),
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      currencyCode: session.activeOrganization.currencyCode,
+      actorUserId: session.user.id,
+      sellerType: "home_catering",
+    });
+    revalidateCateringMenuPaths();
+    redirect(`/catering/menu/${menu.id}?message=Menu created from template.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/catering/menu?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to apply menu template."))}`);
   }
 }
 

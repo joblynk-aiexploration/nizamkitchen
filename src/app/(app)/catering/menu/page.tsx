@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMenus, listMenusForOrganization } from "@/server/menus";
+import { listAvailableMenuTemplates } from "@/server/templates";
+import { createCateringMenuFromTemplateAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +18,27 @@ export default async function CateringMenusPage() {
   }
   const enabled = await canAccessMenus({ organizationId: session.activeOrganization.id, organizationType: "home_catering", platformRole: session.user.platformRole });
   if (!enabled) return <EmptyState title="Menus coming soon" description="Menu management is not enabled for this organization yet." />;
-  const menus = await listMenusForOrganization(session.activeOrganization.id);
+  const [menus, templates] = await Promise.all([
+    listMenusForOrganization(session.activeOrganization.id),
+    listAvailableMenuTemplates({ usage: "seller", sellerType: "home_catering", countryCode: session.activeOrganization.countryCode }),
+  ]);
 
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Home catering" title="Menus" description="Group dishes into public or private menus for preorder, pickup, or delivery." actions={<Button asChild><Link href="/catering/menu/new">Create menu</Link></Button>} />
+      <Card>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Create menu from template</p>
+        {templates.length === 0 ? (
+          <p className="mt-2 text-sm text-[var(--color-muted)]">No active home catering templates are available yet.</p>
+        ) : (
+          <form action={createCateringMenuFromTemplateAction} className="mt-4 flex flex-wrap gap-3">
+            <select name="templateId" className="min-w-72 rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
+              {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+            </select>
+            <Button type="submit">Use template</Button>
+          </form>
+        )}
+      </Card>
       {menus.length === 0 ? <EmptyState title="No menus yet" description="Create a menu before publishing dishes." /> : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {menus.map((menu) => (

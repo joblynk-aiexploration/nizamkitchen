@@ -374,6 +374,10 @@ model User {
   oauthAccounts                    OAuthAccount[]
   userActivities                   UserActivity[]
   privacySetting                   UserPrivacySetting?
+  dishTemplatesCreated             DishTemplate[]                   @relation("DishTemplateCreatedBy")
+  dishTemplatesUpdated             DishTemplate[]                   @relation("DishTemplateUpdatedBy")
+  menuTemplatesCreated             MenuTemplate[]                   @relation("MenuTemplateCreatedBy")
+  menuTemplatesUpdated             MenuTemplate[]                   @relation("MenuTemplateUpdatedBy")
   locations                        Location[]
 }
 
@@ -533,6 +537,8 @@ model Country {
   countryConfigs     CountryConfig[]
   auditLogs          AuditLog[]
   mealPlans          MealPlan[]
+  dishTemplates      DishTemplate[]
+  menuTemplates      MenuTemplate[]
   groceryPartners    GroceryPartner[]
   notifications      Notification[]
   supportTickets     SupportTicket[]
@@ -1317,6 +1323,47 @@ enum MenuItemCategory {
   other
 }
 
+enum DishTemplateCategory {
+  biryani
+  curry
+  salan
+  rice
+  bread
+  snack
+  dessert
+  drink
+  combo
+  catering_tray
+  special
+  other
+}
+
+enum TemplateStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum TemplateVisibility {
+  internal_admin
+  public
+  seller_available
+  household_available
+}
+
+enum MenuTemplateType {
+  daily
+  weekly
+  monthly
+  occasion
+  ramadan
+  eid
+  wedding
+  party
+  custom
+}
+
 enum FoodOrderSellerType {
   home_catering
   restaurant
@@ -1849,6 +1896,7 @@ model Cuisine {
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   recipes                    Recipe[]
+  dishTemplates              DishTemplate[]
   householdPreferredCuisines HouseholdPreferredCuisine[]
 
   @@index([countryCode])
@@ -1868,6 +1916,7 @@ model Unit {
   updatedAt                  DateTime                @updatedAt
   ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
   recipeIngredients          RecipeIngredient[]
+  dishTemplateIngredients    DishTemplateIngredient[]
   conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
   conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
   groceryListItems           GroceryListItem[]
@@ -1897,6 +1946,7 @@ model Ingredient {
   defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
   aliases                 IngredientAlias[]
   recipeIngredients       RecipeIngredient[]
+  dishTemplateIngredients  DishTemplateIngredient[]
   unitConversions         UnitConversion[]
   groceryListItems        GroceryListItem[]
   groceryWarnings         GroceryConversionWarning[]
@@ -1981,6 +2031,7 @@ model Recipe {
   discoveryRuns              YouTubeDiscoveryRun[]
   youtubeCandidates          YouTubeVideoCandidate[]
   favoriteRecipes            FavoriteRecipe[]
+  menuTemplateItems          MenuTemplateItem[]
   homeChefRequests           HomeChefRequest[]
   chefSpecialties            ChefSpecialtyRecipe[]
   restaurantFallbackSearches RestaurantFallbackSearch[]
@@ -1991,6 +2042,80 @@ model Recipe {
   @@index([cuisineId])
   @@index([isPublished])
   @@index([visibility])
+}
+
+model DishTemplate {
+  id                 String                   @id @default(cuid())
+  name               String
+  slug               String                   @unique
+  description        String?
+  cuisineId          String?
+  countryCode        String?
+  region             String?
+  city               String?
+  mealType           MealType?
+  category           DishTemplateCategory
+  defaultServings    Int?
+  defaultPriceAmount Float?
+  currencyCode       String?
+  spiceLevel         SpiceLevel?
+  status             TemplateStatus           @default(draft)
+  visibility         TemplateVisibility       @default(internal_admin)
+  createdById        String
+  updatedById        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  cuisine            Cuisine?                 @relation(fields: [cuisineId], references: [id], onDelete: SetNull)
+  country            Country?                 @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  createdBy          User                     @relation("DishTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User?                    @relation("DishTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  ingredients        DishTemplateIngredient[]
+  steps              DishTemplateStep[]
+  menuTemplateItems  MenuTemplateItem[]
+
+  @@index([cuisineId])
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([mealType])
+  @@index([category])
+  @@index([status])
+  @@index([visibility])
+  @@index([createdById])
+}
+
+model DishTemplateIngredient {
+  id              String       @id @default(cuid())
+  dishTemplateId  String
+  ingredientId    String?
+  ingredientName  String
+  quantity        Float?
+  unitId          String?
+  preparationNote String?
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  dishTemplate    DishTemplate @relation(fields: [dishTemplateId], references: [id], onDelete: Cascade)
+  ingredient      Ingredient?  @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+  unit            Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([dishTemplateId])
+  @@index([ingredientId])
+  @@index([unitId])
+}
+
+model DishTemplateStep {
+  id              String       @id @default(cuid())
+  dishTemplateId  String
+  stepNumber      Int
+  title           String?
+  instruction     String
+  durationMinutes Int?
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  dishTemplate    DishTemplate @relation(fields: [dishTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([dishTemplateId])
+  @@index([stepNumber])
 }
 
 model RecipeIngredient {
@@ -2509,6 +2634,66 @@ model Menu {
   @@index([countryCode])
   @@index([status])
   @@index([visibility])
+}
+
+model MenuTemplate {
+  id                  String             @id @default(cuid())
+  name                String
+  slug                String             @unique
+  description         String?
+  templateType        MenuTemplateType
+  countryCode         String?
+  region              String?
+  city                String?
+  sellerType          SellerType?
+  householdUseEnabled Boolean            @default(false)
+  sellerUseEnabled    Boolean            @default(false)
+  status              TemplateStatus     @default(draft)
+  visibility          TemplateVisibility @default(internal_admin)
+  createdById         String
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  country             Country?           @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  createdBy           User               @relation("MenuTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User?              @relation("MenuTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items               MenuTemplateItem[]
+
+  @@index([templateType])
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([sellerType])
+  @@index([householdUseEnabled])
+  @@index([sellerUseEnabled])
+  @@index([status])
+  @@index([visibility])
+}
+
+model MenuTemplateItem {
+  id             String              @id @default(cuid())
+  menuTemplateId String
+  dishTemplateId String?
+  recipeId       String?
+  nameSnapshot   String
+  dayOffset      Int?
+  mealSlot       MealType?
+  category       DishTemplateCategory?
+  quantity       Float?
+  priceAmount    Float?
+  currencyCode   String?
+  displayOrder   Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  menuTemplate   MenuTemplate        @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  dishTemplate   DishTemplate?       @relation(fields: [dishTemplateId], references: [id], onDelete: SetNull)
+  recipe         Recipe?             @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([menuTemplateId])
+  @@index([dishTemplateId])
+  @@index([recipeId])
+  @@index([mealSlot])
+  @@index([category])
+  @@index([displayOrder])
 }
 
 model MenuItem {

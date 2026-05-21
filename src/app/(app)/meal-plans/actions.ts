@@ -17,6 +17,7 @@ import {
   updateMealPlanEntry,
   updateMealPlanPreference,
 } from "@/server/meal-plans";
+import { applyMenuTemplateToMealPlan } from "@/server/templates";
 
 function listFromFormData(formData: FormData, key: string) {
   return formData
@@ -65,6 +66,26 @@ export async function createMealPlanAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create meal plan."))}`);
+  }
+}
+
+export async function createMealPlanFromTemplateAction(formData: FormData) {
+  try {
+    const session = await requireMealPlannerAccess();
+    const plan = await applyMenuTemplateToMealPlan({
+      templateId: String(formData.get("templateId")),
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      householdSize: Number(formData.get("householdSize") ?? 4),
+      startDate: String(formData.get("startDate")),
+    });
+
+    revalidatePath("/meal-plans");
+    redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created from template.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to apply meal plan template."))}`);
   }
 }
 
