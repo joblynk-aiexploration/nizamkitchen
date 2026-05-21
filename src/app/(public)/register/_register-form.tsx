@@ -98,19 +98,14 @@ export function RegisterForm({
   }
 
   return (
-    <div className="mx-auto max-w-xl px-5 py-16 sm:px-8">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-primary)] text-xs font-bold text-white shadow">
-          NK
-        </div>
-        <span className="font-serif text-lg text-[var(--color-ink)]">NizamKitchen</span>
-      </Link>
-
-      <h1 className="mt-8 font-serif text-3xl text-[var(--color-ink)]">Create your account</h1>
-      <p className="mt-1 text-sm text-[var(--color-muted)]">
+    <div className="mx-auto max-w-xl px-5 py-12 sm:px-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--color-primary-strong)]">
+        Join the beta
+      </p>
+      <h1 className="mt-3 font-serif text-3xl text-[var(--text-primary)]">Create your account</h1>
+      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-[var(--color-primary)]">
+        <Link href="/login" className="font-semibold text-[var(--color-primary-strong)] hover:underline">
           Sign in
         </Link>
       </p>
@@ -141,7 +136,7 @@ export function RegisterForm({
                 key={at.type}
                 type="button"
                 onClick={() => { setAccountType(at.type); setStep(2); }}
-                className="w-full rounded-2xl border border-[var(--color-border)] p-4 text-left transition hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
+                className="w-full rounded-2xl border border-[var(--color-border)] bg-white p-4 text-left text-[var(--text-primary)] transition hover:border-[var(--color-primary)] hover:bg-[#e4f2f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{at.emoji}</span>

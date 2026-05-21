@@ -20,6 +20,8 @@ const navLinks = [
 export function PublicNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const isLogin = pathname === "/login";
+  const isRegister = pathname === "/register";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-white/95 text-[var(--text-primary)] backdrop-blur-sm">
@@ -54,12 +56,18 @@ export function PublicNav() {
         <div className="hidden items-center gap-2 lg:flex">
           <Link
             href="/login"
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]"
+            aria-current={isLogin ? "page" : undefined}
+            className={cn(
+              "rounded-xl px-4 py-2 text-sm font-semibold transition",
+              isLogin
+                ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
+                : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
+            )}
           >
             Sign in
           </Link>
-          <Button asChild className="rounded-xl px-4 py-2">
-            <Link href="/register">Start beta</Link>
+          <Button asChild variant={isRegister ? "secondary" : "primary"} className="rounded-xl px-4 py-2">
+            <Link href="/register" aria-current={isRegister ? "page" : undefined}>Start beta</Link>
           </Button>
         </div>
 
@@ -97,12 +105,24 @@ export function PublicNav() {
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className="rounded-xl border border-[var(--button-outline-border)] bg-white px-4 py-2 text-center text-sm font-semibold text-[var(--text-primary)] hover:bg-slate-100"
+              aria-current={isLogin ? "page" : undefined}
+              className={cn(
+                "rounded-xl border border-[var(--button-outline-border)] px-4 py-2 text-center text-sm font-semibold",
+                isLogin
+                  ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
+                  : "bg-white text-[var(--text-primary)] hover:bg-slate-100",
+              )}
             >
               Sign in
             </Link>
-            <Button asChild className="rounded-xl">
-              <Link href="/register" onClick={() => setOpen(false)}>Start beta</Link>
+            <Button asChild variant={isRegister ? "secondary" : "primary"} className="rounded-xl">
+              <Link
+                href="/register"
+                onClick={() => setOpen(false)}
+                aria-current={isRegister ? "page" : undefined}
+              >
+                Start beta
+              </Link>
             </Button>
           </div>
         </div>

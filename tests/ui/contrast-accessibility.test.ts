@@ -26,6 +26,28 @@ describe("UI contrast and accessibility guards", () => {
     expect(source).toContain("Button asChild");
     expect(source).toContain("text-[var(--text-secondary)]");
     expect(source).toContain("aria-label=\"Toggle menu\"");
+    expect(source).toContain("const isLogin = pathname === \"/login\"");
+    expect(source).toContain("const isRegister = pathname === \"/register\"");
+    expect(source).toContain("aria-current={isLogin ? \"page\" : undefined}");
+    expect(source).toContain("aria-current={isRegister ? \"page\" : undefined}");
+  });
+
+  it("auth pages avoid duplicate in-page branding while keeping readable copy", () => {
+    const authShell = read("src/components/auth/auth-shell.tsx");
+    const registerForm = read("src/app/(public)/register/_register-form.tsx");
+    const loginPage = read("src/app/(public)/login/page.tsx");
+
+    expect(authShell).not.toContain("LogoMark");
+    expect(authShell).not.toContain("Enterprise SaaS");
+    expect(authShell).toContain("Plan · Cook · Hire · Order");
+    expect(authShell).toContain("text-[var(--color-primary-strong)]");
+    expect(authShell).toContain("text-[var(--text-secondary)]");
+
+    expect(registerForm).not.toContain("{/* Logo */}");
+    expect(registerForm).not.toContain("font-serif text-lg text-[var(--color-ink)]\">NizamKitchen");
+    expect(registerForm).toContain("Join the beta");
+    expect(registerForm).toContain("Create account");
+    expect(loginPage).toContain("Sign in");
   });
 
   it("Button variants use explicit readable text, hover, focus, and disabled tokens", () => {
