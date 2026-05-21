@@ -3,6 +3,42 @@ import { PublicNav } from "@/components/public/public-nav";
 import { GooglePlatformScripts } from "@/components/seo/google-platform-scripts";
 import { organizationJsonLd, websiteJsonLd } from "@/server/seo/seo-service";
 
+const footerSections = [
+  {
+    title: "Product",
+    links: [
+      { href: "/features", label: "Features" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/for-households", label: "For Households" },
+    ],
+  },
+  {
+    title: "Marketplace",
+    links: [
+      { href: "/for-chefs", label: "For Chefs" },
+      { href: "/for-restaurants", label: "For Restaurants" },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      { href: "/about", label: "About" },
+      { href: "/contact", label: "Contact" },
+      { href: "/help", label: "Help Center" },
+      { href: "/faq", label: "FAQ" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { href: "/terms", label: "Terms" },
+      { href: "/privacy", label: "Privacy" },
+      { href: "/legal/seller-agreement", label: "Seller Agreement" },
+      { href: "/legal/food-safety", label: "Food Safety" },
+    ],
+  },
+];
+
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -14,9 +50,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <GooglePlatformScripts />
       <PublicNav />
       <main className="flex-1">{children}</main>
-      <footer className="border-t border-[var(--color-border)] bg-slate-50">
+      <footer data-testid="public-footer" className="relative z-10 border-t border-[var(--color-border)] bg-slate-50">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-primary)] text-xs font-bold text-white shadow">
@@ -28,30 +64,23 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                 Plan, cook, hire, or order — built around authentic Hyderabadi food.
               </p>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Product</p>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li><Link href="/features" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Features</Link></li>
-                <li><Link href="/pricing" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Pricing</Link></li>
-                <li><Link href="/for-households" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">For Households</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Partners</p>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li><Link href="/for-chefs" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">For Chefs</Link></li>
-                <li><Link href="/for-restaurants" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">For Restaurants</Link></li>
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Company</p>
-              <ul className="mt-3 space-y-2 text-sm">
-                <li><Link href="/about" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">About</Link></li>
-                <li><Link href="/contact" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Contact</Link></li>
-                <li><Link href="/legal/terms" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Terms</Link></li>
-                <li><Link href="/legal/privacy" className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">Privacy</Link></li>
-              </ul>
-            </div>
+            {footerSections.map((section) => (
+              <div key={section.title}>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{section.title}</p>
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {section.links.map((link) => (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        className="inline-flex rounded-lg py-1 text-[var(--color-muted)] transition hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
           <div className="mt-10 border-t border-[var(--color-border)] pt-6 text-center text-xs text-slate-400">
             © {new Date().getFullYear()} NizamKitchen. All rights reserved.

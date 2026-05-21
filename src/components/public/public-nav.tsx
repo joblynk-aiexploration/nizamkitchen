@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -12,7 +11,6 @@ const navLinks = [
   { href: "/pricing", label: "Pricing" },
   { href: "/for-households", label: "For Households" },
   { href: "/for-chefs", label: "For Chefs" },
-  { href: "/caterers", label: "Caterers" },
   { href: "/for-restaurants", label: "For Restaurants" },
   { href: "/about", label: "About" },
 ];
@@ -66,9 +64,18 @@ export function PublicNav() {
           >
             Sign in
           </Link>
-          <Button asChild variant={isRegister ? "secondary" : "primary"} className="rounded-xl px-4 py-2">
-            <Link href="/register" aria-current={isRegister ? "page" : undefined}>Start beta</Link>
-          </Button>
+          <Link
+            href="/register"
+            aria-current={isRegister ? "page" : undefined}
+            className={cn(
+              "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition",
+              isRegister
+                ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                : "bg-[#0b625c] text-white hover:bg-[#084c47]",
+            )}
+          >
+            Sign up
+          </Link>
         </div>
 
         {/* Mobile toggle */}
@@ -115,15 +122,19 @@ export function PublicNav() {
             >
               Sign in
             </Link>
-            <Button asChild variant={isRegister ? "secondary" : "primary"} className="rounded-xl">
-              <Link
-                href="/register"
-                onClick={() => setOpen(false)}
-                aria-current={isRegister ? "page" : undefined}
-              >
-                Start beta
-              </Link>
-            </Button>
+            <Link
+              href="/register"
+              onClick={() => setOpen(false)}
+              aria-current={isRegister ? "page" : undefined}
+              className={cn(
+                "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-sm transition",
+                isRegister
+                  ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                  : "bg-[#0b625c] text-white hover:bg-[#084c47]",
+              )}
+            >
+              Sign up
+            </Link>
           </div>
         </div>
       )}

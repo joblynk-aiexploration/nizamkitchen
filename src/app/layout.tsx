@@ -47,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable} h-full antialiased`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${sans.variable} ${serif.variable} h-full antialiased`}>
       <body className="min-h-full bg-[var(--color-app-surface)] text-[var(--color-ink)]">
         <PwaRegister />
         {children}
