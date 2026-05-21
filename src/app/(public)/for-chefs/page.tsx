@@ -47,14 +47,14 @@ export default function ForChefsPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/register?type=chef"
-                className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#10263a] hover:opacity-90"
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#10263a] shadow-sm transition hover:bg-slate-100"
               >
                 Join as chef
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/pricing"
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/18"
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/50 bg-white/15 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-white hover:text-[#10263a]"
               >
                 See pricing
               </Link>

@@ -114,8 +114,8 @@ export function SidebarNav({
                   className={cn(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                     active
-                      ? "bg-white/12 text-white"
-                      : "text-slate-300 hover:bg-white/8 hover:text-white",
+                      ? "bg-white/15 font-semibold text-white"
+                      : "text-slate-200 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -140,8 +140,8 @@ export function SidebarNav({
                   className={cn(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                     active
-                      ? "bg-white/12 text-white"
-                      : "text-slate-300 hover:bg-white/8 hover:text-white",
+                      ? "bg-white/15 font-semibold text-white"
+                      : "text-slate-200 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />

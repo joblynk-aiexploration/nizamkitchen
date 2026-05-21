@@ -47,7 +47,7 @@ export default function ForRestaurantsPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/register?type=restaurant"
-                className="inline-flex items-center gap-2 rounded-2xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[var(--button-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
               >
                 Join as restaurant partner
                 <ArrowRight className="h-4 w-4" />
@@ -89,7 +89,7 @@ export default function ForRestaurantsPage() {
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               href="/register?type=restaurant"
-              className="inline-flex rounded-2xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:opacity-90"
+              className="inline-flex min-h-11 rounded-2xl bg-[var(--button-primary-bg)] px-8 py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
             >
               Join waitlist
             </Link>

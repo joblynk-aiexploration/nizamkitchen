@@ -76,7 +76,7 @@ export default function AboutPage() {
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               href="/register"
-              className="rounded-2xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:opacity-90"
+              className="rounded-2xl bg-[var(--button-primary-bg)] px-8 py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
             >
               Start beta
             </Link>

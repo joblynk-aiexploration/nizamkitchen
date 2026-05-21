@@ -279,7 +279,7 @@ export function RegisterForm({
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-2xl bg-[var(--color-primary)] py-3 text-sm font-semibold text-white hover:opacity-90"
+              className="flex-1 rounded-2xl bg-[var(--button-primary-bg)] py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
             >
               {accountType === "household" ? "Continue" : "Create account"}
             </button>
@@ -380,7 +380,7 @@ export function RegisterForm({
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-2xl bg-[var(--color-primary)] py-3 text-sm font-semibold text-white hover:opacity-90"
+              className="flex-1 rounded-2xl bg-[var(--button-primary-bg)] py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
             >
               Create account
             </button>

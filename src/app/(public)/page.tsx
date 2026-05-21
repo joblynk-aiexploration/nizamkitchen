@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ChefHat, ShoppingCart, UtensilsCrossed } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
 
 export const generateMetadata = () => publicPageMetadata("/");
@@ -92,16 +93,15 @@ export default function HomePage() {
             recipes and videos, hire home chefs, or order instead.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/register"
-              className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-[#10263a] shadow-lg hover:opacity-90"
-            >
-              Start beta
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <Button asChild className="rounded-2xl px-6 py-3 shadow-lg">
+              <Link href="/register">
+                Start beta
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
             <Link
               href="/features"
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/18"
+              className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/50 bg-white/15 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-white hover:text-[#10263a] focus-visible:ring-offset-[#10263a]"
             >
               See all features
             </Link>
@@ -201,13 +201,12 @@ export default function HomePage() {
           <p className="mx-auto mt-4 max-w-xl text-slate-200">
             Join the beta and help shape the kitchen operating system for Hyderabadi households.
           </p>
-          <Link
-            href="/register"
-            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] hover:opacity-90"
-          >
-            Start beta
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <Button asChild className="mt-8 rounded-2xl px-8 py-3 shadow-lg">
+            <Link href="/register">
+              Start beta
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
       </section>
     </>

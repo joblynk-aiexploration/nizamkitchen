@@ -154,7 +154,7 @@ export default function FeaturesPage() {
           </p>
           <Link
             href="/register"
-            className="mt-6 inline-flex rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] hover:opacity-90"
+            className="mt-6 inline-flex min-h-11 rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] shadow-sm transition hover:bg-slate-100"
           >
             Start beta
           </Link>

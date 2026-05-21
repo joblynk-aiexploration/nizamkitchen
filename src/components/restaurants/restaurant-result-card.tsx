@@ -76,7 +76,8 @@ export function RestaurantResultCard({ result, savedPlaceIds, onSaved }: Props) 
             onClick={handleSave}
             disabled={isSaved || saving}
             title={isSaved ? "Saved" : "Save this restaurant"}
-            className="shrink-0 rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-50"
+            aria-label={isSaved ? "Restaurant saved" : "Save this restaurant"}
+            className="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-slate-100 hover:text-[var(--text-primary)] disabled:text-slate-500"
           >
             {isSaved ? (
               <BookmarkCheck className="h-5 w-5 text-green-600" />

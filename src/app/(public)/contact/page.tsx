@@ -156,7 +156,7 @@ export default async function ContactPage({
                   </div>
                   <button
                     type="submit"
-                    className="w-full rounded-2xl bg-[var(--color-primary)] py-3 text-sm font-semibold text-white hover:opacity-90"
+                    className="w-full rounded-2xl bg-[var(--button-primary-bg)] py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
                   >
                     Send message
                   </button>

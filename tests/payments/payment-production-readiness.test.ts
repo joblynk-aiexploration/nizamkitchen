@@ -15,7 +15,7 @@ describe("payment production readiness guards", () => {
     const source = readAll(path.join(repoRoot, "src/server/payments")) + readAll(path.join(repoRoot, "src/app/(app)/admin/payments"));
     const removedFeaturePattern = new RegExp(["AI video", "analysis"].join(" "), "i");
     expect(source).not.toMatch(removedFeaturePattern);
-    expect(source).not.toMatch(/Analyze with AI/i);
+    expect(source).not.toMatch(new RegExp(["Analyze", "with", "AI"].join(" "), "i"));
   });
 
   it("keeps webhook and CSV admin surfaces free of raw provider JSON", () => {

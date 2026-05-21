@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -21,7 +22,7 @@ export function PublicNav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-white/95 text-[var(--text-primary)] backdrop-blur-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
@@ -38,10 +39,10 @@ export function PublicNav() {
               key={link.href}
               href={link.href}
               className={cn(
-                "rounded-xl px-3 py-1.5 text-sm transition",
+                "rounded-xl px-3 py-1.5 text-sm font-medium transition focus-visible:ring-offset-white",
                 pathname === link.href
-                  ? "bg-[var(--color-primary)]/10 font-semibold text-[var(--color-primary)]"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-ink)]",
+                  ? "bg-[#e4f2f0] font-semibold text-[var(--color-primary-strong)]"
+                  : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
               )}
             >
               {link.label}
@@ -53,21 +54,18 @@ export function PublicNav() {
         <div className="hidden items-center gap-2 lg:flex">
           <Link
             href="/login"
-            className="rounded-xl px-4 py-2 text-sm font-medium text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+            className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]"
           >
             Sign in
           </Link>
-          <Link
-            href="/register"
-            className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-          >
-            Start beta
-          </Link>
+          <Button asChild className="rounded-xl px-4 py-2">
+            <Link href="/register">Start beta</Link>
+          </Button>
         </div>
 
         {/* Mobile toggle */}
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] lg:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--button-outline-border)] bg-white text-[var(--text-primary)] transition hover:bg-slate-100 lg:hidden"
           onClick={() => setOpen((v) => !v)}
           aria-label="Toggle menu"
         >
@@ -85,10 +83,10 @@ export function PublicNav() {
                 href={link.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "rounded-xl px-3 py-2 text-sm",
+                  "rounded-xl px-3 py-2 text-sm font-medium",
                   pathname === link.href
-                    ? "bg-[var(--color-primary)]/10 font-semibold text-[var(--color-primary)]"
-                    : "text-[var(--color-ink)]",
+                    ? "bg-[#e4f2f0] font-semibold text-[var(--color-primary-strong)]"
+                    : "text-[var(--text-primary)] hover:bg-slate-100",
                 )}
               >
                 {link.label}
@@ -99,17 +97,13 @@ export function PublicNav() {
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-center text-sm font-medium"
+              className="rounded-xl border border-[var(--button-outline-border)] bg-white px-4 py-2 text-center text-sm font-semibold text-[var(--text-primary)] hover:bg-slate-100"
             >
               Sign in
             </Link>
-            <Link
-              href="/register"
-              onClick={() => setOpen(false)}
-              className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-center text-sm font-semibold text-white"
-            >
-              Start beta
-            </Link>
+            <Button asChild className="rounded-xl">
+              <Link href="/register" onClick={() => setOpen(false)}>Start beta</Link>
+            </Button>
           </div>
         </div>
       )}

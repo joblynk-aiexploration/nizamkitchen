@@ -218,7 +218,7 @@ export function AdminSidebar({ session }: { session: Session }) {
   const pathname = usePathname();
 
   return (
-    <aside className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
+    <aside className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 text-[var(--text-primary)]">
       <div className="mb-5 rounded-2xl bg-slate-950 px-4 py-4 text-white">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Platform scope
@@ -232,7 +232,7 @@ export function AdminSidebar({ session }: { session: Session }) {
       <nav className="space-y-6">
         {adminNavGroups.map((group) => (
           <div key={group.title} className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
               {group.title}
             </p>
             {group.items
@@ -250,8 +250,8 @@ export function AdminSidebar({ session }: { session: Session }) {
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition",
                       active
-                        ? "bg-[var(--color-primary)]/10 font-semibold text-[var(--color-primary)]"
-                        : "text-[var(--color-ink)] hover:bg-slate-50",
+                        ? "bg-[#e4f2f0] font-semibold text-[var(--color-primary-strong)] ring-1 ring-[#c6dfdb]"
+                        : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
                     )}
                   >
                     <Icon className="h-4 w-4" />
