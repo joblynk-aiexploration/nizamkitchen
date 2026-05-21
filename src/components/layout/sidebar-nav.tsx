@@ -77,6 +77,7 @@ const iconByHref = {
   "/admin/menu-items": ShoppingCart,
   "/admin/food-orders": Inbox,
   "/admin/fulfillment": ShoppingCart,
+  "/admin/reviews": Heart,
   "/admin/restaurant-fallback": Store,
   "/admin/grocery-partners": ShoppingCart,
   "/admin/system-settings": Cog,

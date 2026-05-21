@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import { FoodOrderMessageForm } from "@/components/food-orders/order-forms";
 import { FoodOrderMessages, FoodOrderSummary } from "@/components/food-orders/order-detail";
+import { ReviewCreateForm } from "@/components/reviews/review-components";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getCustomerFoodOrder } from "@/server/food-orders";
-import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction, createFoodOrderCheckoutAction, createPayPalFoodOrderCheckoutAction } from "../actions";
+import { getCustomerFoodOrderReview } from "@/server/trust/review-service";
+import { cancelCustomerFoodOrderAction, createCustomerFoodOrderMessageAction, createFoodOrderCheckoutAction, createFoodOrderReviewAction, createPayPalFoodOrderCheckoutAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,7 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
   const { id } = await params;
   const order = await getCustomerFoodOrder(session.activeOrganization.id, id);
   if (!order) notFound();
+  const review = await getCustomerFoodOrderReview(order.id, session.activeOrganization.id, session.user.id);
   const canCancel = ["draft", "submitted"].includes(order.status);
 
   return (
@@ -56,6 +59,15 @@ export default async function CustomerOrderDetailPage({ params }: { params: Prom
           </div>
         </Card>
       </div>
+      {order.status === "completed" && !review ? (
+        <ReviewCreateForm action={createFoodOrderReviewAction} foodOrderId={order.id} />
+      ) : null}
+      {review ? (
+        <Card>
+          <h2 className="font-semibold text-[var(--color-ink)]">Your review</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Status: {review.status}. Reviews are published only after moderation.</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { ReviewCreateForm } from "@/components/reviews/review-components";
 import { TextArea } from "@/components/ui/text-area";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessHomeChefs, getHomeChefRequest, isHouseholdRequestOrganization } from "@/server/home-chef";
-import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction, createPayPalHomeChefCheckoutAction } from "../../actions";
+import { getCustomerHomeChefRequestReview } from "@/server/trust/review-service";
+import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction, createHomeChefReviewAction, createPayPalHomeChefCheckoutAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,7 @@ export default async function HomeChefRequestDetailPage({
 
   const request = await getHomeChefRequest(id, session.activeOrganization.id).catch(() => null);
   if (!request) notFound();
+  const review = await getCustomerHomeChefRequestReview(request.id, session.activeOrganization.id, session.user.id);
 
   const canCancel = !["cancelled", "completed"].includes(request.status);
 
@@ -214,6 +217,15 @@ export default async function HomeChefRequestDetailPage({
           ) : null}
         </div>
       </div>
+      {request.status === "completed" && !review ? (
+        <ReviewCreateForm action={createHomeChefReviewAction} homeChefRequestId={request.id} />
+      ) : null}
+      {review ? (
+        <Card>
+          <h2 className="font-semibold text-[var(--color-ink)]">Your chef review</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Status: {review.status}. Reviews are published only after moderation.</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

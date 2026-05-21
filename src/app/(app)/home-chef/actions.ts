@@ -15,6 +15,7 @@ import {
 } from "@/server/home-chef";
 import { createStripeHomeChefCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 import { createPayPalHomeChefCheckout } from "@/server/payments/providers/paypal/paypal-adapter";
+import { createMarketplaceReview, reportMarketplaceReview } from "@/server/trust/review-service";
 import { upsertPrimaryLocation } from "@/server/maps/location-service";
 
 async function requireHomeChefHouseholdAccess() {
@@ -221,5 +222,31 @@ export async function createPayPalHomeChefCheckoutAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create PayPal payment link."))}`);
+  }
+}
+
+export async function createHomeChefReviewAction(formData: FormData) {
+  const requestId = String(formData.get("homeChefRequestId") ?? "");
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    await createMarketplaceReview({ session, input: Object.fromEntries(formData) });
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/home-chef/requests/${requestId}?message=Review submitted for moderation.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to submit review."))}`);
+  }
+}
+
+export async function reportHomeChefReviewAction(formData: FormData) {
+  const requestId = String(formData.get("homeChefRequestId") ?? "");
+  try {
+    const session = await requireHomeChefHouseholdAccess();
+    await reportMarketplaceReview({ session, input: Object.fromEntries(formData) });
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/home-chef/requests/${requestId}?message=Review reported.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/home-chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to report review."))}`);
   }
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
 import { StorageImage } from "@/components/storage/storage-image";
 import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
+import { PublicReviewList, RatingSummary } from "@/components/reviews/review-components";
 import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,6 +15,7 @@ import { listPublicMenuItemsForOrganization } from "@/server/menus";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
+import { getPublicSellerReviewSummary, listPublicSellerReviews } from "@/server/trust/review-service";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +24,14 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
   if (!profile) notFound();
-  const [menuItems, socialLinks, profileImageUrl, coverImageUrl, sellerBadges] = await Promise.all([
+  const [menuItems, socialLinks, profileImageUrl, coverImageUrl, sellerBadges, reviewSummary, reviews] = await Promise.all([
     listPublicMenuItemsForOrganization(profile.organizationId),
     listPublicBusinessSocialLinks(profile.organizationId, "home_catering"),
     getStorageImageUrl(session, profile.profilePhotoFileId, profile.profilePhotoUrl),
     getStorageImageUrl(session, profile.coverPhotoFileId, profile.coverPhotoUrl),
     getPublicSellerVerificationBadges(profile.organizationId),
+    getPublicSellerReviewSummary(profile.organizationId),
+    listPublicSellerReviews(profile.organizationId),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
@@ -79,6 +83,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           <SocialLinksRow links={socialLinks} />
         </ProfileSection>
         <ReviewsPreviewSection rating={profile.averageRating} count={profile.ratingCount} />
+        <RatingSummary averageRating={reviewSummary.averageRating} ratingCount={reviewSummary.ratingCount} />
       </div>
 
       <MenuPreviewSection>
@@ -112,6 +117,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           ))}
         </div>
       </MenuPreviewSection>
+      <PublicReviewList reviews={reviews} />
       <CommerceSafetyNotice />
     </div>
   );

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CommerceSafetyNotice } from "@/components/commerce/commerce-safety-notice";
+import { PublicReviewList, RatingSummary } from "@/components/reviews/review-components";
 import { StorageImage } from "@/components/storage/storage-image";
 import { ContactActions, MenuPreviewSection, ProfileHeader, ProfileSection, SocialLinksRow, initialsFromName } from "@/components/profiles/profile-components";
 import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
@@ -15,6 +16,7 @@ import { listPublicMenuItemsForOrganization } from "@/server/menus";
 import { getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl, resolveStorageImageUrls } from "@/server/storage/storage-images";
+import { getPublicSellerReviewSummary, listPublicSellerReviews } from "@/server/trust/review-service";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +37,14 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
     capability: "public_profile",
   });
   if (!publicGate.allowed) notFound();
-  const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadges] = await Promise.all([
+  const [menuItems, socialLinks, logoUrl, coverUrl, sellerBadges, reviewSummary, reviews] = await Promise.all([
     listPublicMenuItemsForOrganization(restaurant.id),
     listPublicBusinessSocialLinks(restaurant.id, "restaurant"),
     getStorageImageUrl(session, restaurant.logoFileId),
     getStorageImageUrl(session, restaurant.coverPhotoFileId),
     getPublicSellerVerificationBadges(restaurant.id),
+    getPublicSellerReviewSummary(restaurant.id),
+    listPublicSellerReviews(restaurant.id),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
 
@@ -60,6 +64,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
       <ProfileSection title="Social links">
         <SocialLinksRow links={socialLinks} />
       </ProfileSection>
+      <RatingSummary averageRating={reviewSummary.averageRating} ratingCount={reviewSummary.ratingCount} />
       <MenuPreviewSection>
         {menuItems.length === 0 ? <p className="mt-3 text-sm text-[var(--color-muted)]">No active public menu items have been published yet.</p> : null}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -86,6 +91,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
           ))}
         </div>
       </MenuPreviewSection>
+      <PublicReviewList reviews={reviews} />
       <CommerceSafetyNotice />
     </div>
   );

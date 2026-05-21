@@ -11,6 +11,7 @@ import {
 } from "@/server/food-orders";
 import { createStripeFoodOrderCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 import { createPayPalFoodOrderCheckout } from "@/server/payments/providers/paypal/paypal-adapter";
+import { createMarketplaceReview, reportMarketplaceReview } from "@/server/trust/review-service";
 
 export async function createFoodOrderAction(formData: FormData) {
   const session = await requireMembership();
@@ -67,4 +68,17 @@ export async function createPayPalFoodOrderCheckoutAction(formData: FormData) {
   });
   if (!result.checkoutUrl) throw new Error("PayPal checkout could not be created.");
   redirect(result.checkoutUrl);
+}
+
+export async function createFoodOrderReviewAction(formData: FormData) {
+  const session = await requireMembership();
+  const orderId = String(formData.get("foodOrderId") ?? "");
+  await createMarketplaceReview({ session, input: Object.fromEntries(formData) });
+  revalidatePath(`/orders/${orderId}`);
+}
+
+export async function reportFoodOrderReviewAction(formData: FormData) {
+  const session = await requireMembership();
+  await reportMarketplaceReview({ session, input: Object.fromEntries(formData) });
+  revalidatePath("/orders");
 }

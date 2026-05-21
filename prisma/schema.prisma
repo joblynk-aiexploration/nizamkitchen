@@ -372,6 +372,13 @@ model User {
   foodOrderMessages                FoodOrderMessage[]             @relation("FoodOrderMessageSender")
   foodOrderStatusChanges           FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
   foodOrderFulfillmentEvents       FoodOrderFulfillmentEvent[]    @relation("FoodOrderFulfillmentEventActor")
+  marketplaceReviewsWritten        MarketplaceReview[]            @relation("MarketplaceReviewReviewer")
+  marketplaceReviewSellerReplies   MarketplaceReview[]            @relation("MarketplaceReviewSellerReplyBy")
+  marketplaceReviewsModerated      MarketplaceReview[]            @relation("MarketplaceReviewModeratedBy")
+  marketplaceReviewReportsCreated  MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReporter")
+  marketplaceReviewReportsReviewed MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReviewedBy")
+  trustComplaintsCreated           TrustComplaint[]               @relation("TrustComplaintReporter")
+  trustComplaintsReviewed          TrustComplaint[]               @relation("TrustComplaintReviewedBy")
   storageConfigurationsCreated     StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
   storageConfigurationsUpdated     StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
   storageFilesUploaded             StorageFile[]                  @relation("StorageFileUploadedBy")
@@ -517,6 +524,11 @@ model Organization {
   foodOrders                 FoodOrder[]                  @relation("FoodOrderTenantOrganization")
   customerFoodOrders         FoodOrder[]                  @relation("FoodOrderCustomerOrganization")
   sellerFoodOrders           FoodOrder[]                  @relation("FoodOrderSellerOrganization")
+  marketplaceReviewsWritten  MarketplaceReview[]          @relation("MarketplaceReviewCustomerOrganization")
+  marketplaceReviewsReceived MarketplaceReview[]          @relation("MarketplaceReviewSellerOrganization")
+  marketplaceReviewReports   MarketplaceReviewReport[]
+  trustComplaintsReporter    TrustComplaint[]             @relation("TrustComplaintReporterOrganization")
+  trustComplaintsSeller      TrustComplaint[]             @relation("TrustComplaintSellerOrganization")
   fulfillmentPickupLocations FulfillmentPickupLocation[]
   fulfillmentDeliveryZones   FulfillmentDeliveryZone[]
   fulfillmentTimeSlots       FulfillmentTimeSlot[]
@@ -2138,6 +2150,47 @@ enum ReviewStatus {
   hidden
 }
 
+enum MarketplaceReviewSubjectType {
+  food_order
+  home_chef_request
+}
+
+enum MarketplaceReviewSellerType {
+  chef_business
+  home_catering
+  restaurant
+}
+
+enum MarketplaceReviewStatus {
+  pending
+  published
+  hidden
+  removed
+}
+
+enum ReviewReportReason {
+  abuse
+  spam
+  fake_review
+  privacy
+  safety
+  other
+}
+
+enum ReviewReportStatus {
+  open
+  under_review
+  resolved
+  dismissed
+}
+
+enum ComplaintStatus {
+  open
+  under_review
+  resolved
+  dismissed
+}
+
 model Cuisine {
   id                         String                      @id @default(cuid())
   name                       String
@@ -3067,6 +3120,7 @@ model FoodOrder {
   messages               FoodOrderMessage[]
   statusHistory          FoodOrderStatusHistory[]
   fulfillmentEvents      FoodOrderFulfillmentEvent[]
+  marketplaceReviews     MarketplaceReview[]
 
   @@index([organizationId])
   @@index([customerOrganizationId])
@@ -3764,6 +3818,107 @@ model ChefReview {
   @@index([organizationId])
   @@index([homeChefRequestId])
   @@index([status])
+}
+
+model MarketplaceReview {
+  id                     String                      @id @default(cuid())
+  organizationId         String
+  countryCode            String
+  customerOrganizationId String
+  reviewerUserId         String
+  sellerOrganizationId   String
+  sellerType             MarketplaceReviewSellerType
+  subjectType            MarketplaceReviewSubjectType
+  foodOrderId            String?
+  homeChefRequestId      String?
+  rating                 Int
+  title                  String?
+  comment                String?
+  status                 MarketplaceReviewStatus    @default(pending)
+  verifiedPurchase       Boolean                     @default(true)
+  sellerReply            String?
+  sellerReplyById        String?
+  sellerRepliedAt        DateTime?
+  moderatedById          String?
+  moderatedAt            DateTime?
+  moderationNote         String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  customerOrganization   Organization                @relation("MarketplaceReviewCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  sellerOrganization     Organization                @relation("MarketplaceReviewSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  reviewer               User                        @relation("MarketplaceReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  sellerReplyBy          User?                       @relation("MarketplaceReviewSellerReplyBy", fields: [sellerReplyById], references: [id], onDelete: SetNull)
+  moderatedBy            User?                       @relation("MarketplaceReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  foodOrder              FoodOrder?                  @relation(fields: [foodOrderId], references: [id], onDelete: SetNull)
+  homeChefRequest        HomeChefRequest?            @relation(fields: [homeChefRequestId], references: [id], onDelete: SetNull)
+  reports                MarketplaceReviewReport[]
+
+  @@unique([foodOrderId, reviewerUserId])
+  @@unique([homeChefRequestId, reviewerUserId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([customerOrganizationId])
+  @@index([sellerOrganizationId])
+  @@index([reviewerUserId])
+  @@index([sellerType])
+  @@index([subjectType])
+  @@index([status])
+  @@index([verifiedPurchase])
+  @@index([createdAt])
+}
+
+model MarketplaceReviewReport {
+  id                     String             @id @default(cuid())
+  reviewId               String
+  reporterUserId         String
+  reporterOrganizationId String
+  reason                 ReviewReportReason
+  details                String?
+  status                 ReviewReportStatus @default(open)
+  reviewedById           String?
+  reviewedAt             DateTime?
+  resolutionNote         String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  review                 MarketplaceReview  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reporter               User               @relation("MarketplaceReviewReportReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reporterOrganization   Organization       @relation(fields: [reporterOrganizationId], references: [id], onDelete: Cascade)
+  reviewedBy             User?              @relation("MarketplaceReviewReportReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([reviewId])
+  @@index([reporterUserId])
+  @@index([reporterOrganizationId])
+  @@index([reason])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TrustComplaint {
+  id                     String          @id @default(cuid())
+  reporterOrganizationId String
+  reporterUserId         String
+  sellerOrganizationId   String?
+  subjectType            String
+  subjectId              String
+  title                  String
+  description            String
+  status                 ComplaintStatus @default(open)
+  reviewedById           String?
+  reviewedAt             DateTime?
+  resolutionNote         String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  reporterOrganization   Organization    @relation("TrustComplaintReporterOrganization", fields: [reporterOrganizationId], references: [id], onDelete: Cascade)
+  sellerOrganization     Organization?   @relation("TrustComplaintSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: SetNull)
+  reporter               User            @relation("TrustComplaintReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reviewedBy             User?           @relation("TrustComplaintReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([reporterOrganizationId])
+  @@index([reporterUserId])
+  @@index([sellerOrganizationId])
+  @@index([subjectType, subjectId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model ChefVerificationDocument {
@@ -4472,6 +4627,7 @@ model HomeChefRequest {
   messages                   HomeChefRequestMessage[]
   statusHistory              HomeChefRequestStatusHistory[]
   chefReviews                ChefReview[]
+  marketplaceReviews         MarketplaceReview[]
 
   @@index([organizationId])
   @@index([countryCode])

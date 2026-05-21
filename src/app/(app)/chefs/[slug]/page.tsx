@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { BusinessServicesSection, ContactActions, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
+import { PublicReviewList, RatingSummary } from "@/components/reviews/review-components";
 import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
 import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getPublicSellerReviewSummary, listPublicSellerReviews } from "@/server/trust/review-service";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +27,13 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
-  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadges] = await Promise.all([
+  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadges, reviewSummary, reviews] = await Promise.all([
     listPublicBusinessSocialLinks(chef.organizationId, "chef_business"),
     getStorageImageUrl(session, chef.profilePhotoFileId, chef.profilePhotoUrl),
     getStorageImageUrl(session, chef.coverPhotoFileId),
     getPublicSellerVerificationBadges(chef.organizationId),
+    getPublicSellerReviewSummary(chef.organizationId),
+    listPublicSellerReviews(chef.organizationId),
   ]);
 
   return (
@@ -102,6 +106,7 @@ export default async function ChefPublicProfilePage({
             <SocialLinksRow links={socialLinks} />
           </ProfileSection>
           <ReviewsPreviewSection rating={chef.averageRating} count={chef.ratingCount} />
+          <RatingSummary averageRating={reviewSummary.averageRating} ratingCount={reviewSummary.ratingCount} />
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Important</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
@@ -110,6 +115,7 @@ export default async function ChefPublicProfilePage({
           </Card>
         </div>
       </div>
+      <PublicReviewList reviews={reviews} />
     </div>
   );
 }
