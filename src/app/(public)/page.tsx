@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ChefHat, ShoppingCart, UtensilsCrossed } from "lucide-react";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+
+export const generateMetadata = () => publicPageMetadata("/");
 
 const steps = [
   {

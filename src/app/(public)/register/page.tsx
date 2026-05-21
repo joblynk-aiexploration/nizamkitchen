@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { listVisibleSocialAuthProvidersSafe } from "@/server/auth/oauth-service";
+import { getRecaptchaConfig } from "@/server/seo/seo-service";
 import { RegisterForm } from "./_register-form";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +12,9 @@ export default async function RegisterPage({
 }) {
   const params = await searchParams;
   const message = typeof params.message === "string" ? params.message : undefined;
-  const socialProviders = await listVisibleSocialAuthProvidersSafe("register");
-
-  const [countries, cuisines] = await Promise.all([
+  const [socialProviders, recaptcha, countries, cuisines] = await Promise.all([
+    listVisibleSocialAuthProvidersSafe("register"),
+    getRecaptchaConfig(),
     prisma.country.findMany({
       where: { isActive: true },
       orderBy: { countryName: "asc" },
@@ -32,6 +33,7 @@ export default async function RegisterPage({
       cuisines={cuisines}
       message={message}
       socialProviders={socialProviders}
+      recaptchaSiteKey={recaptcha?.siteKey}
     />
   );
 }

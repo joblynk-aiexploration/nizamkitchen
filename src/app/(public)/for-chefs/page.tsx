@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, BarChart3, CalendarDays, ChefHat, Star } from "lucide-react";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+
+export const generateMetadata = () => publicPageMetadata("/for-chefs");
 
 const benefits = [
   {

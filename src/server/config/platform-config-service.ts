@@ -122,6 +122,9 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     serverCredentialKeys: [],
     settings: [
       { key: "consentMode", description: "Consent mode placeholder.", example: "granted" },
+      { key: "consentRequired", description: "Only render analytics after user consent.", example: "true" },
+      { key: "trackPageViews", description: "Track public page views when enabled.", example: "true" },
+      { key: "trackEvents", description: "Comma-separated event names such as sign_up, login, view_recipe, search, create_meal_plan, generate_grocery_list, order_request_submitted, seller_profile_viewed.", example: "sign_up,login,view_recipe" },
       { key: "serverSideMeasurementEnabled", description: "Server-side measurement placeholder.", example: "false" },
     ],
     supportedTestTypes: ["analytics_config"],
@@ -159,7 +162,9 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     serverCredentialKeys: [],
     settings: [
       { key: "adsTxtEnabled", description: "ads.txt management enabled.", example: "false" },
+      { key: "adsTxtLine", description: "Full ads.txt publisher line.", example: "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0" },
       { key: "publicAdScriptEnabled", description: "Expose public ad script.", example: "false" },
+      { key: "autoAdsEnabled", description: "Enable auto ads script behavior.", example: "false" },
     ],
     supportedTestTypes: ["adsense_config"],
   },

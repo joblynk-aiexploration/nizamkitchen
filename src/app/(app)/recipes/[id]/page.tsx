@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { SeoScope } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,6 +20,7 @@ import {
   listAvoidedIngredients,
 } from "@/server/household";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
+import { buildSeoMetadata, recipeJsonLd } from "@/server/seo/seo-service";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +37,23 @@ const SPICE_LABELS = {
   hot: "Hot",
   extra_hot: "Extra Hot",
 } as const;
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const recipe = await getRecipeById(id);
+  if (!recipe || !recipe.isPublished) {
+    return buildSeoMetadata({ path: "/recipes", title: "Recipe unavailable", description: "This recipe is not available." });
+  }
+  return buildSeoMetadata({
+    path: `/recipes/${recipe.id}`,
+    title: `${recipe.name} Recipe | NizamKitchen`,
+    description: recipe.description ?? `Cook ${recipe.name} with NizamKitchen.`,
+    scope: SeoScope.recipe,
+    entityType: "recipe",
+    entityId: recipe.id,
+    countryCode: recipe.countryCode ?? undefined,
+  });
+}
 
 export default async function RecipeDetailPage({
   params,
@@ -94,6 +114,11 @@ export default async function RecipeDetailPage({
 
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(recipeJsonLd(recipe)) }}
+      />
       <PageHeader
         eyebrow={recipe.cuisine.name}
         title={recipe.name}

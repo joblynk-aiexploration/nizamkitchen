@@ -1,9 +1,17 @@
 import Link from "next/link";
 import { PublicNav } from "@/components/public/public-nav";
+import { GooglePlatformScripts } from "@/components/seo/google-platform-scripts";
+import { organizationJsonLd, websiteJsonLd } from "@/server/seo/seo-service";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd(), websiteJsonLd()]) }}
+      />
+      <GooglePlatformScripts />
       <PublicNav />
       <main className="flex-1">{children}</main>
       <footer className="border-t border-[var(--color-border)] bg-slate-50">

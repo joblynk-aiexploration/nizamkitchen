@@ -284,6 +284,24 @@ enum IntegrationTestStatus {
   failed
 }
 
+enum SeoScope {
+  global
+  page
+  recipe
+  seller_profile
+  city_page
+  country_page
+  menu_template
+  custom_path
+}
+
+enum RobotsDirective {
+  index_follow
+  noindex_follow
+  noindex_nofollow
+  index_nofollow
+}
+
 enum OAuthProvider {
   google
   facebook
@@ -383,6 +401,8 @@ model User {
   dishTemplatesUpdated             DishTemplate[]                   @relation("DishTemplateUpdatedBy")
   menuTemplatesCreated             MenuTemplate[]                   @relation("MenuTemplateCreatedBy")
   menuTemplatesUpdated             MenuTemplate[]                   @relation("MenuTemplateUpdatedBy")
+  seoSettingsCreated               SeoSetting[]                     @relation("SeoSettingCreatedBy")
+  seoSettingsUpdated               SeoSetting[]                     @relation("SeoSettingUpdatedBy")
   locations                        Location[]
 }
 
@@ -1054,6 +1074,44 @@ model PlatformIntegrationTestLog {
   @@index([status])
   @@index([testedById])
   @@index([createdAt])
+}
+
+model SeoSetting {
+  id                    String          @id @default(cuid())
+  scope                 SeoScope
+  entityType            String?
+  entityId              String?
+  countryCode           String?
+  city                  String?
+  path                  String?
+  metaTitle             String?
+  metaDescription       String?
+  canonicalUrl          String?
+  ogTitle               String?
+  ogDescription         String?
+  ogImageFileId         String?
+  twitterTitle          String?
+  twitterDescription    String?
+  twitterImageFileId    String?
+  robotsDirective       RobotsDirective?
+  structuredDataJson    Json?
+  aeoSummary            String?
+  aeoFaqJson            Json?
+  isActive              Boolean         @default(true)
+  createdById           String
+  updatedById           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  createdBy             User            @relation("SeoSettingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy             User?           @relation("SeoSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([scope])
+  @@index([entityType, entityId])
+  @@index([countryCode])
+  @@index([city])
+  @@index([path])
+  @@index([isActive])
+  @@index([createdById])
 }
 
 model EmailLog {

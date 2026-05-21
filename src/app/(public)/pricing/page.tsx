@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+
+export const generateMetadata = () => publicPageMetadata("/pricing");
 
 const plans = [
   {

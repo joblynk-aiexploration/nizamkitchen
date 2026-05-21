@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+import { RecaptchaField } from "@/components/seo/recaptcha-field";
+import { getRecaptchaConfig } from "@/server/seo/seo-service";
 
 export const dynamic = "force-dynamic";
+export const generateMetadata = () => publicPageMetadata("/contact");
 
 export default async function ContactPage({
   searchParams,
@@ -10,11 +14,14 @@ export default async function ContactPage({
   const params = await searchParams;
   const message = typeof params.message === "string" ? params.message : undefined;
 
-  const countries = await prisma.country.findMany({
-    where: { isActive: true },
-    orderBy: { countryName: "asc" },
-    select: { countryCode: true, countryName: true },
-  });
+  const [countries, recaptcha] = await Promise.all([
+    prisma.country.findMany({
+      where: { isActive: true },
+      orderBy: { countryName: "asc" },
+      select: { countryCode: true, countryName: true },
+    }),
+    getRecaptchaConfig(),
+  ]);
 
   const isSuccess = message?.startsWith("Thank you");
 
@@ -76,6 +83,7 @@ export default async function ContactPage({
                   </div>
                 )}
                 <form action="/api/contact" method="post" className="space-y-4">
+                  <RecaptchaField siteKey={recaptcha?.siteKey} action="contact" />
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
                       Full name <span className="text-red-500">*</span>

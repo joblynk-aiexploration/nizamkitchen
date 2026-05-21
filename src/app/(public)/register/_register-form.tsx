@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
+import { RecaptchaField } from "@/components/seo/recaptcha-field";
 
 type Country = { countryCode: string; countryName: string };
 type Cuisine = { id: string; name: string };
@@ -68,11 +69,13 @@ export function RegisterForm({
   cuisines,
   message,
   socialProviders,
+  recaptchaSiteKey,
 }: {
   countries: Country[];
   cuisines: Cuisine[];
   message?: string;
   socialProviders: Array<{ provider: "google" | "facebook"; label: string; href: string }>;
+  recaptchaSiteKey?: string | null;
 }) {
   const [step, setStep] = useState(1);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
@@ -162,6 +165,7 @@ export function RegisterForm({
           className="mt-8 space-y-4"
         >
           <input type="hidden" name="accountType" value={accountType} />
+          <RecaptchaField siteKey={recaptchaSiteKey} action="register" />
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
@@ -293,6 +297,7 @@ export function RegisterForm({
           <input type="hidden" name="password" value={step2Data.password} />
           <input type="hidden" name="organizationName" value={step2Data.organizationName} />
           <input type="hidden" name="countryCode" value={step2Data.countryCode} />
+          <RecaptchaField siteKey={recaptchaSiteKey} action="register" />
 
           <p className="text-sm text-[var(--color-muted)]">
             Tell us about your household so your meal plans, servings, and spice defaults start in the right place.

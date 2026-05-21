@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, Globe2, ShoppingCart, TrendingUp, Users } from "lucide-react";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+
+export const generateMetadata = () => publicPageMetadata("/for-restaurants");
 
 const benefits = [
   {

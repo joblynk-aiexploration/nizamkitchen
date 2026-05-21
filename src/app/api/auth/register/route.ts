@@ -9,6 +9,7 @@ import { slugify } from "@/lib/utils";
 import { registerSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
 import { createAcceptance, getRequiredLegalDocumentsForUser } from "@/server/legal/legal-service";
+import { verifyRecaptcha } from "@/server/seo/seo-service";
 
 const orgTypeMap: Record<string, OrganizationType> = {
   household: OrganizationType.household,
@@ -46,6 +47,15 @@ export async function POST(request: Request) {
   }
 
   const formData = await request.formData();
+  const recaptcha = await verifyRecaptcha({
+    token: formData.get("recaptchaToken")?.toString(),
+    page: "register",
+    ip: clientIp,
+    countryCode: formData.get("countryCode")?.toString(),
+  });
+  if (!recaptcha.ok) {
+    return NextResponse.redirect(new URL(`/register?message=${encodeURIComponent(recaptcha.reason)}`, request.url));
+  }
 
   // formData.getAll for cuisineIds (multi-value checkbox)
   const cuisineIds = formData.getAll("cuisineIds");

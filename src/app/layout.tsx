@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, Playfair_Display } from "next/font/google";
 import { PwaRegister } from "@/components/pwa/pwa-register";
+import { buildSeoMetadata, getGooglePlatformPublicConfig } from "@/server/seo/seo-service";
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -14,17 +15,26 @@ const serif = Playfair_Display({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Nizam Kitchen",
-  description: "Hyderabadi meal planning, grocery lists, and household cooking workflows for NizamKitchen beta users.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "NizamKitchen",
-  },
-  applicationName: "NizamKitchen",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [seo, google] = await Promise.all([
+    buildSeoMetadata({ path: "/" }),
+    getGooglePlatformPublicConfig(),
+  ]);
+
+  return {
+    ...seo,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "NizamKitchen",
+    },
+    applicationName: "NizamKitchen",
+    verification: google.searchConsoleVerification
+      ? { other: { "google-site-verification": google.searchConsoleVerification } }
+      : undefined,
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#0f766e",

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
+import { RecaptchaField } from "@/components/seo/recaptcha-field";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { TextInput } from "@/components/ui/text-input";
 import { listVisibleSocialAuthProvidersSafe } from "@/server/auth/oauth-service";
+import { getRecaptchaConfig } from "@/server/seo/seo-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,10 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const message = typeof params.message === "string" ? params.message : undefined;
-  const socialProviders = await listVisibleSocialAuthProvidersSafe("login");
+  const [socialProviders, recaptcha] = await Promise.all([
+    listVisibleSocialAuthProvidersSafe("login"),
+    getRecaptchaConfig(),
+  ]);
 
   return (
     <AuthShell
@@ -47,6 +52,7 @@ export default async function LoginPage({
           required
           placeholder="Enter Password"
         />
+        <RecaptchaField siteKey={recaptcha?.siteKey} action="login" />
         <Button type="submit" className="w-full">
           Sign in
         </Button>

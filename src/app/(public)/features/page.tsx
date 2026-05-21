@@ -3,6 +3,9 @@ import {
   BarChart3, BookOpen, CalendarDays, ChefHat, Globe2, ShieldCheck,
   ShoppingCart, Star, UtensilsCrossed,
 } from "lucide-react";
+import { publicPageMetadata } from "@/lib/seo/public-page-metadata";
+
+export const generateMetadata = () => publicPageMetadata("/features");
 
 const sections = [
   {

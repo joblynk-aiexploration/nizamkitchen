@@ -15,6 +15,7 @@ import {
   OrganizationStatus,
   OrganizationType,
   PermissionAction,
+  RobotsDirective,
   MarketplacePolicyModule,
   LegalAudience,
   LegalDocumentType,
@@ -27,6 +28,7 @@ import {
   RecipeVisibility,
   SellerRequirementType,
   SellerType,
+  SeoScope,
   SpiceLevel,
   PreferredDeliveryMethod,
   RetentionAction,
@@ -2611,6 +2613,28 @@ async function main() {
 
   const platformOwner = Array.from(users.values()).find((user) => user.platformRole === PlatformRole.platform_owner);
   if (!platformOwner) throw new Error("Platform owner seed is required before marketplace policies.");
+  const existingGlobalSeo = await prisma.seoSetting.findFirst({ where: { scope: SeoScope.global, path: "/" } });
+  const globalSeoData = {
+    scope: SeoScope.global,
+    path: "/",
+    metaTitle: "NizamKitchen | Plan, Cook, Hire, or Order Hyderabadi Food",
+    metaDescription: "Plan Hyderabadi meals, generate grocery lists, cook from recipes, request home chefs, discover caterers, and order from restaurants.",
+    canonicalUrl: "https://nizamkitchen.com/",
+    robotsDirective: RobotsDirective.index_follow,
+    structuredDataJson: { "@type": "Organization", name: "NizamKitchen" },
+    aeoSummary: "NizamKitchen helps households plan, cook, hire food help, and order from trusted food businesses.",
+    aeoFaqJson: [
+      { question: "What is NizamKitchen?", answer: "NizamKitchen is a meal planning, recipe, chef, catering, restaurant, and food marketplace platform." },
+      { question: "Does NizamKitchen show fake ratings?", answer: "No. Ratings and reviews should only appear when verified platform data exists." },
+    ],
+    isActive: true,
+    updatedById: platformOwner.id,
+  };
+  if (existingGlobalSeo) {
+    await prisma.seoSetting.update({ where: { id: existingGlobalSeo.id }, data: globalSeoData });
+  } else {
+    await prisma.seoSetting.create({ data: { ...globalSeoData, createdById: platformOwner.id } });
+  }
   await seedMarketplacePolicies(platformOwner.id);
   await seedLegalDocuments(platformOwner.id);
   await seedDataRetentionPolicies(platformOwner.id);
