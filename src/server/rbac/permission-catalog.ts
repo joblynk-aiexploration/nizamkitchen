@@ -16,6 +16,12 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "organizations.manage", name: "Manage organizations", description: "View and update organizations across the platform.", module: "organizations", action: "manage" },
   { key: "countries.manage", name: "Manage countries", description: "Configure countries and country-scoped operations.", module: "countries", action: "manage" },
   { key: "feature_flags.manage", name: "Manage feature flags", description: "Enable or disable platform features.", module: "feature_flags", action: "configure", sensitive: true },
+  { key: "api_management.read", name: "Read API management", description: "View configured APIs, public keys, masked secrets, webhooks, and test status.", module: "api_management", action: "read", sensitive: true },
+  { key: "api_management.manage", name: "Manage API management", description: "Create and edit API/integration records.", module: "api_management", action: "manage", sensitive: true },
+  { key: "api_management.manage_secrets", name: "Manage API secrets", description: "Add, rotate, and disable encrypted API credentials.", module: "api_management", action: "configure", sensitive: true },
+  { key: "api_management.test", name: "Test APIs", description: "Run safe API configuration tests.", module: "api_management", action: "configure", sensitive: true },
+  { key: "api_management.disable", name: "Disable APIs", description: "Disable API integrations globally or by country.", module: "api_management", action: "configure", sensitive: true },
+  { key: "api_management.rotate_credentials", name: "Rotate API credentials", description: "Rotate encrypted provider credentials.", module: "api_management", action: "configure", sensitive: true },
   { key: "audit.read", name: "View audit logs", description: "View admin and tenant audit logs.", module: "audit", action: "read" },
   { key: "reports.read", name: "View reports", description: "View operational reports and dashboards.", module: "reports", action: "read" },
   { key: "recipes.manage", name: "Manage recipes", description: "Manage recipes, cuisines, ingredients, and units.", module: "food_library", action: "manage" },
@@ -53,7 +59,17 @@ export const PLATFORM_ROLE_ORDER: PlatformRole[] = [
 export const ROLE_PERMISSION_DEFAULTS: Record<PlatformRole, string[]> = {
   platform_owner: PERMISSION_DEFINITIONS.map((permission) => permission.key),
   platform_admin: PERMISSION_DEFINITIONS.filter(
-    (permission) => !["rbac.manage", "payments.configure", "storage.configure"].includes(permission.key),
+    (permission) =>
+      ![
+        "rbac.manage",
+        "payments.configure",
+        "storage.configure",
+        "api_management.manage",
+        "api_management.manage_secrets",
+        "api_management.test",
+        "api_management.disable",
+        "api_management.rotate_credentials",
+      ].includes(permission.key),
   ).map((permission) => permission.key),
   country_manager: [
     "admin.access",

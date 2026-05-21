@@ -41,9 +41,9 @@ type IntegrationTemplate = {
   supportedTestTypes: string[];
 };
 
-const VIEW_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"];
-const MANAGE_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager"];
-const SECRET_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"];
+const VIEW_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"];
+const MANAGE_ROLES: PlatformRole[] = ["platform_owner"];
+const SECRET_ROLES: PlatformRole[] = ["platform_owner"];
 
 const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = {
   google_maps: {
@@ -187,6 +187,21 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     ],
     supportedTestTypes: ["s3_connection"],
   },
+  s3_compatible: {
+    provider: "s3_compatible",
+    category: "storage",
+    displayName: "S3-Compatible Storage",
+    description: "Endpoint, bucket, and credential settings for S3-compatible object storage.",
+    publicCredentialKeys: [],
+    serverCredentialKeys: ["access_key_id", "secret_access_key", "session_token"],
+    settings: [
+      { key: "bucketName", description: "Bucket name.", example: "nizamkitchen-prod" },
+      { key: "region", description: "Region or compatibility region.", example: "auto" },
+      { key: "endpoint", description: "S3-compatible endpoint.", example: "https://storage.example.com" },
+      { key: "forcePathStyle", description: "Use path-style bucket addressing.", example: "true" },
+    ],
+    supportedTestTypes: ["s3_connection"],
+  },
   smtp: {
     provider: "smtp",
     category: "email",
@@ -236,6 +251,46 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
       { key: "walletEnabled", description: "Enable wallet option.", example: "true" },
     ],
     supportedTestTypes: ["wallet_config"],
+  },
+  stripe_identity: {
+    provider: "stripe_identity",
+    category: "verification",
+    displayName: "Stripe Identity",
+    description: "Hosted identity verification sessions and webhook configuration.",
+    publicCredentialKeys: [],
+    serverCredentialKeys: ["secret_key", "webhook_secret"],
+    settings: [{ key: "callbackUrl", description: "Verification return URL.", example: "https://app.example.com/verification/return" }],
+    supportedTestTypes: ["provider_config"],
+  },
+  stripe_connect: {
+    provider: "stripe_connect",
+    category: "verification",
+    displayName: "Stripe Connect",
+    description: "Seller payout onboarding and connected-account webhook configuration.",
+    publicCredentialKeys: ["publishable_key"],
+    serverCredentialKeys: ["secret_key", "webhook_secret"],
+    settings: [{ key: "refreshUrl", description: "Connect onboarding refresh URL.", example: "https://app.example.com/settings/payments" }],
+    supportedTestTypes: ["provider_config"],
+  },
+  persona_placeholder: {
+    provider: "persona_placeholder",
+    category: "verification",
+    displayName: "Persona Placeholder",
+    description: "Placeholder for future Persona identity verification configuration.",
+    publicCredentialKeys: [],
+    serverCredentialKeys: ["api_key", "template_id", "webhook_secret"],
+    settings: [{ key: "callbackUrl", description: "Hosted verification return URL.", example: "https://app.example.com/verification/persona/return" }],
+    supportedTestTypes: ["provider_config"],
+  },
+  checkr_placeholder: {
+    provider: "checkr_placeholder",
+    category: "verification",
+    displayName: "Checkr Placeholder",
+    description: "Placeholder for future background-check candidate, consent, and report configuration.",
+    publicCredentialKeys: [],
+    serverCredentialKeys: ["api_key", "webhook_secret"],
+    settings: [{ key: "candidateCallbackUrl", description: "Background-check provider webhook URL.", example: "https://app.example.com/api/kyc/checkr/webhook" }],
+    supportedTestTypes: ["provider_config"],
   },
   kyc_provider: {
     provider: "kyc_provider",

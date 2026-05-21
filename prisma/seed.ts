@@ -67,6 +67,14 @@ const FEATURE_FLAGS = [
   "seller_verification",
   "background_checks",
   "kitchen_safety_reviews",
+  "social_login",
+  "google_maps",
+  "seo_aeo",
+  "legal_center",
+  "privacy_center",
+  "api_management",
+  "templates",
+  "cms",
   "subscriptions",
   "family_profiles",
   "chef_verification",
@@ -83,6 +91,12 @@ const PERMISSION_SEEDS = [
   { key: "organizations.manage", name: "Manage organizations", module: "organizations", action: "manage" },
   { key: "countries.manage", name: "Manage countries", module: "countries", action: "manage" },
   { key: "feature_flags.manage", name: "Manage feature flags", module: "feature_flags", action: "configure" },
+  { key: "api_management.read", name: "Read API management", module: "api_management", action: "read" },
+  { key: "api_management.manage", name: "Manage API management", module: "api_management", action: "manage" },
+  { key: "api_management.manage_secrets", name: "Manage API secrets", module: "api_management", action: "configure" },
+  { key: "api_management.test", name: "Test APIs", module: "api_management", action: "configure" },
+  { key: "api_management.disable", name: "Disable APIs", module: "api_management", action: "configure" },
+  { key: "api_management.rotate_credentials", name: "Rotate API credentials", module: "api_management", action: "configure" },
   { key: "audit.read", name: "View audit logs", module: "audit", action: "read" },
   { key: "reports.read", name: "View reports", module: "reports", action: "read" },
   { key: "recipes.manage", name: "Manage recipes", module: "food_library", action: "manage" },
@@ -2259,7 +2273,22 @@ async function seedTemplateLibrary(
   const dishTemplates = new Map<string, string>();
 
   for (const dish of dishSeeds) {
-    const data = {
+    const ingredients = dish.ingredients.map(([slug, ingredientName, quantity, unitCode, preparationNote], displayOrder) => ({
+      ingredientId: ingredient(slug) ?? null,
+      ingredientName,
+      quantity,
+      unitId: unit(unitCode) ?? null,
+      preparationNote,
+      displayOrder,
+    }));
+    const steps = dish.steps.map(([title, instruction, durationMinutes], displayOrder) => ({
+      stepNumber: displayOrder + 1,
+      title,
+      instruction,
+      durationMinutes,
+      displayOrder,
+    }));
+    const baseData = {
       name: dish.name,
       description: dish.description,
       cuisineId: hyderabadiCuisineId,
@@ -2275,33 +2304,29 @@ async function seedTemplateLibrary(
       status: TemplateStatus.active,
       visibility: TemplateVisibility.public,
       updatedById: createdById,
+    };
+    const updateData = {
+      ...baseData,
       ingredients: {
         deleteMany: {},
-        create: dish.ingredients.map(([slug, ingredientName, quantity, unitCode, preparationNote], displayOrder) => ({
-          ingredientId: ingredient(slug) ?? null,
-          ingredientName,
-          quantity,
-          unitId: unit(unitCode) ?? null,
-          preparationNote,
-          displayOrder,
-        })),
+        create: ingredients,
       },
       steps: {
         deleteMany: {},
-        create: dish.steps.map(([title, instruction, durationMinutes], displayOrder) => ({
-          stepNumber: displayOrder + 1,
-          title,
-          instruction,
-          durationMinutes,
-          displayOrder,
-        })),
+        create: steps,
       },
     };
 
     const template = await prisma.dishTemplate.upsert({
       where: { slug: dish.slug },
-      update: data,
-      create: { ...data, slug: dish.slug, createdById },
+      update: updateData,
+      create: {
+        ...baseData,
+        slug: dish.slug,
+        createdById,
+        ingredients: { create: ingredients },
+        steps: { create: steps },
+      },
     });
     dishTemplates.set(dish.slug, template.id);
   }
@@ -2445,7 +2470,19 @@ async function seedTemplateLibrary(
   ] as const;
 
   for (const menu of menuSeeds) {
-    const data = {
+    const items = menu.items.map(([nameSnapshot, dayOffset, mealSlot, category, priceAmount, currencyCode, dishSlug, recipeSlug], displayOrder) => ({
+      dishTemplateId: dishId(dishSlug),
+      recipeId: recipeId(recipeSlug),
+      nameSnapshot,
+      dayOffset,
+      mealSlot,
+      category,
+      quantity: menu.householdUseEnabled ? 4 : null,
+      priceAmount,
+      currencyCode,
+      displayOrder,
+    }));
+    const baseData = {
       name: menu.name,
       description: menu.description,
       templateType: menu.templateType,
@@ -2458,27 +2495,24 @@ async function seedTemplateLibrary(
       status: TemplateStatus.active,
       visibility: menu.visibility,
       updatedById: createdById,
+    };
+    const updateData = {
+      ...baseData,
       items: {
         deleteMany: {},
-        create: menu.items.map(([nameSnapshot, dayOffset, mealSlot, category, priceAmount, currencyCode, dishSlug, recipeSlug], displayOrder) => ({
-          dishTemplateId: dishId(dishSlug),
-          recipeId: recipeId(recipeSlug),
-          nameSnapshot,
-          dayOffset,
-          mealSlot,
-          category,
-          quantity: menu.householdUseEnabled ? 4 : null,
-          priceAmount,
-          currencyCode,
-          displayOrder,
-        })),
+        create: items,
       },
     };
 
     await prisma.menuTemplate.upsert({
       where: { slug: menu.slug },
-      update: data,
-      create: { ...data, slug: menu.slug, createdById },
+      update: updateData,
+      create: {
+        ...baseData,
+        slug: menu.slug,
+        createdById,
+        items: { create: items },
+      },
     });
   }
 }

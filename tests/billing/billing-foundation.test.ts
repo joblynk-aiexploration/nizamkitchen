@@ -310,15 +310,15 @@ describe("billing navigation", () => {
     expect(links).toContain("/billing");
   });
 
-  it("platform admin nav includes all three billing admin pages", () => {
+  it("platform admin nav includes the billing module overview", () => {
     const links = getPlatformNavItems({
       user: { platformRole: "platform_owner" },
       activeOrganization: { organizationType: "internal_admin" },
       activeMembership: null,
     }).map((l) => l.href);
     expect(links).toContain("/admin/billing");
-    expect(links).toContain("/admin/billing/plans");
-    expect(links).toContain("/admin/billing/subscriptions");
+    expect(links).not.toContain("/admin/billing/plans");
+    expect(links).not.toContain("/admin/billing/subscriptions");
   });
 
   it("household org user cannot see admin billing pages", () => {

@@ -258,12 +258,12 @@ describe("social auth service", () => {
   });
 
   it("keeps admin OAuth pages server-side protected and avoids open redirect code", async () => {
-    const googlePage = await fs.readFile("src/app/(app)/admin/configuration/auth/google/page.tsx", "utf8");
-    const facebookPage = await fs.readFile("src/app/(app)/admin/configuration/auth/facebook/page.tsx", "utf8");
+    const categoriesPage = await fs.readFile("src/app/(app)/admin/apis/categories/page.tsx", "utf8");
+    const detailPage = await fs.readFile("src/app/(app)/admin/apis/[id]/page.tsx", "utf8");
     const callbackRoute = await fs.readFile("src/app/api/auth/oauth/google/callback/route.ts", "utf8");
 
-    expect(googlePage).toContain("requirePlatformRole");
-    expect(facebookPage).toContain("requirePlatformRole");
+    expect(categoriesPage).toContain("requirePlatformRole([\"platform_owner\"])");
+    expect(detailPage).toContain("requirePlatformRole([\"platform_owner\"])");
     expect(callbackRoute).toContain("finishOAuthCallback");
     expect(callbackRoute).not.toContain("redirectTo=");
   });

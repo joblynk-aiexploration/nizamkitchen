@@ -194,7 +194,7 @@ describe("platform configuration vault", () => {
     })).rejects.toThrow();
   });
 
-  it("scopes country managers to assigned countries", async () => {
+  it("blocks country managers from managing API configuration", async () => {
     await expect(savePlatformIntegration(adminSession("country_manager", ["US"]), {
       provider: "google_oauth",
       category: "auth",
@@ -214,11 +214,9 @@ describe("platform configuration vault", () => {
     expect(await getPublicIntegrationConfig(IntegrationProvider.smtp)).toBeNull();
   });
 
-  it("filters integration listings for country managers and keeps encrypted values out of detail queries", async () => {
+  it("keeps encrypted values out of detail queries and blocks country manager listings", async () => {
     mockPrisma.platformIntegration.findMany.mockResolvedValue([]);
-    await listPlatformIntegrations(adminSession("country_manager", ["US"]));
-    const where = mockPrisma.platformIntegration.findMany.mock.calls[0][0].where;
-    expect(where.OR[0].countryCode.in).toEqual(["US"]);
+    await expect(listPlatformIntegrations(adminSession("country_manager", ["US"]))).rejects.toThrow();
 
     mockPrisma.platformIntegration.findUnique.mockResolvedValue({
       id: "integration-1",
@@ -284,13 +282,36 @@ describe("platform configuration vault", () => {
   it("ships templates and admin pages without exposing secret values in source", () => {
     const templates = listIntegrationTemplates();
     expect(templates.find((template) => template.provider === "google_oauth")?.serverCredentialKeys).toContain("client_secret");
+    expect(templates.map((template) => template.provider)).toEqual(expect.arrayContaining([
+      "google_maps",
+      "google_places",
+      "google_geocoding",
+      "google_oauth",
+      "facebook_oauth",
+      "youtube_data",
+      "aws_s3",
+      "s3_compatible",
+      "smtp",
+      "stripe",
+      "paypal",
+      "google_pay",
+      "stripe_identity",
+      "stripe_connect",
+      "persona_placeholder",
+      "checkr_placeholder",
+      "custom",
+    ]));
 
-    const integrationsPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/configuration/integrations/page.tsx"), "utf8");
-    const detailPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/configuration/integrations/[id]/page.tsx"), "utf8");
-    const publicKeysPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/configuration/public-keys/page.tsx"), "utf8");
-    expect(integrationsPage).toContain("requirePlatformRole");
-    expect(detailPage).toContain("Save encrypted credential");
-    expect(publicKeysPage).toContain("Public client keys");
+    const overviewPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/page.tsx"), "utf8");
+    const detailPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/[id]/page.tsx"), "utf8");
+    const publicKeysPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/public-keys/page.tsx"), "utf8");
+    const sidebar = fs.readFileSync(path.join(process.cwd(), "src/components/admin/admin-sidebar.tsx"), "utf8");
+    expect(overviewPage).toContain("requirePlatformRole([\"platform_owner\"])");
+    expect(detailPage).toContain("Save / rotate credential");
+    expect(publicKeysPage).toContain("Public API keys");
     expect(detailPage).not.toContain("encryptedValue");
+    expect(sidebar).toContain("API Management");
+    expect(sidebar).not.toContain("Configuration Vault");
+    expect(sidebar).not.toContain("Masked Secrets");
   });
 });

@@ -236,10 +236,15 @@ enum IntegrationProvider {
   google_adsense
   youtube_data
   aws_s3
+  s3_compatible
   smtp
   stripe
   paypal
   google_pay
+  stripe_identity
+  stripe_connect
+  persona_placeholder
+  checkr_placeholder
   kyc_provider
   background_check_provider
   custom

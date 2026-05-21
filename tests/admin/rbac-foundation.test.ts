@@ -52,11 +52,16 @@ describe("RBAC foundation", () => {
   it("grants platform owner full default access", async () => {
     await expect(requirePermission(ownerSession as never, "rbac.manage")).resolves.toBeUndefined();
     expect(await hasPermission(ownerSession as never, "payments.configure")).toBe(true);
+    expect(await hasPermission(ownerSession as never, "api_management.manage_secrets")).toBe(true);
+    expect(await hasPermission(ownerSession as never, "api_management.rotate_credentials")).toBe(true);
   });
 
   it("does not grant platform admin sensitive credential configuration by default", async () => {
     expect(await hasPermission(adminSession as never, "payments.configure")).toBe(false);
     expect(await hasPermission(adminSession as never, "payments.manage")).toBe(true);
+    expect(await hasPermission(adminSession as never, "api_management.read")).toBe(true);
+    expect(await hasPermission(adminSession as never, "api_management.manage_secrets")).toBe(false);
+    expect(await hasPermission(adminSession as never, "api_management.test")).toBe(false);
   });
 
   it("honors explicit deny overrides over role defaults", async () => {

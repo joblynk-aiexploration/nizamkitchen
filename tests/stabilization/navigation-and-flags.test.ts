@@ -97,7 +97,17 @@ describe("stabilized role navigation", () => {
       activeMembership: { role: "restaurant_owner" },
     }).map((item) => item.href);
 
-    expect(links).toEqual(["/restaurant", "/restaurant/profile", "/restaurant/menu", "/restaurant/menu-items", "/restaurant/orders", "/restaurant/verification", "/restaurant/settings"]);
+    expect(links).toEqual([
+      "/restaurant",
+      "/restaurant/profile",
+      "/restaurant/menu",
+      "/restaurant/menu-items",
+      "/restaurant/orders",
+      "/restaurant/fulfillment",
+      "/restaurant/promotions",
+      "/restaurant/verification",
+      "/restaurant/settings",
+    ]);
   });
 });
 

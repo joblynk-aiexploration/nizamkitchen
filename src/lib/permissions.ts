@@ -13,6 +13,12 @@ export type Permission =
   | "rbac:manage"
   | "countries:manage"
   | "feature_flags:manage"
+  | "api_management:read"
+  | "api_management:manage"
+  | "api_management:manage_secrets"
+  | "api_management:test"
+  | "api_management:disable"
+  | "api_management:rotate_credentials"
   | "settings:manage"
   | "users:manage"
   | "billing:manage"
@@ -31,6 +37,12 @@ const platformPermissionMap: Partial<Record<PlatformRole, Permission[]>> = {
     "admin:access",
     "countries:manage",
     "feature_flags:manage",
+    "api_management:read",
+    "api_management:manage",
+    "api_management:manage_secrets",
+    "api_management:test",
+    "api_management:disable",
+    "api_management:rotate_credentials",
     "settings:manage",
     "audit:view",
     "rbac:manage",
@@ -50,6 +62,7 @@ const platformPermissionMap: Partial<Record<PlatformRole, Permission[]>> = {
     "admin:access",
     "countries:manage",
     "feature_flags:manage",
+    "api_management:read",
     "settings:manage",
     "audit:view",
     "users:manage",

@@ -23,7 +23,7 @@ function redirectTarget(formData: FormData, fallback: string) {
 }
 
 export async function savePlatformIntegrationAction(formData: FormData) {
-  const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+  const session = await requirePlatformRole(["platform_owner"]);
   const id = formData.get("id")?.toString() || undefined;
   const integration = await savePlatformIntegration(session, {
     id,
@@ -39,11 +39,11 @@ export async function savePlatformIntegrationAction(formData: FormData) {
     isDefault: checkboxValue(formData, "isDefault"),
   });
 
-  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integration.id}`)}?message=Integration saved.`);
+  redirect(`${redirectTarget(formData, `/admin/apis/${integration.id}`)}?message=Integration saved.`);
 }
 
 export async function savePlatformIntegrationCredentialAction(formData: FormData) {
-  const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+  const session = await requirePlatformRole(["platform_owner"]);
   const integrationId = formData.get("integrationId")?.toString() ?? "";
   await savePlatformIntegrationCredential(session, {
     integrationId,
@@ -52,11 +52,11 @@ export async function savePlatformIntegrationCredentialAction(formData: FormData
     isPublicClientValue: checkboxValue(formData, "isPublicClientValue"),
   });
 
-  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Encrypted credential saved. Full secret remains hidden.`);
+  redirect(`${redirectTarget(formData, `/admin/apis/${integrationId}`)}?message=Encrypted credential saved. Full secret remains hidden.`);
 }
 
 export async function savePlatformIntegrationSettingAction(formData: FormData) {
-  const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+  const session = await requirePlatformRole(["platform_owner"]);
   const integrationId = formData.get("integrationId")?.toString() ?? "";
   await savePlatformIntegrationSetting(session, {
     integrationId,
@@ -66,16 +66,16 @@ export async function savePlatformIntegrationSettingAction(formData: FormData) {
     isSecret: checkboxValue(formData, "isSecret"),
   });
 
-  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Integration setting saved.`);
+  redirect(`${redirectTarget(formData, `/admin/apis/${integrationId}`)}?message=Integration setting saved.`);
 }
 
 export async function runPlatformIntegrationTestAction(formData: FormData) {
-  const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager"]);
+  const session = await requirePlatformRole(["platform_owner"]);
   const integrationId = formData.get("integrationId")?.toString() ?? "";
   await runPlatformIntegrationTest(session, {
     integrationId,
     testType: formData.get("testType")?.toString() ?? "configuration_check",
   });
 
-  redirect(`${redirectTarget(formData, `/admin/configuration/integrations/${integrationId}`)}?message=Integration test logged.`);
+  redirect(`${redirectTarget(formData, `/admin/apis/${integrationId}`)}?message=Integration test logged.`);
 }

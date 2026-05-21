@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  AlertTriangle,
   BarChart3,
   BookOpen,
   Building2,
@@ -34,82 +33,77 @@ type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
 const adminNavGroups = [
   {
-    title: "Overview",
-    items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    title: "Operations",
+    title: "Platform",
     items: [
-      { href: "/admin/countries", label: "Countries", icon: Globe2 },
-      { href: "/admin/my-countries", label: "My countries", icon: Shield },
+      { href: "/admin", label: "Admin Overview", icon: LayoutDashboard },
       { href: "/admin/organizations", label: "Organizations", icon: Building2 },
       { href: "/admin/users", label: "Users", icon: Users },
+      { href: "/admin/countries", label: "Countries", icon: Globe2 },
+      { href: "/admin/my-countries", label: "My countries", icon: Shield },
+      { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
+      { href: "/admin/access-control", label: "Access Control / RBAC", icon: Shield },
+      { href: "/admin/policies", label: "Policies", icon: Settings },
+      { href: "/admin/system", label: "System Health", icon: ServerCog },
       { href: "/admin/audit-logs", label: "Audit logs", icon: Logs },
-    ],
-  },
-  {
-    title: "Food library",
-    items: [
-      { href: "/admin/recipe-library", label: "Recipe library", icon: BookOpen },
-      { href: "/admin/youtube-discovery", label: "YouTube discovery", icon: TvMinimalPlay },
-      { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
-      { href: "/admin/units", label: "Units", icon: Ruler },
-      { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
-    ],
-  },
-  {
-    title: "Planning",
-    items: [
-      { href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays },
-      { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
-      { href: "/admin/chefs", label: "Chef marketplace", icon: ChefHat },
-      { href: "/admin/chef-verifications", label: "Chef verifications", icon: Shield },
-      { href: "/admin/verifications", label: "Seller verifications", icon: Shield },
-      { href: "/admin/verifications/requirements", label: "Verification requirements", icon: Settings },
-      { href: "/admin/kyc", label: "KYC providers", icon: Shield },
-      { href: "/admin/home-catering", label: "Home catering", icon: Building2 },
-      { href: "/admin/menu-items", label: "Menu items", icon: ShoppingCart },
-      { href: "/admin/food-orders", label: "Food orders", icon: Inbox },
-      { href: "/admin/restaurant-fallback", label: "Restaurant fallback", icon: ShoppingCart },
-    ],
-  },
-  {
-    title: "Grocery Engine",
-    items: [
-      { href: "/admin/grocery-engine", label: "Overview", icon: ShoppingCart },
-      { href: "/admin/grocery-partners", label: "Partners", icon: Building2 },
-      { href: "/admin/grocery-engine/conversions", label: "Conversions", icon: Scale },
-      { href: "/admin/grocery-engine/warnings", label: "Warnings", icon: AlertTriangle },
-    ],
-  },
-  {
-    title: "Analytics",
-    items: [
-      { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-      { href: "/admin/leads", label: "Contact leads", icon: Inbox },
     ],
   },
   {
     title: "Configuration",
     items: [
-      { href: "/admin/feature-flags", label: "Feature flags", icon: Flag },
-      { href: "/admin/system", label: "System status", icon: ServerCog },
-      { href: "/admin/storage", label: "Storage", icon: ServerCog },
-      { href: "/admin/storage/configuration", label: "Storage config", icon: Settings },
-      { href: "/admin/storage/files", label: "Storage files", icon: Inbox },
-      { href: "/admin/storage/maintenance", label: "Storage maintenance", icon: ServerCog },
-      { href: "/admin/dropbox", label: "Drop Box", icon: FolderOpen },
-      { href: "/admin/dropbox/files", label: "Dropbox files", icon: Inbox },
-      { href: "/admin/dropbox/uploads", label: "Upload files", icon: FolderOpen },
-      { href: "/admin/system-settings", label: "System settings", icon: Settings },
-      { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
+      { href: "/admin/apis", label: "API Management", icon: ServerCog },
+      { href: "/admin/system-settings", label: "System Settings", icon: Settings },
+      { href: "/admin/seo", label: "SEO / AEO", icon: Globe2 },
+      { href: "/admin/legal", label: "Legal Center", icon: Scale },
+      { href: "/admin/localization", label: "Localization", icon: Globe2 },
+    ],
+  },
+  {
+    title: "Food Platform",
+    items: [
+      { href: "/admin/recipe-library", label: "Recipe library", icon: BookOpen },
+      { href: "/admin/ingredients", label: "Ingredients", icon: ChefHat },
+      { href: "/admin/units", label: "Units", icon: Ruler },
+      { href: "/admin/cuisines", label: "Cuisines", icon: UtensilsCrossed },
+      { href: "/admin/templates", label: "Dish/Menu Templates", icon: BookOpen },
+      { href: "/admin/youtube-discovery", label: "YouTube discovery", icon: TvMinimalPlay },
+    ],
+  },
+  {
+    title: "Marketplace",
+    items: [
+      { href: "/admin/home-chef-requests", label: "Home chef requests", icon: UtensilsCrossed },
+      { href: "/admin/chefs", label: "Chefs", icon: ChefHat },
+      { href: "/admin/home-catering", label: "Home catering", icon: Building2 },
+      { href: "/admin/restaurants", label: "Restaurants", icon: Building2 },
+      { href: "/admin/menus", label: "Menus", icon: ShoppingCart },
+      { href: "/admin/menu-items", label: "Menu items", icon: ShoppingCart },
+      { href: "/admin/food-orders", label: "Food orders", icon: Inbox },
+      { href: "/admin/meal-planner", label: "Meal planner", icon: CalendarDays },
+      { href: "/admin/restaurant-fallback", label: "Restaurant fallback", icon: ShoppingCart },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
       { href: "/admin/payments", label: "Payments", icon: CircleDollarSign },
-      { href: "/admin/payments/operations", label: "Payment operations", icon: BarChart3 },
-      { href: "/admin/payments/gateways", label: "Payment gateways", icon: Shield },
-      { href: "/admin/payments/configurations", label: "Payment config", icon: Settings },
-      { href: "/admin/payments/transactions", label: "Transactions", icon: Inbox },
-      { href: "/admin/payments/commissions", label: "Commissions", icon: Scale },
+      { href: "/admin/billing", label: "Billing", icon: CircleDollarSign },
+      { href: "/admin/accounting", label: "Accounting", icon: Scale },
+      { href: "/admin/storage", label: "Storage", icon: ServerCog },
+      { href: "/admin/dropbox", label: "Admin Dropbox", icon: FolderOpen },
+      { href: "/admin/verifications", label: "Seller Verification / KYC", icon: Shield },
+      { href: "/admin/kyc", label: "KYC Providers", icon: Shield },
+      { href: "/admin/grocery-engine", label: "Grocery Engine", icon: ShoppingCart },
+      { href: "/admin/grocery-partners", label: "Grocery Partners", icon: Building2 },
       { href: "/admin/support", label: "Support", icon: UserRoundSearch },
+      { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+      { href: "/admin/notifications", label: "Notifications", icon: Inbox },
+    ],
+  },
+  {
+    title: "Public Site",
+    items: [
+      { href: "/admin/content", label: "CMS / Help Center", icon: BookOpen },
+      { href: "/admin/leads", label: "Leads", icon: Inbox },
     ],
   },
 ];
@@ -191,11 +185,15 @@ function canSeeLink(session: Session, href: string) {
   if (
     href === "/admin/system" ||
     href === "/admin/system-settings" ||
+    href === "/admin/apis" ||
+    href === "/admin/seo" ||
+    href === "/admin/localization" ||
+    href === "/admin/content" ||
     href.startsWith("/admin/storage") ||
     href === "/admin/dropbox/uploads" ||
     href === "/admin/dropbox/settings"
   ) {
-    return role === "platform_owner" || role === "platform_admin";
+    return href === "/admin/apis" ? role === "platform_owner" : role === "platform_owner" || role === "platform_admin";
   }
 
   // Food library is visible to all platform roles
