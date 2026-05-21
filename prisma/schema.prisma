@@ -522,6 +522,8 @@ model Organization {
   paymentTransactions        PaymentTransaction[]
   paymentRefunds             PaymentRefund[]
   paymentDisputes            PaymentDispute[]
+  accountingDocuments        AccountingDocument[]
+  sellerSettlementReports    SellerSettlementReport[]
   sellerPayoutAccounts       SellerPayoutAccount[]
   sellerPayouts              SellerPayout[]
   sellerVerificationProfile  SellerVerificationProfile?
@@ -1626,6 +1628,44 @@ enum PaymentEnvironment {
 enum PaymentConfigurationStatus {
   active
   disabled
+}
+
+enum TaxConfigurationStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum TaxCalculationMode {
+  disabled
+  flat_percent
+  manual
+}
+
+enum AccountingDocumentType {
+  invoice
+  receipt
+}
+
+enum AccountingDocumentStatus {
+  draft
+  issued
+  void
+}
+
+enum CommissionRecordStatus {
+  pending
+  earned
+  reversed
+}
+
+enum SellerSettlementStatus {
+  draft
+  pending
+  approved
+  paid
+  cancelled
 }
 
 enum PaymentModule {
@@ -3179,6 +3219,9 @@ model PaymentOrder {
   transactions              PaymentTransaction[]
   refunds                   PaymentRefund[]
   disputes                  PaymentDispute[]
+  accountingDocuments       AccountingDocument[]
+  commissionRecords         CommissionRecord[]
+  settlementReports         SellerSettlementReport[]
 
   @@index([organizationId])
   @@index([countryCode])
@@ -3190,6 +3233,118 @@ model PaymentOrder {
   @@index([gatewayId])
   @@index([status])
   @@index([createdAt])
+}
+
+model TaxConfiguration {
+  id              String                 @id @default(cuid())
+  name            String
+  countryCode     String?
+  region          String?
+  currencyCode    String?
+  module          PaymentModule?
+  mode            TaxCalculationMode     @default(disabled)
+  taxPercent      Decimal?               @db.Decimal(5, 2)
+  fixedTaxAmount  Decimal?               @db.Decimal(10, 2)
+  status          TaxConfigurationStatus @default(draft)
+  notes           String?
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([countryCode])
+  @@index([currencyCode])
+  @@index([module])
+  @@index([status])
+}
+
+model AccountingDocument {
+  id                     String                   @id @default(cuid())
+  documentNumber         String                   @unique
+  documentType           AccountingDocumentType
+  status                 AccountingDocumentStatus @default(issued)
+  paymentOrderId         String
+  organizationId         String
+  customerOrganizationId String?
+  sellerOrganizationId   String?
+  countryCode            String
+  currencyCode           String
+  subtotalAmount         Decimal                  @db.Decimal(10, 2)
+  taxAmount              Decimal                  @default(0) @db.Decimal(10, 2)
+  totalAmount            Decimal                  @db.Decimal(10, 2)
+  platformFeeAmount      Decimal?                 @db.Decimal(10, 2)
+  sellerAmount           Decimal?                 @db.Decimal(10, 2)
+  pdfFileId              String?
+  issuedAt               DateTime                 @default(now())
+  dueAt                  DateTime?
+  voidedAt               DateTime?
+  metadataJson           Json?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  paymentOrder           PaymentOrder             @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId, documentType])
+  @@index([organizationId])
+  @@index([customerOrganizationId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([documentType])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model CommissionRecord {
+  id                   String                 @id @default(cuid())
+  paymentOrderId       String
+  sellerOrganizationId String?
+  countryCode          String
+  currencyCode         String
+  grossAmount          Decimal                @db.Decimal(10, 2)
+  platformFeeAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  sellerAmount         Decimal                @default(0) @db.Decimal(10, 2)
+  taxAmount            Decimal                @default(0) @db.Decimal(10, 2)
+  commissionPercent    Decimal?               @db.Decimal(5, 2)
+  status               CommissionRecordStatus @default(earned)
+  earnedAt             DateTime               @default(now())
+  reversedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  paymentOrder         PaymentOrder           @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([earnedAt])
+}
+
+model SellerSettlementReport {
+  id                   String                 @id @default(cuid())
+  sellerOrganizationId String
+  countryCode          String
+  currencyCode         String
+  periodStart          DateTime
+  periodEnd            DateTime
+  status               SellerSettlementStatus @default(draft)
+  grossAmount          Decimal                @default(0) @db.Decimal(10, 2)
+  platformFeeAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  refundAmount         Decimal                @default(0) @db.Decimal(10, 2)
+  sellerNetAmount      Decimal                @default(0) @db.Decimal(10, 2)
+  paymentOrderId       String?
+  reportFileId         String?
+  generatedById        String?
+  approvedById         String?
+  paidAt               DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  paymentOrder         PaymentOrder?          @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  sellerOrganization   Organization           @relation(fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([periodStart, periodEnd])
 }
 
 model PaymentTransaction {
