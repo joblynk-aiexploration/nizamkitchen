@@ -88,6 +88,22 @@ enum MeasurementSystem {
   mixed
 }
 
+enum LocaleTextDirection {
+  ltr
+  rtl
+}
+
+enum LocalizationStatus {
+  active
+  disabled
+}
+
+enum TranslationStatus {
+  draft
+  published
+  disabled
+}
+
 enum UserStatus {
   active
   suspended
@@ -348,6 +364,7 @@ model User {
   restaurantFallbackSearches       RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
   notifications                    Notification[]
   notificationPreference           NotificationPreference?
+  localizationPreference           UserLocalizationPreference?
   supportTicketsCreated            SupportTicket[]                @relation("SupportTicketCreatedBy")
   supportTicketsAssigned           SupportTicket[]                @relation("SupportTicketAssignedTo")
   supportTicketComments            SupportTicketComment[]
@@ -560,6 +577,7 @@ model Country {
   organizations      Organization[]
   countryAssignments CountryAssignment[]
   countryConfigs     CountryConfig[]
+  regionalSetting    CountryRegionalSetting?
   auditLogs          AuditLog[]
   mealPlans          MealPlan[]
   dishTemplates      DishTemplate[]
@@ -686,6 +704,107 @@ model CountryConfig {
 
   @@unique([organizationId, countryCode, configKey])
   @@index([countryCode])
+}
+
+model LocalizationLocale {
+  id                  String                       @id @default(cuid())
+  localeCode          String                       @unique
+  languageName        String
+  nativeName          String
+  textDirection       LocaleTextDirection          @default(ltr)
+  status              LocalizationStatus           @default(active)
+  isDefault           Boolean                      @default(false)
+  dateFormat          String
+  timeFormat          String
+  numberFormat        String
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  translations        LocalizationTranslation[]
+  userPreferences     UserLocalizationPreference[]
+  terminologyAliases  FoodTerminologyAlias[]
+
+  @@index([status])
+  @@index([textDirection])
+}
+
+model LocalizationTranslation {
+  id              String              @id @default(cuid())
+  localeCode      String
+  namespace       String
+  translationKey  String
+  defaultValue    String
+  translatedValue String
+  status          TranslationStatus   @default(published)
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  locale          LocalizationLocale  @relation(fields: [localeCode], references: [localeCode], onDelete: Cascade)
+
+  @@unique([localeCode, namespace, translationKey])
+  @@index([namespace])
+  @@index([status])
+}
+
+model CurrencySetting {
+  id                  String             @id @default(cuid())
+  currencyCode        String             @unique
+  displayName         String
+  symbol              String
+  decimalDigits       Int                @default(2)
+  status              LocalizationStatus @default(active)
+  countryCodesJson    Json?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([status])
+}
+
+model CountryRegionalSetting {
+  id                         String             @id @default(cuid())
+  countryCode                String             @unique
+  defaultLocale              String
+  supportedLocalesJson       Json
+  supportedCurrencyCodesJson Json
+  measurementSystem          MeasurementSystem
+  dateFormat                 String
+  timeFormat                 String
+  addressFormatJson          Json
+  rtlEnabled                 Boolean            @default(false)
+  createdById                String?
+  updatedById                String?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  country                    Country            @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([defaultLocale])
+  @@index([measurementSystem])
+}
+
+model FoodTerminologyAlias {
+  id                  String                @id @default(cuid())
+  localeCode          String?
+  countryCode         String?
+  ingredientId        String?
+  sourceTerm          String
+  localizedTerm       String
+  transliteration     String?
+  notes               String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  locale              LocalizationLocale?    @relation(fields: [localeCode], references: [localeCode], onDelete: SetNull)
+  ingredient          Ingredient?            @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([localeCode])
+  @@index([countryCode])
+  @@index([ingredientId])
+  @@index([sourceTerm])
 }
 
 model AuditLog {
@@ -2008,6 +2127,7 @@ model Ingredient {
   updatedAt               DateTime                   @updatedAt
   defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
   aliases                 IngredientAlias[]
+  terminologyAliases      FoodTerminologyAlias[]
   recipeIngredients       RecipeIngredient[]
   dishTemplateIngredients  DishTemplateIngredient[]
   unitConversions         UnitConversion[]
@@ -3764,6 +3884,24 @@ model UserPrivacySetting {
   @@index([profileVisibility])
   @@index([analyticsConsent])
   @@index([marketingEmailsEnabled])
+}
+
+model UserLocalizationPreference {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  localeCode         String
+  timezone           String
+  measurementSystem  MeasurementSystem?
+  currencyCode       String?
+  dateFormat         String?
+  timeFormat         String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locale             LocalizationLocale   @relation(fields: [localeCode], references: [localeCode], onDelete: Restrict)
+
+  @@index([localeCode])
+  @@index([currencyCode])
 }
 
 model SellerVerificationItem {

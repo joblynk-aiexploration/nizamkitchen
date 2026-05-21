@@ -75,6 +75,7 @@ const FEATURE_FLAGS = [
   "legal_center",
   "privacy_center",
   "api_management",
+  "localization",
   "templates",
   "cms",
   "subscriptions",
@@ -84,7 +85,7 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports", "localization"]);
 
 const PERMISSION_SEEDS = [
   { key: "admin.access", name: "Access admin", module: "admin", action: "read" },
@@ -92,6 +93,7 @@ const PERMISSION_SEEDS = [
   { key: "users.manage", name: "Manage users", module: "users", action: "manage" },
   { key: "organizations.manage", name: "Manage organizations", module: "organizations", action: "manage" },
   { key: "countries.manage", name: "Manage countries", module: "countries", action: "manage" },
+  { key: "localization.manage", name: "Manage localization", module: "localization", action: "configure" },
   { key: "feature_flags.manage", name: "Manage feature flags", module: "feature_flags", action: "configure" },
   { key: "api_management.read", name: "Read API management", module: "api_management", action: "read" },
   { key: "api_management.manage", name: "Manage API management", module: "api_management", action: "manage" },
@@ -304,6 +306,27 @@ const USER_SEEDS = [
   { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null, status: UserStatus.active },
   { email: "support@nizamkitchen.dev", fullName: "Support Admin", platformRole: PlatformRole.support_admin, status: UserStatus.active },
   { email: "disabled@nizamkitchen.dev", fullName: "Disabled User", platformRole: null, status: UserStatus.disabled },
+];
+
+const LOCALE_SEEDS = [
+  { localeCode: "en-US", languageName: "English (United States)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-US", isDefault: true },
+  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "en-IN", isDefault: false },
+  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "en-GB", isDefault: false },
+  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-SA", isDefault: false },
+  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-AE", isDefault: false },
+  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "hi-IN", isDefault: false },
+  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-IN", isDefault: false },
+  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-PK", isDefault: false },
+];
+
+const CURRENCY_SEEDS = [
+  { currencyCode: "USD", displayName: "US Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["US"] },
+  { currencyCode: "INR", displayName: "Indian Rupee", symbol: "₹", decimalDigits: 2, countryCodesJson: ["IN"] },
+  { currencyCode: "GBP", displayName: "Pound Sterling", symbol: "£", decimalDigits: 2, countryCodesJson: ["GB"] },
+  { currencyCode: "SAR", displayName: "Saudi Riyal", symbol: "ر.س", decimalDigits: 2, countryCodesJson: ["SA"] },
+  { currencyCode: "AED", displayName: "UAE Dirham", symbol: "د.إ", decimalDigits: 2, countryCodesJson: ["AE"] },
+  { currencyCode: "CAD", displayName: "Canadian Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["CA"] },
+  { currencyCode: "AUD", displayName: "Australian Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["AU"] },
 ];
 
 function slugify(input: string) {
@@ -2529,6 +2552,49 @@ async function main() {
       where: { countryCode: country.countryCode },
       update: { ...country, supportedModules: FEATURE_FLAGS, isActive: true },
       create: { ...country, supportedModules: FEATURE_FLAGS, isActive: true },
+    });
+  }
+
+  for (const locale of LOCALE_SEEDS) {
+    await prisma.localizationLocale.upsert({
+      where: { localeCode: locale.localeCode },
+      update: { ...locale, status: "active" },
+      create: { ...locale, status: "active" },
+    });
+  }
+
+  for (const currency of CURRENCY_SEEDS) {
+    await prisma.currencySetting.upsert({
+      where: { currencyCode: currency.currencyCode },
+      update: { ...currency, status: "active" },
+      create: { ...currency, status: "active" },
+    });
+  }
+
+  for (const country of COUNTRY_SEEDS) {
+    await prisma.countryRegionalSetting.upsert({
+      where: { countryCode: country.countryCode },
+      update: {
+        defaultLocale: country.defaultLocale,
+        supportedLocalesJson: [country.defaultLocale],
+        supportedCurrencyCodesJson: [country.currencyCode],
+        measurementSystem: country.measurementSystem,
+        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
+        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
+        rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
+      },
+      create: {
+        countryCode: country.countryCode,
+        defaultLocale: country.defaultLocale,
+        supportedLocalesJson: [country.defaultLocale],
+        supportedCurrencyCodesJson: [country.currencyCode],
+        measurementSystem: country.measurementSystem,
+        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
+        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
+        rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
+      },
     });
   }
 
