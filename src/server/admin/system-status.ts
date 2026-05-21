@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getObservabilitySnapshot } from "@/server/observability";
 import { getSystemAlertMetrics } from "@/server/observability/system-alerts";
 
-const SYSTEM_STATUS_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"];
+const SYSTEM_STATUS_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "support_admin", "auditor"];
 
 export type SystemStatusSession = {
   user: {
