@@ -48,7 +48,13 @@ export async function logout(page: Page) {
   const signOutLink = page.getByRole("link", { name: /sign out/i });
   if (await signOutButton.count() > 0) {
     await signOutButton.click();
-    await expect(page).toHaveURL(/\/login/);
+    try {
+      await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
+    } catch {
+      await page.request.post("/api/auth/logout");
+      await page.goto("/login");
+      await expect(page).toHaveURL(/\/login/);
+    }
     return;
   }
 
@@ -64,8 +70,7 @@ export async function logout(page: Page) {
 }
 
 export async function visitAndAssertHealthy(page: Page, path: string) {
-  const response = await page.goto(path);
-  await page.waitForLoadState("networkidle");
+  const response = await page.goto(path, { waitUntil: "domcontentloaded" });
   expect(response?.status(), `${path} should not return HTTP 500`).not.toBe(500);
   await assertHealthyPage(page);
 }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "TZ=America/Chicago next dev",
-    "build": "TZ=America/Chicago next build",
+    "build": "NODE_ENV=production TZ=America/Chicago next build",
     "start": "TZ=America/Chicago next start",
     "lint": "eslint .",
     "typegen": "next typegen",

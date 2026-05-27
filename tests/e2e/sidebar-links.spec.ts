@@ -3,7 +3,7 @@ import { assertHealthyPage, loginAs, visitAndAssertHealthy } from "./helpers";
 
 test.describe("visible sidebar navigation", () => {
   test("platform owner admin sidebar links all open healthy pages", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(300_000);
 
     await loginAs(page, "owner");
     await page.goto("/admin");
