@@ -1,10 +1,13 @@
 import { PaymentOrderStatus, Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
+import { generateAccountingForPaymentOrder } from "@/server/accounting/accounting-service";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
 import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
+import { PaymentConfigurationError } from "@/server/payments/payment-errors";
 import { createAuditEvent } from "@/server/audit";
 import { calculateNetPayable } from "@/server/promotions";
+import { notifyPaymentSucceeded } from "@/server/payments/payment-confirmation";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
@@ -82,8 +85,9 @@ export class StripePaymentGatewayAdapter implements PaymentGatewayAdapter {
     const gateway = await getStripeGateway(order.gatewayId, order.countryCode, order.currencyCode);
     const secrets = getStripeSecrets(gateway);
     const stripe = createStripeClient(secrets.secretKey);
+    const refundTarget = await getStripeRefundTarget(stripe, order);
     const refund = await stripe.refunds.create({
-      payment_intent: order.providerPaymentIntentId ?? undefined,
+      ...refundTarget,
       amount: Math.round(input.amount * 100),
       reason: stripeRefundReason(input.reason),
       metadata: { paymentOrderId: order.id },
@@ -121,6 +125,166 @@ export class StripePaymentGatewayAdapter implements PaymentGatewayAdapter {
 }
 
 export const stripeAdapter = new StripePaymentGatewayAdapter();
+
+type StripeRefundTargetOrder = {
+  id: string;
+  module?: string | null;
+  moduleEntityId?: string | null;
+  providerPaymentIntentId: string | null;
+  providerCheckoutSessionId: string | null;
+};
+
+async function getStripeRefundTarget(stripe: Stripe, order: StripeRefundTargetOrder) {
+  if (order.providerPaymentIntentId) return { payment_intent: order.providerPaymentIntentId };
+
+  const chargeTransaction = await prisma.paymentTransaction.findFirst({
+    where: {
+      paymentOrderId: order.id,
+      provider: "stripe",
+      transactionType: "charge",
+      status: "succeeded",
+      OR: [
+        { providerChargeId: { not: null } },
+        { providerTransactionId: { startsWith: "ch_" } },
+        { providerTransactionId: { startsWith: "pi_" } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (chargeTransaction?.providerChargeId) return { charge: chargeTransaction.providerChargeId };
+  if (chargeTransaction?.providerTransactionId?.startsWith("ch_")) return { charge: chargeTransaction.providerTransactionId };
+  if (chargeTransaction?.providerTransactionId?.startsWith("pi_")) return { payment_intent: chargeTransaction.providerTransactionId };
+
+  const checkoutSessionTarget = await getRefundTargetFromCheckoutSession(stripe, order);
+  if (checkoutSessionTarget) return checkoutSessionTarget;
+
+  const subscriptionTarget = await getRefundTargetFromSubscription(stripe, order);
+  if (subscriptionTarget) return subscriptionTarget;
+
+  const searchedTarget = await getRefundTargetFromStripeSearch(stripe, order.id);
+  if (searchedTarget) {
+    await persistRecoveredStripeRefundTarget(order.id, searchedTarget.paymentIntentId, searchedTarget.chargeId);
+    return searchedTarget.paymentIntentId ? { payment_intent: searchedTarget.paymentIntentId } : { charge: searchedTarget.chargeId! };
+  }
+
+  throw new PaymentConfigurationError(
+    "We could not find the Stripe payment reference needed to issue this refund. Please open the payment in Stripe, confirm the payment was completed, then reconcile the payment intent or charge on this payment record before refunding.",
+  );
+}
+
+async function getRefundTargetFromCheckoutSession(stripe: Stripe, order: StripeRefundTargetOrder) {
+  if (!order.providerCheckoutSessionId) return null;
+
+  const session = await stripe.checkout.sessions.retrieve(order.providerCheckoutSessionId, {
+    expand: [
+      "payment_intent",
+      "payment_intent.latest_charge",
+      "invoice.payment_intent",
+      "invoice.payment_intent.latest_charge",
+      "subscription.latest_invoice.payment_intent",
+      "subscription.latest_invoice.payment_intent.latest_charge",
+    ],
+  });
+
+  const recovered = paymentIntentAndChargeFromCheckoutSession(session);
+  if (!recovered.paymentIntentId && !recovered.chargeId) return null;
+
+  await persistRecoveredStripeRefundTarget(order.id, recovered.paymentIntentId, recovered.chargeId);
+  return recovered.paymentIntentId ? { payment_intent: recovered.paymentIntentId } : { charge: recovered.chargeId! };
+}
+
+async function getRefundTargetFromSubscription(stripe: Stripe, order: StripeRefundTargetOrder) {
+  if (order.module !== "subscription") return null;
+
+  const subscription = await prisma.billingSubscription.findFirst({
+    where: {
+      OR: [
+        { paymentOrderId: order.id },
+        ...(order.moduleEntityId ? [{ id: order.moduleEntityId }] : []),
+      ],
+    },
+    select: { providerSubscriptionId: true },
+  });
+  if (!subscription?.providerSubscriptionId) return null;
+
+  const stripeSubscription = await stripe.subscriptions.retrieve(subscription.providerSubscriptionId, {
+    expand: ["latest_invoice.payment_intent", "latest_invoice.payment_intent.latest_charge"],
+  });
+  const recovered = paymentIntentAndChargeFromSubscription(stripeSubscription);
+  if (!recovered.paymentIntentId && !recovered.chargeId) return null;
+
+  await persistRecoveredStripeRefundTarget(order.id, recovered.paymentIntentId, recovered.chargeId);
+  return recovered.paymentIntentId ? { payment_intent: recovered.paymentIntentId } : { charge: recovered.chargeId! };
+}
+
+async function getRefundTargetFromStripeSearch(stripe: Stripe, paymentOrderId: string) {
+  if (!stripe.paymentIntents || !("search" in stripe.paymentIntents)) return null;
+
+  try {
+    const results = await stripe.paymentIntents.search({
+      query: `metadata['paymentOrderId']:'${paymentOrderId}'`,
+      limit: 1,
+      expand: ["data.latest_charge"],
+    });
+    const intent = results.data[0];
+    if (!intent) return null;
+    return paymentIntentAndChargeFromPaymentIntent(intent);
+  } catch {
+    return null;
+  }
+}
+
+async function persistRecoveredStripeRefundTarget(paymentOrderId: string, paymentIntentId?: string | null, chargeId?: string | null) {
+  if (paymentIntentId) {
+    await prisma.paymentOrder.update({
+      where: { id: paymentOrderId },
+      data: { providerPaymentIntentId: paymentIntentId },
+    });
+  }
+  if (chargeId) {
+    await prisma.paymentTransaction.updateMany({
+      where: { paymentOrderId, provider: "stripe", transactionType: "charge", status: "succeeded", providerChargeId: null },
+      data: { providerChargeId: chargeId },
+    });
+  }
+}
+
+function paymentIntentAndChargeFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const extended = session as unknown as {
+    invoice?: string | { payment_intent?: Stripe.PaymentIntent | string | null } | null;
+    subscription?: string | { latest_invoice?: string | { payment_intent?: Stripe.PaymentIntent | string | null } | null } | null;
+  };
+  return firstPaymentIntentAndCharge([
+    session.payment_intent,
+    typeof extended.invoice === "object" ? extended.invoice?.payment_intent : null,
+    typeof extended.subscription === "object" && typeof extended.subscription?.latest_invoice === "object"
+      ? extended.subscription.latest_invoice?.payment_intent
+      : null,
+  ]);
+}
+
+function paymentIntentAndChargeFromSubscription(subscription: Stripe.Subscription) {
+  const extended = subscription as unknown as {
+    latest_invoice?: string | { payment_intent?: Stripe.PaymentIntent | string | null } | null;
+  };
+  return firstPaymentIntentAndCharge([
+    typeof extended.latest_invoice === "object" ? extended.latest_invoice?.payment_intent : null,
+  ]);
+}
+
+function paymentIntentAndChargeFromPaymentIntent(paymentIntent: Stripe.PaymentIntent) {
+  return firstPaymentIntentAndCharge([paymentIntent]);
+}
+
+function firstPaymentIntentAndCharge(paymentIntents: Array<Stripe.PaymentIntent | string | null | undefined>) {
+  for (const paymentIntent of paymentIntents) {
+    const paymentIntentId = typeof paymentIntent === "string" ? paymentIntent : paymentIntent?.id ?? null;
+    const latestCharge = typeof paymentIntent === "object" && paymentIntent ? paymentIntent.latest_charge : null;
+    const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id ?? null;
+    if (paymentIntentId || chargeId) return { paymentIntentId, chargeId };
+  }
+  return { paymentIntentId: null, chargeId: null };
+}
 
 export async function createStripeCheckoutForPaymentOrder(paymentOrderId: string, returnUrl: string, cancelUrl: string) {
   const order = await prisma.paymentOrder.findUniqueOrThrow({ where: { id: paymentOrderId } });
@@ -211,18 +375,36 @@ export async function createStripeHomeChefCheckout(params: { requestId: string; 
   return createStripeCheckoutForPaymentOrder(paymentOrder.id, `${params.appUrl}/home-chef/requests/${request.id}?payment=success`, `${params.appUrl}/home-chef/requests/${request.id}?payment=cancelled`);
 }
 
-export async function createStripeSubscriptionCheckout(params: { organizationId: string; userId: string; planId: string; appUrl: string }) {
+export async function createStripeSubscriptionCheckout(params: {
+  organizationId: string;
+  userId: string;
+  planId: string;
+  appUrl: string;
+  promotionCode?: string | null;
+}) {
   const plan = await prisma.billingPlan.findUniqueOrThrow({ where: { id: params.planId } });
-  if (!plan.stripePriceId) throw new Error("This billing plan does not have a Stripe Price ID configured.");
-  const gateway = await getStripeGateway(undefined, undefined, plan.currencyCode);
+  if (plan.status !== "active") {
+    throw new Error("This billing plan is not available for purchase.");
+  }
+  const priceAmount = Number(plan.priceAmount);
+  if (priceAmount <= 0) throw new Error("This billing plan does not require payment.");
+  if (!plan.stripePriceId && plan.billingInterval === "custom") {
+    throw new Error("Custom billing plans require manual setup.");
+  }
+  const organization = await prisma.organization.findUnique({
+    where: { id: params.organizationId },
+    select: { countryCode: true },
+  });
+  const countryCode = organization?.countryCode ?? "US";
+  const gateway = await getStripeGateway(undefined, countryCode, plan.currencyCode);
   const secrets = getStripeSecrets(gateway);
   const stripe = createStripeClient(secrets.secretKey);
   const subscription = await prisma.billingSubscription.create({
-    data: { organizationId: params.organizationId, planId: plan.id, status: "trialing", provider: "stripe" },
+    data: { organizationId: params.organizationId, planId: plan.id, status: "unpaid", provider: "stripe" },
   });
   const paymentOrder = await createPaymentOrderForModule({
     organizationId: params.organizationId,
-    countryCode: gateway.countryCode ?? "US",
+    countryCode,
     customerOrganizationId: params.organizationId,
     customerUserId: params.userId,
     module: "subscription",
@@ -231,18 +413,119 @@ export async function createStripeSubscriptionCheckout(params: { organizationId:
     amount: Number(plan.priceAmount),
     currencyCode: plan.currencyCode,
     idempotencyKey: `subscription:${subscription.id}`,
+    promotionCode: params.promotionCode ?? undefined,
     metadataJson: { billingSubscriptionId: subscription.id, planId: plan.id },
   });
+  const discountAmount = Number(paymentOrder.discountAmount ?? 0);
+  const checkoutDiscount = discountAmount > 0
+    ? await createOneTimeStripeSubscriptionCoupon({
+        stripe,
+        amount: discountAmount,
+        currencyCode: plan.currencyCode,
+        name: `NizamKitchen ${paymentOrder.promotionCode ?? "promo"} subscription discount`,
+      })
+    : null;
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price: plan.stripePriceId, quantity: 1 }],
-    success_url: `${params.appUrl}/billing?payment=success`,
+    client_reference_id: subscription.id,
+    line_items: [
+      plan.stripePriceId
+        ? { price: plan.stripePriceId, quantity: 1 }
+        : {
+            quantity: 1,
+            price_data: {
+              currency: plan.currencyCode.toLowerCase(),
+              unit_amount: Math.round(priceAmount * 100),
+              recurring: { interval: plan.billingInterval === "yearly" ? "year" : "month" },
+              product_data: { name: plan.name, description: plan.description ?? undefined },
+            },
+          },
+    ],
+    ...(checkoutDiscount ? { discounts: [{ coupon: checkoutDiscount.id }] } : {}),
+    success_url: `${params.appUrl}/billing?payment=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${params.appUrl}/billing/plans?payment=cancelled`,
-    metadata: { paymentOrderId: paymentOrder.id, billingSubscriptionId: subscription.id },
+    subscription_data: {
+      metadata: {
+        paymentOrderId: paymentOrder.id,
+        billingSubscriptionId: subscription.id,
+        organizationId: params.organizationId,
+        planId: plan.id,
+      },
+    },
+    metadata: {
+      paymentOrderId: paymentOrder.id,
+      billingSubscriptionId: subscription.id,
+      promotionCode: paymentOrder.promotionCode ?? "",
+      discountAmount: discountAmount ? discountAmount.toFixed(2) : "",
+    },
   });
   await prisma.billingSubscription.update({ where: { id: subscription.id }, data: { paymentOrderId: paymentOrder.id } });
   await prisma.paymentOrder.update({ where: { id: paymentOrder.id }, data: { status: "checkout_created", checkoutUrl: session.url, providerCheckoutSessionId: session.id } });
   return { checkoutUrl: session.url };
+}
+
+async function createOneTimeStripeSubscriptionCoupon({
+  stripe,
+  amount,
+  currencyCode,
+  name,
+}: {
+  stripe: Stripe;
+  amount: number;
+  currencyCode: string;
+  name: string;
+}) {
+  return stripe.coupons.create({
+    amount_off: Math.round(amount * 100),
+    currency: currencyCode.toLowerCase(),
+    duration: "once",
+    name,
+  });
+}
+
+export async function finalizeStripeSubscriptionCheckout(params: { sessionId: string; userId: string; organizationId: string }) {
+  const paymentOrder = await prisma.paymentOrder.findFirst({
+    where: {
+      provider: "stripe",
+      providerCheckoutSessionId: params.sessionId,
+      customerUserId: params.userId,
+      customerOrganizationId: params.organizationId,
+      module: "subscription",
+    },
+  });
+  if (!paymentOrder) throw new Error("Checkout session was not found for this account.");
+
+  const gateway = await getStripeGateway(paymentOrder.gatewayId, paymentOrder.countryCode, paymentOrder.currencyCode);
+  const secrets = getStripeSecrets(gateway);
+  const stripe = createStripeClient(secrets.secretKey);
+  const session = await stripe.checkout.sessions.retrieve(params.sessionId);
+  if (session.payment_status !== "paid" && session.status !== "complete") {
+    throw new Error("Stripe checkout is not paid yet.");
+  }
+
+  const paidOrder = await markStripePaymentOrderPaid(paymentOrder.id, {
+    providerCheckoutSessionId: session.id,
+    providerPaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
+    providerCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
+  });
+
+  const billingSubscriptionId = session.metadata?.billingSubscriptionId ?? paymentOrder.moduleEntityId;
+  await prisma.billingSubscription.update({
+    where: { id: billingSubscriptionId },
+    data: {
+      provider: "stripe",
+      providerCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
+      providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
+      status: "active",
+      currentPeriodStart: paidOrder.paidAt ?? new Date(),
+    },
+  });
+
+  await generateAccountingForPaymentOrder(paidOrder.id, params.userId);
+  await notifyPaymentSucceeded(paidOrder).catch((error) => {
+    console.error("Unable to send payment success notifications", error);
+  });
+  return { paymentOrderId: paidOrder.id, billingSubscriptionId };
 }
 
 export async function createStripeConnectOnboarding(params: { organizationId: string; countryCode: string; currencyCode?: string; appUrl: string }) {
@@ -308,6 +591,33 @@ export async function createStripeRefundForPaymentOrder(params: { paymentOrderId
     details: { provider: "stripe", amount: params.amount, fullRefund },
   });
   return refund;
+}
+
+export async function markStripePaymentOrderPaid(paymentOrderId: string, providerIds: { providerCheckoutSessionId?: string; providerPaymentIntentId?: string; providerCustomerId?: string }) {
+  const existing = await prisma.paymentOrder.findUnique({ where: { id: paymentOrderId } });
+  if (existing?.status === "paid") return existing;
+
+  const order = await prisma.paymentOrder.update({
+    where: { id: paymentOrderId },
+    data: { status: "paid", paidAt: new Date(), ...providerIds },
+  });
+  await prisma.paymentTransaction.create({
+    data: {
+      paymentOrderId,
+      organizationId: order.organizationId,
+      provider: "stripe",
+      gatewayId: order.gatewayId,
+      transactionType: "charge",
+      status: "succeeded",
+      amount: order.amount,
+      currencyCode: order.currencyCode,
+      providerTransactionId: providerIds.providerPaymentIntentId ?? providerIds.providerCheckoutSessionId,
+    },
+  });
+  await prisma.foodOrder.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  await prisma.homeChefRequest.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  await createAuditEvent({ action: "payment_order.paid", targetType: "payment_order", targetId: order.id, organizationId: order.organizationId, countryCode: order.countryCode });
+  return order;
 }
 
 async function getSellerStripeAccountId(organizationId: string) {

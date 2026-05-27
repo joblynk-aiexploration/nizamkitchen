@@ -35,7 +35,7 @@ export default async function ChefDashboardPage() {
       <PageHeader
         eyebrow="Chef business"
         title="Chef marketplace workspace"
-        description="Create your profile, add services, set availability, and review assigned requests. Admin approval is required before public listing."
+        description="Create your profile, add services, set availability, and review household orders assigned to your chef profile. Admin approval is required before public listing."
         actions={
           <Button asChild>
             <Link href="/chef/profile">{profile ? "Edit profile" : "Create profile"}</Link>

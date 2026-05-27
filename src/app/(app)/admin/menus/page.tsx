@@ -4,24 +4,40 @@ import { prisma } from "@/lib/prisma";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { Badge } from "@/components/ui/badge";
+import { getPaginationInput, getPaginationMeta } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminMenusPage() {
+export default async function AdminMenusPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"]);
-  const menus = await prisma.menu.findMany({
-    include: {
-      organization: true,
-      _count: { select: { items: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const params = await searchParams;
+  const paginationInput = getPaginationInput({ page: params.page });
+  const [totalMenus, menus] = await Promise.all([
+    prisma.menu.count(),
+    prisma.menu.findMany({
+      include: {
+        organization: true,
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: paginationInput.skip,
+      take: paginationInput.take,
+    }),
+  ]);
 
   return (
     <AdminShell session={session} title="Menus" description="Moderate home catering and restaurant menus across the platform.">
       <AdminDataTable
         data={menus}
         emptyMessage="No menus found."
+        pagination={getPaginationMeta(totalMenus, paginationInput)}
+        paginationBasePath="/admin/menus"
+        paginationSearchParams={params}
+        paginationItemLabel="menus"
         columns={[
           {
             key: "name",

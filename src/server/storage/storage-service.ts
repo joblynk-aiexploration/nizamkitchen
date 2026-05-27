@@ -1,7 +1,15 @@
 import crypto from "node:crypto";
-import { Prisma, StorageConfigurationStatus, StorageProvider, type StorageConfiguration, type StorageFile } from "@prisma/client";
+import {
+  IntegrationProvider,
+  Prisma,
+  StorageConfigurationStatus,
+  StorageProvider,
+  type StorageConfiguration,
+  type StorageFile,
+} from "@prisma/client";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
+import { getActiveIntegration } from "@/server/config/platform-config-service";
 import { decryptGatewayCredential, encryptGatewayCredential, isPaymentEncryptionConfigured, maskCredentialPreview } from "@/server/payments/credentials";
 import { createAuditEvent } from "@/server/audit";
 import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
@@ -16,6 +24,8 @@ import { assertStorageAdmin, assertStorageMetadataViewer, canAccessAdminDropboxF
 export async function getActiveStorageConfiguration() {
   const config = await prisma.storageConfiguration.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" } });
   if (config) return withDecryptedSecrets(config);
+  const vaultConfig = await getActiveVaultStorageConfiguration();
+  if (vaultConfig) return vaultConfig;
   if (env.NODE_ENV === "production") throw new Error("S3 storage is not configured.");
   return localDevConfiguration();
 }
@@ -33,12 +43,14 @@ export async function getStorageProviderForFile(file: Pick<StorageFile, "provide
 
 export async function listStorageConfigurations() {
   const configs = await prisma.storageConfiguration.findMany({ orderBy: { updatedAt: "desc" } });
-  return configs.map((config) => ({
+  const legacyConfigs = configs.map((config) => ({
     ...config,
     accessKeyPreview: config.encryptedAccessKeyId ? maskedEncryptedPreview(config.encryptedAccessKeyId) : null,
     secretAccessKeyConfigured: Boolean(config.encryptedSecretAccessKey),
     sessionTokenConfigured: Boolean(config.encryptedSessionToken),
   }));
+  const vaultConfigs = await listVaultStorageConfigurations();
+  return [...legacyConfigs, ...vaultConfigs];
 }
 
 export async function saveStorageConfiguration(session: StorageSession, input: unknown) {
@@ -372,6 +384,111 @@ function withDecryptedSecrets(config: StorageConfiguration): StorageConfiguratio
     secretAccessKey: config.encryptedSecretAccessKey ? decryptGatewayCredential(config.encryptedSecretAccessKey) : null,
     sessionToken: config.encryptedSessionToken ? decryptGatewayCredential(config.encryptedSessionToken) : null,
   };
+}
+
+async function getActiveVaultStorageConfiguration() {
+  for (const provider of [IntegrationProvider.aws_s3, IntegrationProvider.s3_compatible]) {
+    const integration = await getActiveIntegration(provider);
+    const config = integration ? vaultStorageConfigurationFromIntegration(integration) : null;
+    if (config) return config;
+  }
+
+  return null;
+}
+
+async function listVaultStorageConfigurations() {
+  const configs = await Promise.all(
+    [IntegrationProvider.aws_s3, IntegrationProvider.s3_compatible].map(async (provider) => {
+      const integration = await getActiveIntegration(provider);
+      const config = integration ? vaultStorageConfigurationFromIntegration(integration) : null;
+      if (!integration || !config) return null;
+      return {
+        ...config,
+        accessKeyPreview: config.accessKeyId ? maskCredentialPreview(config.accessKeyId) : null,
+        secretAccessKeyConfigured: Boolean(config.secretAccessKey),
+        sessionTokenConfigured: Boolean(config.sessionToken),
+        lastTestStatus: integration.lastTestStatus,
+        lastTestedAt: integration.lastTestedAt,
+        lastTestMessage: integration.lastTestMessage,
+      };
+    }),
+  );
+
+  return configs.filter((config): config is NonNullable<typeof config> => Boolean(config));
+}
+
+function vaultStorageConfigurationFromIntegration(integration: Awaited<ReturnType<typeof getActiveIntegration>>) {
+  if (!integration) return null;
+  const settings = Object.fromEntries(
+    integration.settings.map((setting) => [setting.settingKey, setting.settingValueJson]),
+  );
+  const credentials = Object.fromEntries(
+    integration.credentials.map((credential) => [credential.keyName, credential.value]),
+  );
+  const bucketName = asStorageString(settings.bucketName);
+  if (!bucketName) return null;
+  const accessKeyId = asStorageString(credentials.access_key_id);
+  const secretAccessKey = asStorageString(credentials.secret_access_key);
+  if (!accessKeyId || !secretAccessKey) return null;
+  const now = integration.updatedAt ?? new Date();
+
+  return {
+    id: integration.id,
+    provider: integration.provider === IntegrationProvider.s3_compatible ? StorageProvider.s3_compatible : StorageProvider.aws_s3,
+    displayName: integration.displayName,
+    status: "active",
+    bucketName,
+    region: asStorageString(settings.region) ?? "us-east-1",
+    endpoint: asStorageString(settings.endpoint),
+    forcePathStyle: asStorageBoolean(settings.forcePathStyle, integration.provider === IntegrationProvider.s3_compatible),
+    publicBaseUrl: asStorageString(settings.publicBaseUrl),
+    encryptedAccessKeyId: null,
+    encryptedSecretAccessKey: null,
+    encryptedSessionToken: null,
+    signedUrlExpiresInSeconds: asStorageNumber(settings.signedUrlExpirationSeconds ?? settings.signedUrlExpiresInSeconds, 900),
+    maxUploadSizeBytes: maxUploadSizeBytes(settings.maxUploadSizeMb ?? settings.maxUploadSizeBytes),
+    allowedMimeTypesJson: parseAllowedMimeTypes(asStorageString(settings.allowedMimeTypes)),
+    createdById: integration.createdById,
+    updatedById: integration.updatedById,
+    lastTestedAt: integration.lastTestedAt,
+    lastTestStatus: integration.lastTestStatus,
+    lastTestMessage: integration.lastTestMessage,
+    createdAt: integration.createdAt,
+    updatedAt: now,
+    accessKeyId,
+    secretAccessKey,
+    sessionToken: asStorageString(credentials.session_token),
+  } satisfies StorageConfigurationWithSecrets;
+}
+
+function asStorageString(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function asStorageBoolean(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return fallback;
+}
+
+function asStorageNumber(value: unknown, fallback: number) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function maxUploadSizeBytes(value: unknown) {
+  const parsed = asStorageNumber(value, 10);
+  if (parsed > 1024 * 1024) return Math.round(parsed);
+  return Math.round(parsed * 1024 * 1024);
 }
 
 function localDevConfiguration(bucketName = "local-dev"): StorageConfigurationWithSecrets {

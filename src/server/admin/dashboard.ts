@@ -62,7 +62,7 @@ export async function getAdminDashboardData(session: Session) {
         organization: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 8,
+      take: 5,
     }),
     prisma.user.findMany({
       where: userWhere,

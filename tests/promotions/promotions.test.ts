@@ -7,6 +7,7 @@ const { mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     promotionRedemption: {
       count: vi.fn(),
@@ -41,6 +42,7 @@ import {
   createAdminPromotion,
   createSellerPromotion,
   grantPlatformCredit,
+  updateAdminPromotion,
   validatePromotionForCheckout,
 } from "@/server/promotions";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
@@ -92,6 +94,7 @@ describe("promotions, credits, and referrals foundation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockPrisma.promotion.findUnique.mockResolvedValue(activePromotion);
+    mockPrisma.promotion.update.mockImplementation(async ({ data }) => ({ ...activePromotion, ...data }));
     mockPrisma.promotionRedemption.count.mockResolvedValue(0);
     mockPrisma.promotionRedemption.upsert.mockResolvedValue({ id: "redemption-1" });
     mockPrisma.paymentConfiguration.findUnique.mockResolvedValue({ platformCommissionPercent: "10", fixedCommissionAmount: "0", taxPercent: "0" });
@@ -209,6 +212,51 @@ describe("promotions, credits, and referrals foundation", () => {
       }),
     }));
     expect(createAuditEvent).toHaveBeenCalled();
+  });
+
+  it("lets platform owner update and archive promotions after creation", async () => {
+    await updateAdminPromotion(ownerSession(), "promo-1", {
+      code: "EID20",
+      name: "Updated Eid offer",
+      discountType: "percent",
+      percentOff: 20,
+      status: "archived",
+      scope: "platform",
+      countryCode: "US",
+      appliesToFoodOrders: true,
+      appliesToHomeChefRequests: false,
+      appliesToSubscriptions: false,
+    });
+
+    expect(mockPrisma.promotion.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "promo-1" },
+      data: expect.objectContaining({
+        code: "EID20",
+        name: "Updated Eid offer",
+        status: "archived",
+        percentOff: new Prisma.Decimal(20),
+        updatedById: "owner-1",
+      }),
+    }));
+    expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "promotion.updated",
+      targetId: "promo-1",
+    }));
+  });
+
+  it("returns a readable validation message for short promotion codes", async () => {
+    await expect(createSellerPromotion(sellerSession(), {
+      code: "AB",
+      name: "Too short code",
+      discountType: "percent",
+      percentOff: 10,
+      status: "active",
+    })).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        expect.objectContaining({ message: "Promotion code must be at least 3 characters." }),
+      ]),
+    });
+    expect(mockPrisma.promotion.create).not.toHaveBeenCalled();
   });
 
   it("grants platform credit through an auditable ledger", async () => {

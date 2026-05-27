@@ -8,6 +8,7 @@ import {
   addMealPlanEntry,
   canAccessMealPlanner,
   createMealPlan,
+  createReadyMadeMealPlan,
   deleteMealPlan,
   deleteMealPlanEntry,
   duplicateMealPlan,
@@ -86,6 +87,39 @@ export async function createMealPlanFromTemplateAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to apply meal plan template."))}`);
+  }
+}
+
+export async function createReadyMadeMealPlanAction(formData: FormData) {
+  try {
+    const session = await requireMealPlannerAccess();
+
+    const plan = await createReadyMadeMealPlan({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      createdById: session.user.id,
+      input: {
+        name: formData.get("name"),
+        startDate: formData.get("startDate"),
+        duration: formData.get("duration"),
+        householdSize: formData.get("householdSize"),
+        restrictions: formData.get("restrictions"),
+        dietPreference: formData.get("dietPreference"),
+        preferredFoods: formData.get("preferredFoods"),
+        weekdayPreferenceDays: formData.getAll("weekdayPreferenceDays"),
+        weekdayPreferenceRecipeIds: formData.getAll("weekdayPreferenceRecipeIds"),
+        occasionName: formData.get("occasionName"),
+        occasionDate: formData.get("occasionDate"),
+        occasionCulture: formData.get("occasionCulture"),
+        occasionFoods: formData.get("occasionFoods"),
+      },
+    });
+
+    revalidatePath("/meal-plans");
+    redirect(`/meal-plans/${plan.id}/edit?message=Ready-made meal plan created with breakfast, lunch, and dinner.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create ready-made meal plan."))}`);
   }
 }
 

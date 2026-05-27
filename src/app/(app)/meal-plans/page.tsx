@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
-import { canAccessMealPlanner, listMealPlans, toMealPlanDateRange } from "@/server/meal-plans";
+import { canAccessMealPlanner, listMealPlansPage, toMealPlanDateRange } from "@/server/meal-plans";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,13 @@ const statusTone = {
   archived: "warning",
 } as const;
 
-export default async function MealPlansPage() {
+export default async function MealPlansPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requireMembership();
+  const params = await searchParams;
   const organizationId = session.activeOrganization.id;
   const enabled = await canAccessMealPlanner({
     organizationId,
@@ -45,7 +51,7 @@ export default async function MealPlansPage() {
     );
   }
 
-  const plans = await listMealPlans(organizationId);
+  const plans = await listMealPlansPage(organizationId, { page: params.page });
 
   return (
     <div className="space-y-8">
@@ -75,14 +81,15 @@ export default async function MealPlansPage() {
         </Button>
       </div>
 
-      {plans.length === 0 ? (
+      {plans.items.length === 0 ? (
         <EmptyState
           title="No meal plans yet"
           description="Create your first plan to arrange recipes by day, track what gets cooked, and generate a grocery list from the finished schedule."
         />
       ) : (
+        <>
         <div className="grid gap-5 xl:grid-cols-2">
-          {plans.map((plan) => {
+          {plans.items.map((plan) => {
             const totalMeals = plan.days.reduce((sum, day) => sum + day._count.entries, 0);
             return (
               <Card key={plan.id} className="space-y-5">
@@ -142,6 +149,13 @@ export default async function MealPlansPage() {
             );
           })}
         </div>
+        <PaginationControls
+          pagination={plans.pagination}
+          basePath="/meal-plans"
+          searchParams={params}
+          itemLabel="meal plans"
+        />
+        </>
       )}
     </div>
   );

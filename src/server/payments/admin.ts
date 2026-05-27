@@ -1,5 +1,6 @@
 import { PaymentGatewayStatus, PaymentProvider, type PlatformRole, type Prisma, type UserStatus } from "@prisma/client";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { paymentConfigurationSchema, paymentGatewayCredentialSchema, paymentGatewaySchema } from "@/lib/validation/payments";
 import { createAuditEvent } from "@/server/audit";
@@ -202,6 +203,28 @@ export async function listPaymentOrders(session: PaymentAdminSession, filters: {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+}
+
+export async function listPaymentOrdersPage(
+  session: PaymentAdminSession,
+  filters: { countryCode?: string; status?: string; page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = {
+    ...paymentCountryWhere(session, filters.countryCode),
+    ...(filters.status ? { status: filters.status as never } : {}),
+  };
+
+  return paginatedQuery(
+    prisma.paymentOrder.count({ where }),
+    ({ skip, take }) =>
+      prisma.paymentOrder.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+    { page: filters.page, pageSize: filters.pageSize },
+  );
 }
 
 export async function getPaymentOrder(session: PaymentAdminSession, orderId: string) {

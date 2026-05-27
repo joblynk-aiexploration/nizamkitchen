@@ -27,6 +27,17 @@ const statusTone = {
 
 const entryStatusValues = ["planned", "cooked", "skipped", "ordered_instead", "replaced"] as const;
 const mealTypeValues = ["breakfast", "lunch", "dinner", "snack", "dessert", "side", "prep"] as const;
+const weekdayHeaders = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function addUtcDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function formatMonthTitle(date: Date) {
+  return date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
 
 export default async function EditMealPlanPage({
   params,
@@ -64,6 +75,20 @@ export default async function EditMealPlanPage({
     servingUnit: recipe.servingUnit,
     cuisineName: recipe.cuisine.name,
   }));
+  const dayByIso = new Map(plan.days.map((day) => [day.date.toISOString().slice(0, 10), day]));
+  const calendarStart = addUtcDays(plan.startDate, -plan.startDate.getUTCDay());
+  const calendarEndOffset = 6 - plan.endDate.getUTCDay();
+  const calendarEnd = addUtcDays(plan.endDate, calendarEndOffset);
+  const calendarCells = [];
+  for (let day = new Date(calendarStart); day <= calendarEnd; day = addUtcDays(day, 1)) {
+    const iso = day.toISOString().slice(0, 10);
+    calendarCells.push({
+      date: new Date(day),
+      iso,
+      planDay: dayByIso.get(iso),
+      inPlanRange: day >= plan.startDate && day <= plan.endDate,
+    });
+  }
 
   return (
     <div className="space-y-8">
@@ -73,7 +98,7 @@ export default async function EditMealPlanPage({
         description="Adjust the date range, refine servings, and keep each day lined up for clean grocery generation."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Card>
             <form action={updateMealPlanAction} className="space-y-6">
@@ -170,166 +195,6 @@ export default async function EditMealPlanPage({
               <Button type="submit">Save meal plan</Button>
             </form>
           </Card>
-
-          <div className="space-y-5">
-            {plan.days.map((day) => (
-              <Card key={day.id} className="space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Day card</p>
-                    <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">
-                      {day.dayLabel ?? day.date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })}
-                    </h2>
-                    <p className="mt-1 text-sm text-[var(--color-muted)]">
-                      {day.date.toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                        timeZone: "UTC",
-                      })}
-                    </p>
-                  </div>
-
-                  <MealPlanEntryDrawer
-                    mealPlanId={plan.id}
-                    mealPlanDayId={day.id}
-                    dayLabel={day.dayLabel ?? "Meal day"}
-                    dateLabel={day.date.toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                      timeZone: "UTC",
-                    })}
-                    recipes={recipeOptions}
-                    action={addMealPlanEntryAction}
-                  />
-                </div>
-
-                {day.entries.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-4 py-8 text-center text-sm text-[var(--color-muted)]">
-                    No meals scheduled yet. Add recipes or custom meals for this day.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {day.entries.map((entry, index) => (
-                      <div key={entry.id} className="rounded-3xl border border-[var(--color-border)] bg-slate-50/70 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Meal slot #{index + 1}</p>
-                            <p className="mt-1 font-semibold text-[var(--color-ink)]">
-                              {entry.recipe?.name ?? entry.customMealName ?? "Custom meal"}
-                            </p>
-                            <p className="mt-1 text-xs text-[var(--color-muted)]">
-                              {entry.recipe?.cuisine?.name ? `${entry.recipe.cuisine.name} · ` : ""}
-                              {entry.recipe ? "Recipe linked" : "Custom meal"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <form action={moveMealPlanEntryAction}>
-                              <input type="hidden" name="mealPlanId" value={plan.id} />
-                              <input type="hidden" name="entryId" value={entry.id} />
-                              <input type="hidden" name="direction" value="up" />
-                              <Button variant="ghost" type="submit" disabled={index === 0}>Up</Button>
-                            </form>
-                            <form action={moveMealPlanEntryAction}>
-                              <input type="hidden" name="mealPlanId" value={plan.id} />
-                              <input type="hidden" name="entryId" value={entry.id} />
-                              <input type="hidden" name="direction" value="down" />
-                              <Button variant="ghost" type="submit" disabled={index === day.entries.length - 1}>Down</Button>
-                            </form>
-                          </div>
-                        </div>
-
-                        <form action={updateMealPlanEntryAction} className="mt-4 space-y-4">
-                          <input type="hidden" name="mealPlanId" value={plan.id} />
-                          <input type="hidden" name="entryId" value={entry.id} />
-                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                            <div className="xl:col-span-2">
-                              <label className="block text-sm font-semibold text-[var(--color-ink)]">
-                                Custom meal name
-                              </label>
-                              <input
-                                name="customMealName"
-                                defaultValue={entry.customMealName ?? ""}
-                                className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                                placeholder="Optional if a recipe is linked"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-[var(--color-ink)]">
-                                Meal type
-                              </label>
-                              <select
-                                name="mealType"
-                                defaultValue={entry.mealType}
-                                className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                              >
-                                {mealTypeValues.map((mealType) => (
-                                  <option key={mealType} value={mealType}>
-                                    {mealType.replace(/_/g, " ")}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-[var(--color-ink)]">
-                                Servings
-                              </label>
-                              <input
-                                name="targetServings"
-                                type="number"
-                                min="1"
-                                max="100"
-                                defaultValue={entry.targetServings}
-                                className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-semibold text-[var(--color-ink)]">
-                                Status
-                              </label>
-                              <select
-                                name="status"
-                                defaultValue={entry.status}
-                                className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                              >
-                                {entryStatusValues.map((status) => (
-                                  <option key={status} value={status}>
-                                    {status.replace(/_/g, " ")}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="md:col-span-2 xl:col-span-3">
-                              <label className="block text-sm font-semibold text-[var(--color-ink)]">
-                                Notes
-                              </label>
-                              <input
-                                name="notes"
-                                defaultValue={entry.notes ?? ""}
-                                className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                                placeholder="Cooked ahead, swap sides, freezer prep..."
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-3">
-                            <Button type="submit">Save meal</Button>
-                          </div>
-                        </form>
-
-                        <form action={deleteMealPlanEntryAction} className="mt-3">
-                          <input type="hidden" name="mealPlanId" value={plan.id} />
-                          <input type="hidden" name="entryId" value={entry.id} />
-                          <Button variant="danger" type="submit">Delete</Button>
-                        </form>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            ))}
-          </div>
         </div>
 
         <div className="space-y-6">
@@ -354,7 +219,7 @@ export default async function EditMealPlanPage({
           <Card className="space-y-4 border-rose-200 bg-rose-50/60">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Danger zone</p>
             <p className="text-sm leading-6 text-rose-900/80">
-              Deleting a meal plan removes its day cards and meal entries. Generated grocery lists are preserved, but they will no longer point back to this plan.
+              Deleting a meal plan removes its calendar days and meal entries. Generated grocery lists are preserved, but they will no longer point back to this plan.
             </p>
             <form action={deleteMealPlanAction}>
               <input type="hidden" name="mealPlanId" value={plan.id} />
@@ -363,6 +228,173 @@ export default async function EditMealPlanPage({
           </Card>
         </div>
       </div>
+
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Meal calendar</p>
+            <h2 className="mt-2 font-serif text-3xl text-[var(--color-ink)]">{formatMonthTitle(plan.startDate)}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="hidden rounded-2xl border border-[var(--color-border)] p-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 sm:flex">
+              <span className="rounded-xl px-3 py-2">Daily</span>
+              <span className="rounded-xl px-3 py-2">Weekly</span>
+              <span className="rounded-xl bg-white px-3 py-2 text-blue-700 shadow-sm ring-1 ring-blue-100">Monthly</span>
+            </div>
+            <Badge tone="info">{plan.days.length} days</Badge>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 border-b border-[var(--color-border)] bg-slate-50">
+          {weekdayHeaders.map((weekday) => (
+            <div key={weekday} className="border-r border-[var(--color-border)] px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 last:border-r-0">
+              {weekday}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7">
+          {calendarCells.map((cell) => {
+            const day = cell.planDay;
+            const isCurrentMonth = cell.date.getUTCMonth() === plan.startDate.getUTCMonth();
+
+            return (
+              <div
+                key={cell.iso}
+                className={[
+                  "min-h-56 border-b border-r border-[var(--color-border)] bg-white p-3 last:border-r-0 lg:min-h-64",
+                  !cell.inPlanRange ? "bg-slate-50/70 text-slate-400" : "",
+                ].join(" ")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className={["text-sm font-semibold", isCurrentMonth ? "text-[var(--color-ink)]" : "text-slate-400"].join(" ")}>
+                      {cell.date.getUTCDate()}
+                    </p>
+                    <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:hidden">
+                      {weekdayHeaders[cell.date.getUTCDay()]}
+                    </p>
+                  </div>
+                  {day ? (
+                    <MealPlanEntryDrawer
+                      mealPlanId={plan.id}
+                      mealPlanDayId={day.id}
+                      dayLabel={day.dayLabel ?? "Meal day"}
+                      dateLabel={day.date.toLocaleDateString("en-US", {
+                        weekday: "long",
+                        month: "long",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      })}
+                      recipes={recipeOptions}
+                      action={addMealPlanEntryAction}
+                    />
+                  ) : null}
+                </div>
+
+                {day ? (
+                  day.entries.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-[var(--color-border)] bg-slate-50 px-3 py-5 text-center text-sm text-[var(--color-muted)]">
+                      No dishes yet.
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {day.entries.map((entry, index) => (
+                        <details key={entry.id} className="group rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm transition hover:border-teal-200 hover:bg-teal-50/50">
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-teal-700">
+                                  {entry.mealType.replace(/_/g, " ")}
+                                </p>
+                                <p className="mt-1 truncate text-sm font-semibold text-[var(--color-ink)]">
+                                  {entry.recipe?.name ?? entry.customMealName ?? "Custom meal"}
+                                </p>
+                                <p className="mt-1 text-xs text-[var(--color-muted)]">
+                                  {entry.targetServings} serving{entry.targetServings === 1 ? "" : "s"}
+                                  {entry.recipe?.cuisine?.name ? ` · ${entry.recipe.cuisine.name}` : ""}
+                                </p>
+                              </div>
+                              <span className="rounded-full bg-white px-2 py-1 text-[0.65rem] font-semibold capitalize text-slate-600 ring-1 ring-slate-200">
+                                {entry.status.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            {entry.notes ? (
+                              <p className="mt-2 line-clamp-2 text-xs text-[var(--color-muted)]">{entry.notes}</p>
+                            ) : null}
+                            <p className="mt-2 text-xs font-semibold text-[var(--color-primary)]">Edit meal</p>
+                          </summary>
+
+                          <div className="mt-3 border-t border-slate-200 pt-3">
+                            <div className="flex flex-wrap gap-2">
+                              <form action={moveMealPlanEntryAction}>
+                                <input type="hidden" name="mealPlanId" value={plan.id} />
+                                <input type="hidden" name="entryId" value={entry.id} />
+                                <input type="hidden" name="direction" value="up" />
+                                <Button variant="ghost" type="submit" disabled={index === 0}>Up</Button>
+                              </form>
+                              <form action={moveMealPlanEntryAction}>
+                                <input type="hidden" name="mealPlanId" value={plan.id} />
+                                <input type="hidden" name="entryId" value={entry.id} />
+                                <input type="hidden" name="direction" value="down" />
+                                <Button variant="ghost" type="submit" disabled={index === day.entries.length - 1}>Down</Button>
+                              </form>
+                            </div>
+
+                            <form action={updateMealPlanEntryAction} className="mt-3 space-y-3">
+                              <input type="hidden" name="mealPlanId" value={plan.id} />
+                              <input type="hidden" name="entryId" value={entry.id} />
+                              <label className="block text-xs font-semibold text-[var(--color-ink)]">
+                                Custom meal name
+                                <input name="customMealName" defaultValue={entry.customMealName ?? ""} className="mt-1 w-full rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm" placeholder="Optional if a recipe is linked" />
+                              </label>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <label className="block text-xs font-semibold text-[var(--color-ink)]">
+                                  Meal type
+                                  <select name="mealType" defaultValue={entry.mealType} className="mt-1 w-full rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm">
+                                    {mealTypeValues.map((mealType) => (
+                                      <option key={mealType} value={mealType}>{mealType.replace(/_/g, " ")}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="block text-xs font-semibold text-[var(--color-ink)]">
+                                  Servings
+                                  <input name="targetServings" type="number" min="1" max="100" defaultValue={entry.targetServings} className="mt-1 w-full rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm" />
+                                </label>
+                                <label className="block text-xs font-semibold text-[var(--color-ink)] sm:col-span-2">
+                                  Status
+                                  <select name="status" defaultValue={entry.status} className="mt-1 w-full rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm">
+                                    {entryStatusValues.map((status) => (
+                                      <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              </div>
+                              <label className="block text-xs font-semibold text-[var(--color-ink)]">
+                                Notes
+                                <input name="notes" defaultValue={entry.notes ?? ""} className="mt-1 w-full rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm" placeholder="Cooked ahead, swap sides, freezer prep..." />
+                              </label>
+                              <Button type="submit" className="w-full justify-center">Save meal</Button>
+                            </form>
+
+                            <form action={deleteMealPlanEntryAction} className="mt-3">
+                              <input type="hidden" name="mealPlanId" value={plan.id} />
+                              <input type="hidden" name="entryId" value={entry.id} />
+                              <Button variant="danger" type="submit" className="w-full justify-center">Delete</Button>
+                            </form>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  <div className="mt-4 h-24 rounded-2xl border border-dashed border-slate-200 bg-white/50" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }

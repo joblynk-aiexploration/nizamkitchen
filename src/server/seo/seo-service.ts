@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IntegrationProvider, Prisma, RobotsDirective, SeoScope, type SeoSetting } from "@prisma/client";
+import { shouldSkipBuildTimeDatabase } from "@/lib/build-phase";
 import { prisma } from "@/lib/prisma";
 import { getActiveIntegration, getPublicIntegrationConfig } from "@/server/config/platform-config-service";
 
@@ -134,49 +135,55 @@ export async function findEffectiveSeoSetting(input: {
   countryCode?: string;
   city?: string;
 }) {
+  if (shouldSkipBuildTimeDatabase()) return null;
+
   const path = normalizePath(input.path);
   const countryCode = clean(input.countryCode)?.toUpperCase();
   const city = clean(input.city);
   const candidates: SeoSetting[] = [];
 
-  if (input.entityId && input.scope) {
-    const entitySetting = await prisma.seoSetting.findFirst({
-      where: {
-        scope: input.scope,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        isActive: true,
-      },
+  try {
+    if (input.entityId && input.scope) {
+      const entitySetting = await prisma.seoSetting.findFirst({
+        where: {
+          scope: input.scope,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          isActive: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (entitySetting) candidates.push(entitySetting);
+    }
+
+    if (path) {
+      const pageSetting = await prisma.seoSetting.findFirst({
+        where: { path, isActive: true },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (pageSetting) candidates.push(pageSetting);
+    }
+
+    if (city || countryCode) {
+      const localSetting = await prisma.seoSetting.findFirst({
+        where: {
+          isActive: true,
+          city: city ?? undefined,
+          countryCode: countryCode ?? undefined,
+        },
+        orderBy: [{ city: "desc" }, { countryCode: "desc" }, { updatedAt: "desc" }],
+      });
+      if (localSetting) candidates.push(localSetting);
+    }
+
+    const globalSetting = await prisma.seoSetting.findFirst({
+      where: { scope: SeoScope.global, isActive: true },
       orderBy: { updatedAt: "desc" },
     });
-    if (entitySetting) candidates.push(entitySetting);
+    if (globalSetting) candidates.push(globalSetting);
+  } catch {
+    return null;
   }
-
-  if (path) {
-    const pageSetting = await prisma.seoSetting.findFirst({
-      where: { path, isActive: true },
-      orderBy: { updatedAt: "desc" },
-    });
-    if (pageSetting) candidates.push(pageSetting);
-  }
-
-  if (city || countryCode) {
-    const localSetting = await prisma.seoSetting.findFirst({
-      where: {
-        isActive: true,
-        city: city ?? undefined,
-        countryCode: countryCode ?? undefined,
-      },
-      orderBy: [{ city: "desc" }, { countryCode: "desc" }, { updatedAt: "desc" }],
-    });
-    if (localSetting) candidates.push(localSetting);
-  }
-
-  const globalSetting = await prisma.seoSetting.findFirst({
-    where: { scope: SeoScope.global, isActive: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (globalSetting) candidates.push(globalSetting);
 
   return candidates[0] ?? null;
 }
@@ -319,11 +326,31 @@ function credentialValue(integration: Awaited<ReturnType<typeof getActiveIntegra
 }
 
 export async function getGooglePlatformPublicConfig(): Promise<GooglePlatformPublicConfig> {
-  const [searchConsole, analytics, adsense] = await Promise.all([
-    getPublicIntegrationConfig(IntegrationProvider.google_search_console),
-    getPublicIntegrationConfig(IntegrationProvider.google_analytics),
-    getPublicIntegrationConfig(IntegrationProvider.google_adsense),
-  ]);
+  if (shouldSkipBuildTimeDatabase()) {
+    return {
+      analyticsEnabled: false,
+      analyticsConsentRequired: true,
+      adsenseEnabled: false,
+    };
+  }
+
+  let searchConsole: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
+  let analytics: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
+  let adsense: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
+
+  try {
+    [searchConsole, analytics, adsense] = await Promise.all([
+      getPublicIntegrationConfig(IntegrationProvider.google_search_console),
+      getPublicIntegrationConfig(IntegrationProvider.google_analytics),
+      getPublicIntegrationConfig(IntegrationProvider.google_adsense),
+    ]);
+  } catch {
+    return {
+      analyticsEnabled: false,
+      analyticsConsentRequired: true,
+      adsenseEnabled: false,
+    };
+  }
 
   const searchConsoleMeta = searchConsole?.credentials.verification_meta_tag ?? searchConsole?.credentials.verification_html_token;
   const analyticsMeasurementId = analytics?.credentials.measurement_id;

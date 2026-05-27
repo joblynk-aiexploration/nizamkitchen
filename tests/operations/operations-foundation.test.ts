@@ -13,12 +13,12 @@ const { mockPrisma } = vi.hoisted(() => ({
     organization: { count: vi.fn() },
     auditLog: { findMany: vi.fn(), create: vi.fn() },
     storageConfiguration: { count: vi.fn(), findMany: vi.fn() },
-    paymentGateway: { count: vi.fn() },
+    paymentGateway: { count: vi.fn(), findFirst: vi.fn() },
     paymentWebhookEvent: { count: vi.fn(), findMany: vi.fn() },
     paymentOrder: { count: vi.fn(), findMany: vi.fn() },
     paymentRefund: { count: vi.fn() },
     kycProviderConfiguration: { count: vi.fn() },
-    platformIntegration: { findMany: vi.fn() },
+    platformIntegration: { findMany: vi.fn(), findFirst: vi.fn() },
     systemAlert: { count: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
 }));
@@ -34,6 +34,8 @@ describe("operations health check", () => {
     mockPrisma.paymentOrder.count.mockResolvedValue(0);
     mockPrisma.paymentRefund.count.mockResolvedValue(0);
     mockPrisma.platformIntegration.findMany.mockResolvedValue([]);
+    mockPrisma.paymentGateway.findFirst.mockResolvedValue(null);
+    mockPrisma.platformIntegration.findFirst.mockResolvedValue(null);
   });
 
   it("/api/health returns safe JSON when database and migrations are reachable", async () => {
@@ -62,16 +64,26 @@ describe("operations health check", () => {
   it("/api/health/integrations reports optional integrations as configured booleans", async () => {
     mockPrisma.storageConfiguration.count.mockResolvedValue(0);
     mockPrisma.kycProviderConfiguration.count.mockResolvedValue(0);
+    const previousSmtpHost = process.env.SMTP_HOST;
+    const previousSmtpPort = process.env.SMTP_PORT;
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_PORT;
+    vi.resetModules();
 
-    const { GET } = await import("../../src/app/api/health/integrations/route");
-    const response = await GET();
-    const body = await response.json();
+    try {
+      const { GET } = await import("../../src/app/api/health/integrations/route");
+      const response = await GET();
+      const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(body.integrations.mapTiler.configured).toBe(false);
-    expect(body.integrations.youtube.configured).toBe(false);
-    expect(body.integrations.smtp.configured).toBe(false);
-    expect(JSON.stringify(body)).not.toMatch(/DATABASE_URL|SESSION_SECRET|password|api[_-]?key/i);
+      expect(response.status).toBe(200);
+      expect(body.integrations.googleMaps.configured).toBe(false);
+      expect(body.integrations.youtube.configured).toBe(false);
+      expect(body.integrations.smtp.configured).toBe(false);
+      expect(JSON.stringify(body)).not.toMatch(/DATABASE_URL|SESSION_SECRET|password|api[_-]?key/i);
+    } finally {
+      process.env.SMTP_HOST = previousSmtpHost;
+      process.env.SMTP_PORT = previousSmtpPort;
+    }
   });
 });
 
@@ -91,6 +103,8 @@ describe("admin system status", () => {
     mockPrisma.paymentOrder.findMany.mockResolvedValue([]);
     mockPrisma.kycProviderConfiguration.count.mockResolvedValue(0);
     mockPrisma.platformIntegration.findMany.mockResolvedValue([]);
+    mockPrisma.paymentGateway.findFirst.mockResolvedValue(null);
+    mockPrisma.platformIntegration.findFirst.mockResolvedValue(null);
     mockPrisma.systemAlert.count.mockResolvedValue(0);
     mockPrisma.systemAlert.findMany.mockResolvedValue([]);
     mockPrisma.auditLog.findMany.mockResolvedValue([
@@ -110,7 +124,7 @@ describe("admin system status", () => {
 
     expect(status.counts).toEqual({ featureFlags: 8, users: 12, organizations: 4 });
     expect(status.database).toEqual({ reachable: true, migrationsReachable: true });
-    expect(status.integrations.mapTiler.configured).toBe(false);
+    expect(status.integrations.googleMaps.configured).toBe(false);
     expect(status.integrations.youtube.configured).toBe(false);
     expect(status.integrations.stripe.configured).toBe(false);
     expect(status.alerts.open).toBe(0);

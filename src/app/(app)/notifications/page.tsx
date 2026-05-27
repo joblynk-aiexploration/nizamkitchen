@@ -3,9 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth/session";
-import { getNotificationInbox } from "@/server/notifications/notification-service";
+import { getNotificationInboxPage } from "@/server/notifications/notification-service";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,12 @@ const priorityTone = {
 export default async function NotificationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; page?: string }>;
 }) {
   const session = await requireUser();
   const query = await searchParams;
-  const notifications = await getNotificationInbox(session, 100);
-  const unreadCount = notifications.filter((notification) => notification.status === "unread").length;
+  const notifications = await getNotificationInboxPage(session, { page: query.page });
+  const unreadCount = notifications.items.filter((notification) => notification.status === "unread").length;
 
   return (
     <div className="space-y-6">
@@ -44,11 +45,11 @@ export default async function NotificationsPage({
 
       {query.message && <Card className="border-blue-200 bg-blue-50 text-sm text-blue-800">{query.message}</Card>}
 
-      {notifications.length === 0 ? (
+      {notifications.items.length === 0 ? (
         <EmptyState title="No notifications yet" description="Important updates will appear here as product workflows move." />
       ) : (
         <div className="space-y-3">
-          {notifications.map((notification) => (
+          {notifications.items.map((notification) => (
             <Card key={notification.id} className={notification.status === "unread" ? "border-emerald-200 bg-emerald-50/50" : ""}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -80,6 +81,12 @@ export default async function NotificationsPage({
           ))}
         </div>
       )}
+      <PaginationControls
+        pagination={notifications.pagination}
+        basePath="/notifications"
+        searchParams={query}
+        itemLabel="notifications"
+      />
     </div>
   );
 }

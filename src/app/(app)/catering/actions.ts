@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { normalizePhoneFromForm } from "@/lib/phone";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
 import { upsertPrimaryLocation } from "@/server/maps/location-service";
@@ -43,6 +44,10 @@ export async function upsertHomeCateringProfileAction(formData: FormData) {
         displayName: formData.get("displayName"),
         ownerName: formData.get("ownerName"),
         bio: formData.get("bio"),
+        operationType: formData.get("operationType"),
+        restaurantName: formData.get("restaurantName"),
+        restaurantAddress: formData.get("restaurantAddress"),
+        restaurantLicense: formData.get("restaurantLicense"),
         profilePhotoUrl: formData.get("profilePhotoUrl"),
         coverPhotoUrl: formData.get("coverPhotoUrl"),
         profilePhotoFileId: formData.get("profilePhotoFileId"),
@@ -53,7 +58,7 @@ export async function upsertHomeCateringProfileAction(formData: FormData) {
         city: formData.get("city"),
         region: formData.get("region"),
         postalCode: formData.get("postalCode"),
-        phone: formData.get("phone"),
+        phone: normalizePhoneFromForm(formData),
         email: formData.get("email"),
         acceptsPickup: formData.get("acceptsPickup") === "on",
         acceptsDelivery: formData.get("acceptsDelivery") === "on",
@@ -79,7 +84,7 @@ export async function upsertHomeCateringProfileAction(formData: FormData) {
       providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
     });
     revalidateCateringPaths();
-    redirect("/catering/profile?message=Home catering profile saved.");
+    redirect("/catering/profile?message=Successfully saved home catering profile.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/catering/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save home catering profile."))}`);
@@ -96,7 +101,7 @@ export async function pauseHomeCateringProfileAction(formData: FormData) {
       paused: formData.get("paused") === "true",
     });
     revalidateCateringPaths();
-    redirect("/catering?message=Home catering profile status updated.");
+    redirect("/catering?message=Successfully updated home catering profile status.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/catering?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update profile status."))}`);
@@ -114,7 +119,7 @@ export async function upsertCateringSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateCateringPaths();
-    redirect("/catering/profile?message=Social link saved.");
+    redirect("/catering/profile?message=Successfully saved social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/catering/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save social link."))}`);
@@ -131,7 +136,7 @@ export async function deleteCateringSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateCateringPaths();
-    redirect("/catering/profile?message=Social link deleted.");
+    redirect("/catering/profile?message=Successfully deleted social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/catering/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to delete social link."))}`);

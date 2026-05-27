@@ -14,6 +14,7 @@ export type NavItem = {
 
 const platformAdminHrefs = [
   "/admin",
+  "/admin/settings",
   "/admin/countries",
   "/admin/organizations",
   "/admin/users",
@@ -62,12 +63,14 @@ const platformAdminHrefs = [
   "/admin/dropbox",
   "/admin/system-settings",
   "/admin/support",
+  "/admin/emails",
   "/admin/leads",
   "/admin/content",
 ] as const;
 
 const countryManagerHrefs = [
   "/admin",
+  "/admin/settings",
   "/admin/my-countries",
   "/admin/countries",
   "/admin/organizations",
@@ -91,6 +94,7 @@ const countryManagerHrefs = [
 
 const supportAdminHrefs = [
   "/admin",
+  "/admin/settings",
   "/admin/organizations",
   "/admin/users",
   "/admin/audit-logs",
@@ -99,14 +103,17 @@ const supportAdminHrefs = [
   "/admin/verifications",
   "/admin/kyc",
   "/admin/support",
+  "/admin/emails",
   "/admin/dropbox",
   "/admin/dropbox/files",
   "/admin/dropbox/folders",
   "/admin/system",
+  "/admin/emails",
 ] as const;
 
 const auditorHrefs = [
   "/admin",
+  "/admin/settings",
   "/admin/audit-logs",
   "/admin/organizations",
   "/admin/users",
@@ -123,14 +130,31 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
   }
 
   if (organizationType === "chef_business") {
+    if (membershipRole === "chef_staff") {
+      return [
+        { href: "/chef", label: "Chef Dashboard" },
+        { href: "/chef/requests", label: "Orders" },
+        { href: "/chef/profile", label: "Profile" },
+        { href: "/chef/availability", label: "Availability" },
+        { href: "/billing", label: "Billing" },
+        { href: "/profile", label: "My Profile" },
+        { href: "/notifications", label: "Notifications" },
+        { href: "/support", label: "Support Tickets" },
+        { href: "/settings", label: "Settings" },
+      ];
+    }
+
     return [
       { href: "/chef", label: "Chef Dashboard" },
       { href: "/chef/profile", label: "Profile" },
       { href: "/chef/services", label: "Services" },
       { href: "/chef/verification", label: "Verification" },
       { href: "/chef/availability", label: "Availability" },
-      { href: "/chef/requests", label: "Assigned Requests" },
+      { href: "/chef/requests", label: "Orders" },
       { href: "/chef/reviews", label: "Reviews" },
+      { href: "/billing", label: "Billing" },
+      { href: "/profile", label: "My Profile" },
+      { href: "/support", label: "Support Tickets" },
       { href: "/settings", label: "Settings" },
     ];
   }
@@ -145,6 +169,9 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/restaurant/fulfillment", label: "Fulfillment" },
       { href: "/restaurant/promotions", label: "Promotions" },
       { href: "/restaurant/verification", label: "Verification" },
+      { href: "/billing", label: "Billing" },
+      { href: "/profile", label: "My Profile" },
+      { href: "/support", label: "Support Tickets" },
       { href: "/restaurant/settings", label: "Settings" },
     ];
   }
@@ -159,6 +186,9 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
       { href: "/catering/fulfillment", label: "Fulfillment" },
       { href: "/catering/promotions", label: "Promotions" },
       { href: "/catering/verification", label: "Verification" },
+      { href: "/billing", label: "Billing" },
+      { href: "/profile", label: "My Profile" },
+      { href: "/support", label: "Support Tickets" },
       { href: "/catering/settings", label: "Settings" },
     ];
   }
@@ -166,12 +196,15 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
   if (organizationType === "grocery_partner") {
     return [
       { href: "/dashboard", label: "Dashboard" },
+      { href: "/profile", label: "My Profile" },
+      { href: "/support", label: "Support Tickets" },
       { href: "/settings", label: "Settings" },
     ];
   }
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/profile", label: "My Profile" },
     { href: "/recipes", label: "Recipes" },
     { href: "/meal-plans", label: "Meal Plans" },
     { href: "/grocery-lists", label: "Grocery Lists" },
@@ -226,6 +259,7 @@ function hrefsToItems(hrefs: readonly string[]): NavItem[] {
 function labelForHref(href: string) {
   const labels: Record<string, string> = {
     "/admin": "Admin Overview",
+    "/admin/settings": "My Settings",
     "/admin/countries": "Countries",
     "/admin/my-countries": "My Countries",
     "/admin/organizations": "Organizations",

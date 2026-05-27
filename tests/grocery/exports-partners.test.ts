@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockPrisma, createAuditEvent, isFeatureEnabled, getGroceryList } = vi.hoisted(() => ({
@@ -36,6 +38,7 @@ import {
   createGroceryListShare,
   getSharedGroceryList,
   groceryListToCsv,
+  groceryListToClipboardText,
   groceryListToPdf,
   listActiveGroceryPartners,
   listAdminGroceryPartners,
@@ -102,6 +105,45 @@ describe("grocery exports and partner foundation", () => {
 
     expect(Buffer.isBuffer(pdf)).toBe(true);
     expect(pdf.toString("utf8", 0, 8)).toBe("%PDF-1.4");
+  });
+
+  it("formats copied grocery lists like a professional shopping checklist", () => {
+    const text = groceryListToClipboardText(makeList());
+
+    expect(text).toContain("NizamKitchen\nWeekly groceries");
+    expect(text).toContain("1 recipe · 2 ingredients · Generated 5/18/2026");
+    expect(text).toContain("Recipes\n- Biryani - 4 servings");
+    expect(text).toContain("Vegetable\n[ ] 2 pieces Onion");
+    expect(text).toContain("Grain\n[ ] 1.5 kg Basmati Rice");
+    expect(text).toContain("Note: aged rice preferred");
+  });
+
+  it("keeps grocery print view focused on the list instead of the app dashboard", () => {
+    const printPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/grocery-lists/[id]/print/page.tsx"), "utf8");
+    const printActions = fs.readFileSync(path.join(process.cwd(), "src/components/grocery/print-grocery-list-actions.tsx"), "utf8");
+
+    expect(printPage).toContain("body aside { display: none");
+    expect(printPage).toContain("body main { min-height: auto");
+    expect(printPage).toContain("Generated {generatedDate}");
+    expect(printPage).toContain("PrintGroceryListActions");
+    expect(printActions).toContain("Print");
+    expect(printActions).toContain("window.print()");
+    expect(printPage).not.toContain("window.print");
+  });
+
+  it("shows grocery partner logos when configured on export partner cards", () => {
+    const exportPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/grocery-lists/[id]/export/page.tsx"), "utf8");
+
+    expect(exportPage).toContain("partner.logoUrl");
+    expect(exportPage).toContain("alt={`${partner.name} logo`}");
+    expect(exportPage).toContain("partner.name.slice(0, 2).toUpperCase()");
+  });
+
+  it("uses a check mark instead of a dot for checked grocery items", () => {
+    const listPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/grocery-lists/[id]/page.tsx"), "utf8");
+
+    expect(listPage).toContain("✓");
+    expect(listPage).not.toContain("block h-2.5 w-2.5 rounded-full");
   });
 
   it("creates tokenized share links with only a hash stored", async () => {
@@ -175,18 +217,20 @@ describe("grocery exports and partner foundation", () => {
 
   it("allows platform admin to manage partners and logs audit", async () => {
     mockPrisma.groceryPartner.create.mockResolvedValue({ id: "partner-1", countryCode: "US" });
+    const longLogoUrl = `https://cdn.example.com/logo.png?token=${"a".repeat(1200)}`;
 
     await upsertGroceryPartner(adminSession as never, null, {
       countryCode: "US",
       name: "Local Grocery",
       websiteUrl: "https://example.com",
+      logoUrl: longLogoUrl,
       integrationType: "manual_link",
       status: "active",
     });
 
     expect(mockPrisma.groceryPartner.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ countryCode: "US", status: "active" }),
+        data: expect.objectContaining({ countryCode: "US", status: "active", logoUrl: longLogoUrl }),
       }),
     );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "grocery_partner.created" }));

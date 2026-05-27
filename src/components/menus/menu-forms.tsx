@@ -121,14 +121,24 @@ export function MenuItemForm({
   item,
   menus,
   currencyCode,
+  currencyOptions,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   item?: MenuItemLike | null;
   menus: Array<{ id: string; name: string }>;
   currencyCode: string;
+  currencyOptions?: Array<{ value: string; label: string }>;
 }) {
   const selectedDays = new Set(item?.availability?.map((availability) => availability.dayOfWeek) ?? []);
   const allergens = Array.isArray(item?.allergensJson) ? item.allergensJson.join(", ") : "";
+  const selectedCurrencyCode = item?.currencyCode ?? currencyCode;
+  const supportedCurrencyOptions = currencyOptions?.length
+    ? currencyOptions
+    : [{ value: selectedCurrencyCode, label: selectedCurrencyCode }];
+  const hasSelectedCurrency = supportedCurrencyOptions.some((option) => option.value === selectedCurrencyCode);
+  const finalCurrencyOptions = hasSelectedCurrency
+    ? supportedCurrencyOptions
+    : [{ value: selectedCurrencyCode, label: selectedCurrencyCode }, ...supportedCurrencyOptions];
 
   return (
     <Card>
@@ -145,7 +155,13 @@ export function MenuItemForm({
           <SelectInput label="Category" name="category" defaultValue={item?.category ?? "special"} options={categoryOptions} />
           <TextInput label="Cuisine" name="cuisine" defaultValue={item?.cuisine ?? "Hyderabadi"} />
           <TextInput label="Price" name="priceAmount" type="number" step="0.01" min={0} defaultValue={item?.priceAmount ?? ""} />
-          <TextInput label="Currency" name="currencyCode" defaultValue={item?.currencyCode ?? currencyCode} required />
+          <SelectInput
+            label="Currency"
+            name="currencyCode"
+            defaultValue={selectedCurrencyCode}
+            options={finalCurrencyOptions}
+            required
+          />
           <TextInput label="Serving size" name="servingSize" defaultValue={item?.servingSize ?? ""} />
           <SelectInput label="Spice level" name="spiceLevel" defaultValue={item?.spiceLevel ?? ""} options={spiceOptions} />
           <TextInput label="Preparation time minutes" name="preparationTimeMinutes" type="number" min={0} defaultValue={item?.preparationTimeMinutes ?? ""} />
@@ -161,7 +177,7 @@ export function MenuItemForm({
             entityType="menu_item"
             entityId={item?.id}
             defaultFileId={item?.photoFileId ?? null}
-            hint="Stores the menu item image in S3 and attaches it to this dish."
+            hint="Add a clear photo that customers will see with this dish."
           />
           <TextInput label="Legacy photo URL fallback" name="photoUrl" defaultValue={item?.photoUrl ?? ""} />
           <SelectInput label="Status" name="status" defaultValue={item?.status ?? "draft"} options={itemStatusOptions} />

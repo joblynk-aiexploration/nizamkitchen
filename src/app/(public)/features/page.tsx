@@ -148,7 +148,7 @@ export default function FeaturesPage() {
         </div>
 
         <div className="mt-16 rounded-3xl bg-[linear-gradient(135deg,#10263a_0%,#0f766e_100%)] px-8 py-12 text-center text-white">
-          <h2 className="font-serif text-3xl">Start beta. No payment setup needed.</h2>
+          <h2 className="font-serif text-3xl">Sign up. No payment setup needed.</h2>
           <p className="mt-3 text-slate-200">
             Create your household account and start planning meals in beta today.
           </p>
@@ -156,7 +156,7 @@ export default function FeaturesPage() {
             href="/register"
             className="mt-6 inline-flex min-h-11 rounded-2xl bg-white px-8 py-3 text-sm font-semibold text-[#10263a] shadow-sm transition hover:bg-slate-100"
           >
-            Start beta
+            Sign up
           </Link>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { NotificationPriority, NotificationStatus, PlatformRole, Prisma } from "@prisma/client";
 import { assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { notificationPreferenceSchema } from "@/lib/validation/notifications";
 import { logError } from "@/server/observability/logger";
@@ -111,6 +112,33 @@ export async function createAdminNotification(input: Omit<NotificationInput, "us
 }
 
 export async function getNotificationInbox(session: Session, limit = 50) {
+  return prisma.notification.findMany({
+    where: notificationInboxWhere(session),
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: limit,
+  });
+}
+
+export async function getNotificationInboxPage(
+  session: Session,
+  params: { page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = notificationInboxWhere(session);
+
+  return paginatedQuery(
+    prisma.notification.count({ where }),
+    ({ skip, take }) =>
+      prisma.notification.findMany({
+        where,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        skip,
+        take,
+      }),
+    params,
+  );
+}
+
+function notificationInboxWhere(session: Session): Prisma.NotificationWhereInput {
   const organizationId = session.activeOrganization?.id ?? null;
   const platformRole = session.user.platformRole ?? null;
   const platformCountryCodes = (session.countryAssignments ?? []).map((a) => a.countryCode);
@@ -127,11 +155,7 @@ export async function getNotificationInbox(session: Session, limit = 50) {
     orClauses.push({ countryCode: { in: platformCountryCodes }, userId: null });
   }
 
-  return prisma.notification.findMany({
-    where: { OR: orClauses },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: limit,
-  });
+  return { OR: orClauses };
 }
 
 export async function getUnreadNotificationCount(session: Session): Promise<number> {

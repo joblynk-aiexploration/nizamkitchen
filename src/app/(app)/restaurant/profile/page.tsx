@@ -5,7 +5,9 @@ import { BusinessCoverUploader, ImageUploadField } from "@/components/storage/fi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
@@ -15,6 +17,7 @@ import { getStorageImageUrl } from "@/server/storage/storage-images";
 import { getBusinessProfileCompletion } from "@/server/users/profile";
 import {
   deleteRestaurantSocialLinkAction,
+  updateRestaurantProfileBasicsAction,
   updateRestaurantLocationAction,
   updateRestaurantMediaAction,
   upsertRestaurantSocialLinkAction,
@@ -22,8 +25,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function RestaurantProfilePage() {
-  const session = await requireMembership();
+export default async function RestaurantProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const [session, query] = await Promise.all([requireMembership(), searchParams]);
   if (session.activeOrganization.organizationType !== "restaurant") {
     return <EmptyState title="Restaurant only" description="Restaurant profile tools are available only for restaurant organizations." />;
   }
@@ -48,6 +55,7 @@ export default async function RestaurantProfilePage() {
         title="Restaurant profile"
         description="Manage the public profile basics households see when browsing your menu. Detailed restaurant profiles stay intentionally lightweight in this beta."
       />
+      <FormMessage message={query.message} />
       <ProfileHeader
         coverUrl={coverUrl}
         avatarUrl={logoUrl}
@@ -57,6 +65,16 @@ export default async function RestaurantProfilePage() {
         initials={initialsFromName(session.activeOrganization.name)}
       />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <form action={updateRestaurantProfileBasicsAction} className="space-y-4">
+            <h2 className="text-lg font-semibold text-[var(--color-ink)]">Restaurant details</h2>
+            <p className="text-sm text-[var(--color-muted)]">
+              Update the restaurant name shown across menus, orders, and public restaurant browsing.
+            </p>
+            <TextInput label="Restaurant name" name="name" defaultValue={session.activeOrganization.name} required />
+            <Button type="submit">Save restaurant details</Button>
+          </form>
+        </Card>
         <Card>
           <form action={updateRestaurantMediaAction} className="space-y-4">
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Restaurant images</h2>

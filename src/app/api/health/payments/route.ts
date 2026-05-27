@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [activeGateways, failedWebhooks, failedPayments, pendingRefunds] = await Promise.all([
+    const [activeGateways, failedWebhooks, failedPayments, pendingRefunds, stripeReadiness] = await Promise.all([
       prisma.paymentGateway.count({ where: { status: "active" } }),
       prisma.paymentWebhookEvent.count({ where: { status: "failed" } }),
       prisma.paymentOrder.count({ where: { status: "failed" } }),
       prisma.paymentRefund.count({ where: { status: { in: ["requested", "processing"] } } }),
+      getStripePaymentReadiness(),
     ]);
 
     return NextResponse.json({
@@ -20,7 +22,7 @@ export async function GET() {
         failedWebhooks,
         failedPayments,
         pendingRefunds,
-        stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) || activeGateways > 0,
+        stripeConfigured: stripeReadiness.configured || activeGateways > 0,
         paypalConfigured: Boolean(process.env.PAYPAL_CLIENT_ID),
       },
       timestamp: new Date().toISOString(),

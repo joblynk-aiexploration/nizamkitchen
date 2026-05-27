@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getActionErrorMessage } from "@/lib/server-action-errors";
 import { uploadAdminDropboxFile } from "@/server/storage/storage-service";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,6 @@ export async function POST(request: Request) {
     revalidatePath("/admin/dropbox/files");
     return NextResponse.redirect(new URL("/admin/dropbox/uploads?message=File uploaded.", request.url));
   } catch (error) {
-    return NextResponse.redirect(new URL(`/admin/dropbox/uploads?message=${encodeURIComponent(error instanceof Error ? error.message : "Upload failed.")}`, request.url));
+    return NextResponse.redirect(new URL(`/admin/dropbox/uploads?message=${encodeURIComponent(getActionErrorMessage(error, "Upload failed."))}`, request.url));
   }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFormattedPhoneNumber } from "@/lib/phone";
 
 const chefServiceTypeValues = [
   "daily_cooking",
@@ -58,7 +59,7 @@ export const chefProfileSchema = z.object({
   baseCity: nullableString(120).optional(),
   baseRegion: nullableString(120).optional(),
   postalCode: nullableString(40).optional(),
-  phone: nullableString(40).optional(),
+  phone: nullableString(40).optional().refine(isFormattedPhoneNumber, "Phone number must include a country code and a 10 digit number."),
   email: nullableString(180).optional(),
   submitForVerification: z.coerce.boolean().default(false),
 });

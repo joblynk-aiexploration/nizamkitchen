@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, Inbox, LayoutDashboard, Logs, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, Users, UtensilsCrossed } from "lucide-react";
-import { getPlatformNavItems, getWorkspaceNavItems } from "@/lib/navigation";
+import { BarChart3, BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, Inbox, LayoutDashboard, Logs, Mail, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, User, Users, UtensilsCrossed } from "lucide-react";
+import { getPlatformNavItems, getWorkspaceNavItems, type NavSessionLike } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const iconByHref = {
+  "/profile": User,
   "/dashboard": LayoutDashboard,
   "/recipes": BookOpen,
   "/meal-plans": CalendarDays,
@@ -53,6 +54,7 @@ const iconByHref = {
   "/restaurant/settings": Settings2,
   "/orders": ShoppingCart,
   "/admin": Shield,
+  "/admin/settings": Settings2,
   "/admin/countries": MapPinned,
   "/admin/my-countries": Shield,
   "/admin/organizations": Building2,
@@ -82,6 +84,7 @@ const iconByHref = {
   "/admin/grocery-partners": ShoppingCart,
   "/admin/system-settings": Cog,
   "/admin/support": Users,
+  "/admin/emails": Mail,
   "/admin/reports": BarChart3,
   "/admin/templates": BookOpen,
   "/admin/templates/dishes": BookOpen,
@@ -93,7 +96,7 @@ const iconByHref = {
 export function SidebarNav({
   session,
 }: {
-  session: NonNullable<Awaited<ReturnType<typeof import("@/lib/auth/session").getCurrentSession>>>;
+  session: NavSessionLike;
 }) {
   const pathname = usePathname();
   const workspaceLinks = getWorkspaceNavItems(session);

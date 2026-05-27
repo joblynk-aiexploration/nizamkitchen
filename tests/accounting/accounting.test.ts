@@ -5,10 +5,12 @@ import { Prisma } from "@prisma/client";
 const { mockPrisma, createAuditEvent } = vi.hoisted(() => ({
   mockPrisma: {
     taxConfiguration: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
-    accountingDocument: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
+    accountingDocument: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
     commissionRecord: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
     sellerSettlementReport: { findMany: vi.fn(), create: vi.fn() },
     paymentOrder: { findMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+    organization: { findMany: vi.fn() },
+    systemSetting: { findMany: vi.fn() },
   },
   createAuditEvent: vi.fn(),
 }));
@@ -20,9 +22,11 @@ import {
   exportAccountingCsv,
   generateAccountingForPaidOrders,
   generateAccountingForPaymentOrder,
+  getMemberAccountingDocument,
   listMemberAccountingDocuments,
   upsertTaxConfiguration,
 } from "@/server/accounting/accounting-service";
+import { getInvoiceBrandingSettings, renderInvoicePdf } from "@/server/accounting/invoice-document";
 
 function session(role: PlatformRole | null = "platform_owner") {
   return {
@@ -62,6 +66,8 @@ describe("accounting records", () => {
     mockPrisma.commissionRecord.create.mockImplementation(async ({ data }) => ({ id: "commission-1", createdAt: new Date(), updatedAt: new Date(), ...data }));
     mockPrisma.paymentOrder.findUniqueOrThrow.mockResolvedValue(paidOrder);
     mockPrisma.paymentOrder.findMany.mockResolvedValue([paidOrder]);
+    mockPrisma.organization.findMany.mockResolvedValue([{ id: "org-1", name: "Nizam Family Kitchen" }]);
+    mockPrisma.systemSetting.findMany.mockResolvedValue([]);
     mockPrisma.accountingDocument.findMany.mockResolvedValue([]);
     mockPrisma.commissionRecord.findMany.mockResolvedValue([]);
     mockPrisma.sellerSettlementReport.findMany.mockResolvedValue([]);
@@ -129,6 +135,75 @@ describe("accounting records", () => {
         ]),
       }),
     }));
+  });
+
+  it("member invoice detail is scoped and includes payment data for print/pdf views", async () => {
+    await getMemberAccountingDocument({ user: { id: "user-1" }, activeOrganization: { id: "org-1" } }, "invoice-1", "invoice");
+    expect(mockPrisma.accountingDocument.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: "invoice-1",
+        documentType: "invoice",
+        OR: expect.arrayContaining([
+          { organizationId: "org-1" },
+          { customerOrganizationId: "org-1" },
+          { sellerOrganizationId: "org-1" },
+        ]),
+      }),
+      include: expect.objectContaining({ paymentOrder: true }),
+    }));
+  });
+
+  it("renders branded invoice PDFs with document number and company name", () => {
+    const pdf = renderInvoicePdf({
+      id: "invoice-1",
+      documentNumber: "INV-US-20260525-ABC12345",
+      documentType: "invoice",
+      status: "issued",
+      paymentOrderId: paidOrder.id,
+      organizationId: "platform-org",
+      customerOrganizationId: "customer-org",
+      sellerOrganizationId: "seller-org",
+      countryCode: "US",
+      currencyCode: "USD",
+      subtotalAmount: new Prisma.Decimal(112),
+      taxAmount: new Prisma.Decimal(8),
+      totalAmount: new Prisma.Decimal(120),
+      platformFeeAmount: new Prisma.Decimal(12),
+      sellerAmount: new Prisma.Decimal(100),
+      pdfFileId: null,
+      issuedAt: new Date("2026-05-01T12:00:00.000Z"),
+      dueAt: null,
+      voidedAt: null,
+      metadataJson: null,
+      createdAt: new Date("2026-05-01T12:00:00.000Z"),
+      updatedAt: new Date("2026-05-01T12:00:00.000Z"),
+      paymentOrder: paidOrder as never,
+      organization: { id: "customer-org", name: "Nizam Family Kitchen", countryCode: "US", currencyCode: "USD" },
+    });
+    expect(Buffer.isBuffer(pdf)).toBe(true);
+    expect(pdf.toString("utf8", 0, 8)).toBe("%PDF-1.4");
+    const pdfText = pdf.toString("utf8");
+    expect(pdfText).toContain("NizamKitchen");
+    expect(pdfText).toContain("INVOICE");
+    expect(pdfText).toContain("INV-US-20260525-ABC12345");
+    expect(pdfText).toContain("Due on receipt");
+    expect(pdfText).toContain("Line items");
+    expect(pdfText).toContain("Invoice summary");
+    expect(pdfText).not.toContain(" | Qty ");
+  });
+
+  it("loads invoice branding overrides from platform settings", async () => {
+    mockPrisma.systemSetting.findMany.mockResolvedValue([
+      { key: "invoice.company_display_name", value: "NizamKitchen Billing" },
+      { key: "invoice.billing_address", value: "123 Market Street\nFrisco, Texas" },
+      { key: "invoice.show_zero_discount_row", value: "false" },
+    ]);
+
+    const branding = await getInvoiceBrandingSettings();
+
+    expect(branding.name).toBe("NizamKitchen Billing");
+    expect(branding.addressLines).toEqual(["123 Market Street", "Frisco, Texas"]);
+    expect(branding.showZeroDiscountRow).toBe(false);
   });
 
   it("accounting CSV exports exclude secrets and raw card data", async () => {

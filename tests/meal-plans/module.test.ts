@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockPrisma, createAuditEvent, generateGroceryList, isFeatureEnabled } = vi.hoisted(() => ({
@@ -18,6 +20,7 @@ const { mockPrisma, createAuditEvent, generateGroceryList, isFeatureEnabled } = 
       upsert: vi.fn(),
     },
     recipe: {
+      findMany: vi.fn(),
       findFirst: vi.fn(),
     },
   },
@@ -46,6 +49,7 @@ import {
   addMealPlanEntry,
   canAccessMealPlanner,
   createMealPlan,
+  createReadyMadeMealPlan,
   generateGroceryListFromMealPlan,
   updateMealPlanEntry,
   updateMealPlanPreference,
@@ -89,6 +93,74 @@ describe("meal planner server flows", () => {
     );
     expect(createAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "meal_plan.created", targetId: "plan-1" }),
+    );
+  });
+
+  it("creates a ready-made meal plan with breakfast, lunch, dinner, and occasion notes", async () => {
+    mockPrisma.recipe.findMany.mockResolvedValue([
+      {
+        id: "recipe-breakfast",
+        name: "Masala Omelet",
+        description: "Breakfast with gentle spice",
+        cuisine: { name: "Hyderabadi" },
+        dietaryTags: [],
+        ingredients: [],
+      },
+      {
+        id: "recipe-lunch",
+        name: "Khatti Dal",
+        description: "Lunch dal with rice",
+        cuisine: { name: "Hyderabadi" },
+        dietaryTags: [],
+        ingredients: [],
+      },
+      {
+        id: "recipe-occasion",
+        name: "Chicken Dum Biryani",
+        description: "Eid dinner biryani",
+        cuisine: { name: "Hyderabadi" },
+        dietaryTags: [],
+        ingredients: [],
+      },
+    ]);
+    mockPrisma.mealPlan.create.mockResolvedValue({ id: "plan-ready" });
+
+    await createReadyMadeMealPlan({
+      organizationId: "org-1",
+      countryCode: "US",
+      createdById: "user-1",
+      input: {
+        name: "Ready Hyderabadi Week",
+        startDate: "2026-05-18",
+        duration: "week",
+        householdSize: 5,
+        preferredFoods: "dal, rice",
+        weekdayPreferenceDays: ["friday"],
+        weekdayPreferenceRecipeIds: ["recipe-occasion"],
+        occasionName: "Eid dinner",
+        occasionDate: "2026-05-22",
+        occasionCulture: "Hyderabadi",
+        occasionFoods: "biryani, haleem",
+      },
+    });
+
+    const createCall = mockPrisma.mealPlan.create.mock.calls.at(-1)?.[0];
+    const generatedDays = createCall.data.days.create;
+    const friday = generatedDays.find((day: { dayLabel: string }) => day.dayLabel === "Friday");
+
+    expect(generatedDays).toHaveLength(7);
+    expect(generatedDays[0].entries.create.map((entry: { mealType: string }) => entry.mealType)).toEqual([
+      "breakfast",
+      "lunch",
+      "dinner",
+    ]);
+    expect(friday.entries.create.find((entry: { mealType: string }) => entry.mealType === "dinner")?.recipeId).toBe("recipe-occasion");
+    expect(friday.entries.create.some((entry: { notes: string | null }) => entry.notes?.includes("Selected weekday preference: Chicken Dum Biryani"))).toBe(true);
+    expect(friday.entries.create.some((entry: { notes: string | null }) => entry.notes?.includes("Occasion meal for Eid dinner"))).toBe(true);
+    expect(createCall.data.notes).toContain("Day preferences: friday: Chicken Dum Biryani");
+    expect(createCall.data.notes).toContain("Occasion: Eid dinner on 2026-05-22");
+    expect(createAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "meal_plan.ready_made_created", targetId: "plan-ready" }),
     );
   });
 
@@ -306,5 +378,35 @@ describe("meal planner server flows", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "meal_preferences.updated", targetId: "pref-1" }),
     );
+  });
+
+  it("uses a calendar grid, not day cards, on the meal plan edit page", () => {
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/meal-plans/[id]/edit/page.tsx"), "utf8");
+
+    expect(editPage).toContain("Meal calendar");
+    expect(editPage).toContain("formatMonthTitle");
+    expect(editPage).toContain("weekdayHeaders");
+    expect(editPage).toContain("Edit meal");
+    expect(editPage).toContain("lg:grid-cols-7");
+    expect(editPage).toContain("Monthly");
+    expect(editPage).not.toContain("Day card");
+    expect(editPage).not.toContain("day cards");
+  });
+
+  it("offers a ready-made plan form with household, diet, weekly, and occasion fields", () => {
+    const newPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/meal-plans/new/page.tsx"), "utf8");
+
+    expect(newPage).toContain("Ready-made meal plan");
+    expect(newPage).toContain("How many people?");
+    expect(newPage).toContain("Diet preference");
+    expect(newPage).toContain("Day-of-week preferences");
+    expect(newPage).toContain('name="weekdayPreferenceDays"');
+    expect(newPage).toContain('name="weekdayPreferenceRecipeIds"');
+    expect(newPage).toContain("Choose day");
+    expect(newPage).toContain("Choose food");
+    expect(newPage).toContain("Festival, party, or occasion");
+    expect(newPage).toContain('name="occasionDate"');
+    expect(newPage).toContain('type="date"');
+    expect(newPage).not.toContain('name="weekdayPreferences"');
   });
 });

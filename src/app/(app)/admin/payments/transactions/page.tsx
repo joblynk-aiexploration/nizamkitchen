@@ -4,24 +4,36 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { requirePlatformRole } from "@/lib/auth/session";
-import { listPaymentOrders, listPaymentTransactions } from "@/server/payments/admin";
+import { getPaymentsOverview, listPaymentOrdersPage } from "@/server/payments/admin";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaymentTransactionsPage() {
+export default async function PaymentTransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"]);
-  const [orders, transactions] = await Promise.all([listPaymentOrders(session), listPaymentTransactions(session)]);
+  const params = await searchParams;
+  const [overview, orders] = await Promise.all([
+    getPaymentsOverview(session),
+    listPaymentOrdersPage(session, { page: params.page }),
+  ]);
 
   return (
     <AdminShell session={session} title="Payment transactions" description="Review normalized payment orders and provider transaction records. Customers cannot mark payments paid from the client.">
       <section className="grid gap-4 md:grid-cols-3">
-        <Card><Metric label="Payment orders" value={orders.length} /></Card>
-        <Card><Metric label="Provider transactions" value={transactions.length} /></Card>
-        <Card><Metric label="Paid orders" value={orders.filter((order) => order.status === "paid").length} /></Card>
+        <Card><Metric label="Payment orders" value={overview.orders} /></Card>
+        <Card><Metric label="Provider transactions" value={overview.transactions} /></Card>
+        <Card><Metric label="Refunds" value={overview.refunds} /></Card>
       </section>
       <AdminDataTable
-        data={orders}
+        data={orders.items}
         emptyMessage="No payment orders yet."
+        pagination={orders.pagination}
+        paginationBasePath="/admin/payments/transactions"
+        paginationSearchParams={params}
+        paginationItemLabel="payment orders"
         columns={[
           { key: "id", header: "Order", render: (order) => <Link href={`/admin/payments/transactions/${order.id}`} className="font-semibold text-[var(--color-primary)]">{order.id.slice(0, 10)}</Link> },
           { key: "module", header: "Module", render: (order) => order.module.replace(/_/g, " ") },

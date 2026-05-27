@@ -1,9 +1,11 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { Card } from "@/components/ui/card";
+import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { DATE_FORMAT_OPTIONS, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT, TIME_FORMAT_OPTIONS } from "@/lib/date-time-formats";
 import { listLocalizationDashboard } from "@/server/localization/localization-service";
 import { saveCountryRegionalSettingAction } from "../actions";
 
@@ -49,8 +51,8 @@ export default async function LocalizationCountriesPage({
             </label>
             <TextInput label="Supported locales" name="supportedLocales" placeholder="en-US, ar-SA" hint="Comma-separated locale codes." />
             <TextInput label="Supported currencies" name="supportedCurrencyCodes" placeholder="USD, SAR" hint="Comma-separated currency codes." />
-            <TextInput label="Date format" name="dateFormat" placeholder="MM/dd/yyyy" required />
-            <TextInput label="Time format" name="timeFormat" placeholder="h:mm a" required />
+            <SelectInput label="Date format" name="dateFormat" defaultValue={DEFAULT_DATE_FORMAT} options={[...DATE_FORMAT_OPTIONS]} required />
+            <SelectInput label="Time format" name="timeFormat" defaultValue={DEFAULT_TIME_FORMAT} options={[...TIME_FORMAT_OPTIONS]} required />
             <TextArea label="Address format" name="addressFormat" placeholder="name, street, city, region, postalCode, country" className="md:col-span-2" hint="Comma-separated address fields in display order." />
             <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-slate-50 px-4 py-3 text-sm font-medium text-[var(--text-primary)]">
               <input type="checkbox" name="rtlEnabled" />

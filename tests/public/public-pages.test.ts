@@ -239,29 +239,24 @@ describe("launch content and pricing", () => {
     expect(src).toContain("Order instead");
   });
 
-  it("pricing page presents beta plans without checkout copy", async () => {
+  it("pricing page renders active database plans instead of hardcoded draft pricing", async () => {
     const fs = await import("node:fs/promises");
     const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
-    expect(src).toContain("Household Free/Starter");
-    expect(src).toContain("Family Plus");
-    expect(src).toContain("Premium Household");
-    expect(src).toContain("Chef Business");
-    expect(src).toContain("Restaurant Partner");
-    expect(src).toContain("Enterprise");
-    expect(src).toContain("Start beta");
-    expect(src).toContain("Join waitlist");
+    expect(src).toContain("listActiveBillingPlans");
+    expect(src).toContain("Only active plans approved by the Platform Owner");
+    expect(src).toContain("Draft and archived plans remain private");
+    expect(src).toContain("Sign up");
+    expect(src).toContain("Sign up free");
     expect(src).toContain("Contact us");
-    expect(src).toContain("Coming soon");
     expect(src.toLowerCase()).not.toContain("credit card required");
   });
 
-  it("pricing CTAs route to working beta, waitlist, and contact destinations", async () => {
+  it("pricing CTAs are generated from active plan slugs and safe contact destinations", async () => {
     const fs = await import("node:fs/promises");
     const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
-    expect(src).toContain('href: "/register?type=household"');
-    expect(src).toContain('href: "/register?type=chef"');
-    expect(src).toContain('href: "/register?type=restaurant"');
-    expect(src).toContain('href: "/contact?topic=enterprise"');
+    expect(src).toContain("encodeURIComponent(plan.slug)");
+    expect(src).toContain("/register?type=");
+    expect(src).toContain("/contact?topic=enterprise");
   });
 
   it("registration routes new account types to the right onboarding area", async () => {

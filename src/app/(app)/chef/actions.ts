@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { normalizePhoneFromForm } from "@/lib/phone";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
 import {
@@ -15,6 +16,10 @@ import {
   upsertChefProfile,
   upsertChefService,
 } from "@/server/chefs";
+import {
+  createChefHomeChefOrderMessage,
+  updateChefHomeChefOrderStatus,
+} from "@/server/home-chef";
 
 async function requireChefBusinessAccess() {
   const session = await requireMembership();
@@ -49,13 +54,13 @@ export async function upsertChefProfileAction(formData: FormData) {
         baseCity: formData.get("baseCity"),
         baseRegion: formData.get("baseRegion"),
         postalCode: formData.get("postalCode"),
-        phone: formData.get("phone"),
+        phone: normalizePhoneFromForm(formData),
         email: formData.get("email"),
         submitForVerification: formData.get("submitForVerification") === "on",
       },
     });
     revalidateChefPaths();
-    redirect("/chef/profile?message=Chef profile saved.");
+    redirect("/chef/profile?message=Successfully saved chef profile.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save chef profile."))}`);
@@ -83,7 +88,7 @@ export async function upsertChefServiceAction(formData: FormData) {
       },
     });
     revalidateChefPaths();
-    redirect("/chef/services?message=Chef service saved.");
+    redirect("/chef/services?message=Successfully saved chef service.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/services?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save chef service."))}`);
@@ -101,7 +106,7 @@ export async function addChefVerificationDocumentAction(formData: FormData) {
       fileId: String(formData.get("verificationDocumentFileId") ?? ""),
     });
     revalidateChefPaths();
-    redirect("/chef/profile?message=Verification document uploaded.");
+    redirect("/chef/profile?message=Successfully uploaded verification document.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to upload verification document."))}`);
@@ -122,7 +127,7 @@ export async function addChefSpecialtyAction(formData: FormData) {
       },
     });
     revalidateChefPaths();
-    redirect("/chef/profile?message=Specialty added.");
+    redirect("/chef/profile?message=Successfully added specialty.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to add specialty."))}`);
@@ -144,7 +149,7 @@ export async function upsertChefAvailabilityAction(formData: FormData) {
       },
     });
     revalidateChefPaths();
-    redirect("/chef/availability?message=Availability saved.");
+    redirect("/chef/availability?message=Successfully saved availability.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/availability?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save availability."))}`);
@@ -161,7 +166,7 @@ export async function pauseChefProfileAction(formData: FormData) {
       paused: formData.get("paused") === "true",
     });
     revalidateChefPaths();
-    redirect("/chef?message=Chef profile status updated.");
+    redirect("/chef?message=Successfully updated chef profile status.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update chef profile status."))}`);
@@ -179,7 +184,7 @@ export async function upsertChefSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateChefPaths();
-    redirect("/chef/profile?message=Social link saved.");
+    redirect("/chef/profile?message=Successfully saved social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save social link."))}`);
@@ -196,10 +201,80 @@ export async function deleteChefSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateChefPaths();
-    redirect("/chef/profile?message=Social link deleted.");
+    redirect("/chef/profile?message=Successfully deleted social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to delete social link."))}`);
+  }
+}
+
+export async function acceptChefOrderAction(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+
+  try {
+    const session = await requireChefBusinessAccess();
+    await updateChefHomeChefOrderStatus({
+      requestId,
+      chefOrganizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      status: "accepted",
+      note: String(formData.get("note") || "Accepted by chef."),
+    });
+    revalidateChefPaths();
+    revalidatePath(`/chef/requests/${requestId}`);
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/chef/requests/${requestId}?message=Order accepted.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to accept order."))}`);
+  }
+}
+
+export async function declineChefOrderAction(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+
+  try {
+    const session = await requireChefBusinessAccess();
+    await updateChefHomeChefOrderStatus({
+      requestId,
+      chefOrganizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      status: "declined",
+      note: String(formData.get("note") || "Declined by chef."),
+    });
+    revalidateChefPaths();
+    revalidatePath(`/chef/requests/${requestId}`);
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/chef/requests/${requestId}?message=Order declined.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to decline order."))}`);
+  }
+}
+
+export async function createChefOrderMessageAction(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+
+  try {
+    const session = await requireChefBusinessAccess();
+    await createChefHomeChefOrderMessage({
+      requestId,
+      chefOrganizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      actorUserId: session.user.id,
+      input: {
+        message: formData.get("message"),
+        isInternal: false,
+      },
+    });
+    revalidatePath(`/chef/requests/${requestId}`);
+    revalidatePath(`/home-chef/requests/${requestId}`);
+    redirect(`/chef/requests/${requestId}?message=Message sent.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to send message."))}`);
   }
 }
 
@@ -208,5 +283,6 @@ function revalidateChefPaths() {
   revalidatePath("/chef/profile");
   revalidatePath("/chef/services");
   revalidatePath("/chef/availability");
+  revalidatePath("/chef/requests");
   revalidatePath("/chefs");
 }

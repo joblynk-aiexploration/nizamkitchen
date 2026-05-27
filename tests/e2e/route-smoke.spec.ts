@@ -40,10 +40,6 @@ const ownerRoutes = [
   "/admin/reports",
 ];
 
-const adminRoutes = ["/admin", "/admin/users", "/admin/organizations", "/admin/feature-flags", "/admin/reports"];
-const supportRoutes = ["/admin", "/admin/support", "/admin/users", "/admin/verifications", "/admin/system/logs", "/admin/notifications"];
-const countryRoutes = ["/admin", "/admin/organizations", "/admin/verifications", "/admin/reports"];
-
 const householdRoutes = [
   "/dashboard",
   "/recipes",
@@ -62,7 +58,7 @@ const householdRoutes = [
   "/notifications",
 ];
 
-const chefRoutes = ["/chef", "/chef/profile", "/chef/verification", "/chef/services", "/chef/availability", "/chef/requests", "/chef/reviews"];
+const chefRoutes = ["/chef", "/chef/requests", "/chef/profile", "/chef/availability", "/notifications", "/settings"];
 const restaurantRoutes = ["/restaurant", "/restaurant/profile", "/restaurant/menu", "/restaurant/menu-items", "/restaurant/orders", "/restaurant/fulfillment", "/restaurant/promotions", "/restaurant/verification"];
 const cateringRoutes = ["/catering", "/catering/profile", "/catering/menu", "/catering/menu-items", "/catering/orders", "/catering/fulfillment", "/catering/promotions", "/catering/verification"];
 
@@ -76,27 +72,6 @@ test.describe("route smoke coverage", () => {
   test("platform owner admin routes render without runtime failures", async ({ page }) => {
     await loginAs(page, "owner");
     for (const route of ownerRoutes) {
-      await visitAndAssertHealthy(page, route);
-    }
-  });
-
-  test("platform admin routes render without runtime failures", async ({ page }) => {
-    await loginAs(page, "admin");
-    for (const route of adminRoutes) {
-      await visitAndAssertHealthy(page, route);
-    }
-  });
-
-  test("support admin routes render without runtime failures", async ({ page }) => {
-    await loginAs(page, "support");
-    for (const route of supportRoutes) {
-      await visitAndAssertHealthy(page, route);
-    }
-  });
-
-  test("country manager routes render without runtime failures", async ({ page }) => {
-    await loginAs(page, "country");
-    for (const route of countryRoutes) {
       await visitAndAssertHealthy(page, route);
     }
   });

@@ -2,8 +2,10 @@ import Stripe from "stripe";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { generateAccountingForPaymentOrder } from "@/server/accounting/accounting-service";
 import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { createAdminNotification } from "@/server/notifications/notification-service";
+import { notifyPaymentSucceeded } from "@/server/payments/payment-confirmation";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
 
 export async function constructStripeWebhookEvent(params: { rawBody: string; signature?: string | null; gatewayId?: string | null }) {
@@ -63,22 +65,50 @@ async function processStripeEvent(event: Stripe.Event) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const paymentOrderId = session.metadata?.paymentOrderId;
-    if (paymentOrderId) {
+    const subscriptionPaid = session.mode !== "subscription" || session.payment_status === "paid" || session.payment_status === "no_payment_required";
+    if (paymentOrderId && subscriptionPaid) {
       await markPaymentOrderPaid(paymentOrderId, {
         providerCheckoutSessionId: session.id,
         providerPaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id,
         providerCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
       });
     }
-    if (session.mode === "subscription" && session.metadata?.billingSubscriptionId) {
-      await prisma.billingSubscription.update({
-        where: { id: session.metadata.billingSubscriptionId },
-        data: {
-          provider: "stripe",
-          providerCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
-          providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
-          status: "active",
-        },
+    if (session.mode === "subscription" && session.metadata?.billingSubscriptionId && subscriptionPaid) {
+      await activateBillingSubscriptionFromStripe({
+        billingSubscriptionId: session.metadata.billingSubscriptionId,
+        providerCustomerId: stripeObjectId(session.customer),
+        providerSubscriptionId: stripeObjectId(session.subscription),
+      });
+    }
+    return;
+  }
+
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const metadata = invoiceSubscriptionMetadata(invoice);
+    const providerSubscriptionId = invoiceSubscriptionId(invoice);
+    const billingSubscription = metadata.billingSubscriptionId
+      ? await prisma.billingSubscription.findUnique({ where: { id: metadata.billingSubscriptionId } })
+      : providerSubscriptionId
+        ? await prisma.billingSubscription.findFirst({ where: { providerSubscriptionId } })
+        : null;
+    const paymentOrderId = metadata.paymentOrderId ?? billingSubscription?.paymentOrderId ?? null;
+
+    if (paymentOrderId) {
+      await markPaymentOrderPaid(paymentOrderId, {
+        providerPaymentIntentId: invoicePaymentIntentId(invoice) ?? undefined,
+        providerCustomerId: stripeObjectId(invoice.customer) ?? undefined,
+      });
+    }
+
+    const billingSubscriptionId = metadata.billingSubscriptionId ?? billingSubscription?.id ?? null;
+    if (billingSubscriptionId) {
+      await activateBillingSubscriptionFromStripe({
+        billingSubscriptionId,
+        providerCustomerId: stripeObjectId(invoice.customer),
+        providerSubscriptionId,
+        currentPeriodStart: stripeDate(invoicePeriodStart(invoice)),
+        currentPeriodEnd: stripeDate(invoicePeriodEnd(invoice)),
       });
     }
     return;
@@ -163,7 +193,12 @@ async function processStripeEvent(event: Stripe.Event) {
     const subscription = event.data.object as Stripe.Subscription;
     await prisma.billingSubscription.updateMany({
       where: { providerSubscriptionId: subscription.id },
-      data: { status: mapStripeSubscriptionStatus(subscription.status), cancelAtPeriodEnd: subscription.cancel_at_period_end },
+      data: {
+        status: mapStripeSubscriptionStatus(subscription.status),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        currentPeriodStart: stripeDate((subscription as unknown as { current_period_start?: number | null }).current_period_start),
+        currentPeriodEnd: stripeDate((subscription as unknown as { current_period_end?: number | null }).current_period_end),
+      },
     });
     return;
   }
@@ -183,6 +218,9 @@ async function processStripeEvent(event: Stripe.Event) {
 }
 
 async function markPaymentOrderPaid(paymentOrderId: string, providerIds: { providerCheckoutSessionId?: string; providerPaymentIntentId?: string; providerCustomerId?: string }) {
+  const existing = await prisma.paymentOrder.findUnique({ where: { id: paymentOrderId } });
+  if (existing?.status === "paid") return existing;
+
   const order = await prisma.paymentOrder.update({
     where: { id: paymentOrderId },
     data: { status: "paid", paidAt: new Date(), ...providerIds },
@@ -202,7 +240,86 @@ async function markPaymentOrderPaid(paymentOrderId: string, providerIds: { provi
   });
   await prisma.foodOrder.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
   await prisma.homeChefRequest.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  if (order.module === "subscription") {
+    await prisma.billingSubscription.updateMany({
+      where: { id: order.moduleEntityId },
+      data: { status: "active", currentPeriodStart: order.paidAt ?? new Date(), provider: "stripe" },
+    });
+  }
   await createAuditEvent({ action: "payment_order.paid", targetType: "payment_order", targetId: order.id, organizationId: order.organizationId, countryCode: order.countryCode });
+  await generateAccountingForPaymentOrder(order.id).catch((error) => {
+    console.error("Unable to generate accounting records for paid order", error);
+  });
+  await notifyPaymentSucceeded(order).catch((error) => {
+    console.error("Unable to send payment success notifications", error);
+  });
+
+  return order;
+}
+
+async function activateBillingSubscriptionFromStripe(params: {
+  billingSubscriptionId: string;
+  providerCustomerId?: string | null;
+  providerSubscriptionId?: string | null;
+  currentPeriodStart?: Date | null;
+  currentPeriodEnd?: Date | null;
+}) {
+  await prisma.billingSubscription.update({
+    where: { id: params.billingSubscriptionId },
+    data: {
+      provider: "stripe",
+      status: "active",
+      ...(params.providerCustomerId ? { providerCustomerId: params.providerCustomerId } : {}),
+      ...(params.providerSubscriptionId ? { providerSubscriptionId: params.providerSubscriptionId } : {}),
+      ...(params.currentPeriodStart ? { currentPeriodStart: params.currentPeriodStart } : {}),
+      ...(params.currentPeriodEnd ? { currentPeriodEnd: params.currentPeriodEnd } : {}),
+    },
+  });
+}
+
+function stripeObjectId(value: string | { id?: string | null } | null | undefined) {
+  if (typeof value === "string") return value;
+  return value?.id ?? null;
+}
+
+function invoiceSubscriptionMetadata(invoice: Stripe.Invoice) {
+  const extended = invoice as unknown as {
+    metadata?: Record<string, string> | null;
+    subscription_details?: { metadata?: Record<string, string> | null } | null;
+    parent?: { subscription_details?: { metadata?: Record<string, string> | null } | null } | null;
+  };
+  return {
+    ...(extended.metadata ?? {}),
+    ...(extended.subscription_details?.metadata ?? {}),
+    ...(extended.parent?.subscription_details?.metadata ?? {}),
+  };
+}
+
+function invoiceSubscriptionId(invoice: Stripe.Invoice) {
+  const extended = invoice as unknown as {
+    subscription?: string | { id?: string | null } | null;
+    parent?: { subscription_details?: { subscription?: string | { id?: string | null } | null } | null } | null;
+  };
+  return stripeObjectId(extended.subscription ?? extended.parent?.subscription_details?.subscription);
+}
+
+function invoicePaymentIntentId(invoice: Stripe.Invoice) {
+  const extended = invoice as unknown as { payment_intent?: string | { id?: string | null } | null };
+  return stripeObjectId(extended.payment_intent);
+}
+
+function invoicePeriodStart(invoice: Stripe.Invoice) {
+  const extended = invoice as unknown as { period_start?: number | null; lines?: { data?: Array<{ period?: { start?: number | null } | null }> } | null };
+  return extended.period_start ?? extended.lines?.data?.[0]?.period?.start ?? null;
+}
+
+function invoicePeriodEnd(invoice: Stripe.Invoice) {
+  const extended = invoice as unknown as { period_end?: number | null; lines?: { data?: Array<{ period?: { end?: number | null } | null }> } | null };
+  return extended.period_end ?? extended.lines?.data?.[0]?.period?.end ?? null;
+}
+
+function stripeDate(timestamp?: number | null) {
+  return timestamp ? new Date(timestamp * 1000) : null;
 }
 
 function mapStripeSubscriptionStatus(status: Stripe.Subscription.Status) {

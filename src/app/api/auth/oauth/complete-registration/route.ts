@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
+import { publicRedirectUrl } from "@/lib/request-origin";
 import { getCurrentSession } from "@/lib/session";
-import { completeSocialOnboarding, type SocialAccountType } from "@/server/auth/oauth-service";
+import {
+  completeSocialOnboarding,
+  getOAuthUserFacingErrorMessage,
+  type SocialAccountType,
+} from "@/server/auth/oauth-service";
 
 function normalizeAccountType(value: FormDataEntryValue | null): SocialAccountType {
   if (value === "chef" || value === "catering" || value === "restaurant") {
@@ -13,11 +18,11 @@ function normalizeAccountType(value: FormDataEntryValue | null): SocialAccountTy
 export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) {
-    return NextResponse.redirect(new URL("/login?message=Sign in first.", request.url), { status: 303 });
+    return NextResponse.redirect(publicRedirectUrl("/login?message=Sign in first.", request), { status: 303 });
   }
 
   if (session.activeMembership && session.activeOrganization) {
-    return NextResponse.redirect(new URL("/dashboard", request.url), { status: 303 });
+    return NextResponse.redirect(publicRedirectUrl("/dashboard", request), { status: 303 });
   }
 
   const formData = await request.formData();
@@ -25,7 +30,7 @@ export async function POST(request: Request) {
 
   if (!acceptLegalTerms) {
     return NextResponse.redirect(
-      new URL("/onboarding/social?message=Please accept the required legal documents.", request.url),
+      publicRedirectUrl("/onboarding/social?message=Please accept the required legal documents.", request),
       { status: 303 },
     );
   }
@@ -38,13 +43,18 @@ export async function POST(request: Request) {
       accountType: normalizeAccountType(formData.get("accountType")),
       organizationName: String(formData.get("organizationName") ?? ""),
       countryCode: String(formData.get("countryCode") ?? ""),
+      selectedPlanSlug: String(formData.get("selectedPlanSlug") ?? ""),
     });
 
-    return NextResponse.redirect(new URL(destination, request.url), { status: 303 });
+    if (destination.startsWith("https://checkout.stripe.com/")) {
+      return NextResponse.redirect(destination, { status: 303 });
+    }
+
+    return NextResponse.redirect(publicRedirectUrl(destination, request), { status: 303 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to finish social registration.";
+    const message = getOAuthUserFacingErrorMessage(error, "Unable to finish social registration.");
     return NextResponse.redirect(
-      new URL(`/onboarding/social?message=${encodeURIComponent(message)}`, request.url),
+      publicRedirectUrl(`/onboarding/social?message=${encodeURIComponent(message)}`, request),
       { status: 303 },
     );
   }

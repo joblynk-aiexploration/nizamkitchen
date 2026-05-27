@@ -25,6 +25,14 @@ describe("PWA foundation", () => {
     expect(fs.existsSync(`${repoRoot}/public/icons/nizam-maskable.svg`)).toBe(true);
     expect(read("src/app/offline/page.tsx")).toContain("NizamKitchen is waiting for a connection");
   });
+
+  it("does not leave a sticky service worker registered during local development", () => {
+    const register = read("src/components/pwa/pwa-register.tsx");
+
+    expect(register).toContain('process.env.NODE_ENV === "production"');
+    expect(register).toContain("registration.unregister()");
+    expect(register).toContain("window.location.hostname");
+  });
 });
 
 describe("mobile cooking and shopping modes", () => {

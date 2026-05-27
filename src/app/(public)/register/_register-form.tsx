@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { RecaptchaField } from "@/components/seo/recaptcha-field";
+import { FormMessage } from "@/components/ui/form-message";
+import type { VisibleSocialAuthProvider } from "@/server/auth/oauth-service";
 
 type Country = { countryCode: string; countryName: string };
 type Cuisine = { id: string; name: string };
@@ -51,6 +53,16 @@ const spiceLevels = [
   { value: "extra_hot", label: "Extra Hot" },
 ];
 
+function formatProviderList(providers: VisibleSocialAuthProvider[]) {
+  const labels = providers.map((provider) => provider.label);
+
+  if (labels.length <= 1) {
+    return labels[0] ?? "a connected account";
+  }
+
+  return `${labels.slice(0, -1).join(", ")} or ${labels[labels.length - 1]}`;
+}
+
 function Steps({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center gap-2">
@@ -70,18 +82,31 @@ export function RegisterForm({
   message,
   socialProviders,
   recaptchaSiteKey,
+  initialAccountType,
+  selectedPlanSlug,
 }: {
   countries: Country[];
   cuisines: Cuisine[];
   message?: string;
-  socialProviders: Array<{ provider: "google" | "facebook"; label: string; href: string }>;
+  socialProviders: VisibleSocialAuthProvider[];
   recaptchaSiteKey?: string | null;
+  initialAccountType?: string;
+  selectedPlanSlug?: string;
 }) {
-  const [step, setStep] = useState(1);
-  const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const startingAccountType = accountTypes.some((option) => option.type === initialAccountType) ? initialAccountType as AccountType : null;
+  const [step, setStep] = useState(startingAccountType ? 2 : 1);
+  const [accountType, setAccountType] = useState<AccountType | null>(startingAccountType);
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
+  const [cateringOperationType, setCateringOperationType] = useState<"home_caterer" | "restaurant_caterer">("home_caterer");
 
   const totalSteps = accountType === "household" ? 3 : 2;
+  const socialProviderList = formatProviderList(socialProviders);
+  const planAwareSocialProviders = selectedPlanSlug
+    ? socialProviders.map((provider) => ({
+        ...provider,
+        href: appendPlanToUrl(provider.href, selectedPlanSlug),
+      }))
+    : socialProviders;
 
   function handleStep2Submit(e: React.FormEvent<HTMLFormElement>) {
     if (accountType !== "household") return; // let native POST handle non-household
@@ -114,17 +139,9 @@ export function RegisterForm({
         <Steps current={step} total={totalSteps} />
       </div>
 
-      {message && (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {message}
-        </div>
-      )}
-
-      {step === 1 ? (
-        <div className="mt-6">
-          <SocialAuthButtons providers={socialProviders} />
-        </div>
-      ) : null}
+      <div className="mt-4">
+        <FormMessage message={message} />
+      </div>
 
       {/* ── Step 1: Account type ── */}
       {step === 1 && (
@@ -160,7 +177,28 @@ export function RegisterForm({
           className="mt-8 space-y-4"
         >
           <input type="hidden" name="accountType" value={accountType} />
+          {selectedPlanSlug ? <input type="hidden" name="selectedPlanSlug" value={selectedPlanSlug} /> : null}
           <RecaptchaField siteKey={recaptchaSiteKey} action="register" />
+
+          {socialProviders.length > 0 ? (
+            <div className="rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-[var(--color-ink)]">
+                Sign up faster with {socialProviderList}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--color-muted)]">
+                If you choose this option, your name and email come from that account. You do not need to enter an email address or create a password here.
+              </p>
+              <div className="mt-3">
+                <SocialAuthButtons providers={planAwareSocialProviders} showDivider={false} />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+            <span className="h-px flex-1 bg-[var(--color-border)]" />
+            <span>Create account with email</span>
+            <span className="h-px flex-1 bg-[var(--color-border)]" />
+          </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
@@ -175,6 +213,63 @@ export function RegisterForm({
               className="w-full rounded-xl border border-[var(--color-border)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
             />
           </div>
+
+          {accountType === "catering" ? (
+            <div className="rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4">
+              <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]" htmlFor="cateringOperationType">
+                What type of caterer are you?
+              </label>
+              <select
+                id="cateringOperationType"
+                name="cateringOperationType"
+                value={cateringOperationType}
+                onChange={(event) => setCateringOperationType(event.target.value as "home_caterer" | "restaurant_caterer")}
+                className="w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+              >
+                <option value="home_caterer">Home caterer - I cook at my place for pickup or delivery</option>
+                <option value="restaurant_caterer">Restaurant caterer - I prepare catering from a restaurant</option>
+              </select>
+              {cateringOperationType === "restaurant_caterer" ? (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                      Restaurant name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      name="restaurantName"
+                      required
+                      maxLength={180}
+                      placeholder="e.g. Nizam Biryani House"
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                      Restaurant address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      name="restaurantAddress"
+                      required
+                      maxLength={500}
+                      placeholder="Street, city, state"
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                      Restaurant license or permit number
+                    </label>
+                    <input
+                      name="restaurantLicense"
+                      maxLength={140}
+                      placeholder="Optional during signup"
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
@@ -198,6 +293,8 @@ export function RegisterForm({
               type="password"
               required
               minLength={8}
+              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,128}"
+              title="Use at least 8 characters with uppercase, lowercase, and a number."
               placeholder="Minimum 8 characters"
               className="w-full rounded-xl border border-[var(--color-border)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
             />
@@ -292,6 +389,7 @@ export function RegisterForm({
           <input type="hidden" name="password" value={step2Data.password} />
           <input type="hidden" name="organizationName" value={step2Data.organizationName} />
           <input type="hidden" name="countryCode" value={step2Data.countryCode} />
+          {selectedPlanSlug ? <input type="hidden" name="selectedPlanSlug" value={selectedPlanSlug} /> : null}
           <RecaptchaField siteKey={recaptchaSiteKey} action="register" />
 
           <p className="text-sm text-[var(--color-muted)]">
@@ -384,4 +482,15 @@ export function RegisterForm({
       )}
     </div>
   );
+}
+
+function appendPlanToUrl(href: string, selectedPlanSlug: string) {
+  try {
+    const url = new URL(href, "http://nizamkitchen.local");
+    url.searchParams.set("plan", selectedPlanSlug);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    const separator = href.includes("?") ? "&" : "?";
+    return `${href}${separator}plan=${encodeURIComponent(selectedPlanSlug)}`;
+  }
 }

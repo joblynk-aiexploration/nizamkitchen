@@ -1,12 +1,20 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import {
+  IntegrationStatus,
   IntegrationProvider,
   OAuthProvider,
   OrganizationType,
   type Prisma,
   type User,
 } from "@prisma/client";
+import {
+  getOAuthCallbackPath,
+  getOAuthCallbackUrl,
+  getSafeRedirectUrl,
+  isLocalhostUrl,
+  isProductionRuntime,
+} from "@/lib/app-url";
 import { assertUserCanAuthenticate } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { env } from "@/lib/env";
@@ -15,12 +23,21 @@ import { generateOpaqueToken } from "@/lib/security.server";
 import { createSession, getRequestMetadata } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { createAuditEvent } from "@/server/audit";
+import { getActiveBillingPlanBySlug } from "@/server/billing/plans";
 import { getActiveIntegration } from "@/server/config/platform-config-service";
 import { createAcceptance, getRequiredLegalDocumentsForUser } from "@/server/legal/legal-service";
+import { createStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 
 export type SocialAuthProvider = "google" | "facebook";
 export type SocialAuthFlow = "login" | "register";
 export type SocialAccountType = "household" | "chef" | "catering" | "restaurant";
+export type VisibleSocialAuthProvider = {
+  provider: SocialAuthProvider;
+  label: string;
+  href: string;
+  configured: boolean;
+  setupMessage?: string;
+};
 
 type OAuthProviderConfig = {
   integrationId: string;
@@ -38,7 +55,10 @@ type OAuthStatePayload = {
   state: string;
   flow: SocialAuthFlow;
   redirectTo: string | null;
+  selectedPlanSlug?: string | null;
 };
+
+type OAuthStateCookie = OAuthStatePayload | { states: OAuthStatePayload[] };
 
 type NormalizedOAuthProfile = {
   providerAccountId: string;
@@ -54,6 +74,10 @@ type LinkedOAuthUser = {
   activeOrganizationId: string | null;
   isNewUser: boolean;
   organizationCount: number;
+};
+
+type OAuthUserWithMemberships = Pick<User, "id" | "email" | "platformRole" | "status"> & {
+  memberships: Array<{ organizationId: string }>;
 };
 
 const OAUTH_STATE_COOKIE_PREFIX = "nk_oauth_state_";
@@ -87,9 +111,7 @@ function providerToIntegration(provider: SocialAuthProvider) {
 }
 
 function defaultCallbackPath(provider: SocialAuthProvider) {
-  return provider === "google"
-    ? "/api/auth/oauth/google/callback"
-    : "/api/auth/oauth/facebook/callback";
+  return getOAuthCallbackPath(provider);
 }
 
 function stateCookieName(provider: SocialAuthProvider) {
@@ -124,22 +146,90 @@ function asStringList(value: unknown) {
 }
 
 function normalizeRedirectPath(value: string | null | undefined, fallback: string | null = null) {
-  if (!value) return fallback;
-  if (!value.startsWith("/") || value.startsWith("//")) return fallback;
-  if (value.includes("\n") || value.includes("\r")) return fallback;
-  return value;
+  return getSafeRedirectUrl(value, fallback);
 }
 
-function buildCallbackUrl(provider: SocialAuthProvider, configured: unknown) {
-  if (typeof configured === "string" && configured.trim().startsWith("http")) {
-    return configured.trim();
+function normalizeSelectedPlanSlug(value: string | null | undefined) {
+  const plan = value?.trim();
+  if (!plan || plan === "free") return null;
+  return plan;
+}
+
+async function getCheckoutDestinationForPlan(params: {
+  selectedPlanSlug?: string | null;
+  organizationId: string;
+  userId: string;
+  fallbackDestination: string;
+}) {
+  const selectedPlanSlug = normalizeSelectedPlanSlug(params.selectedPlanSlug);
+  if (!selectedPlanSlug) return params.fallbackDestination;
+
+  const plan = await getActiveBillingPlanBySlug(selectedPlanSlug);
+  if (!plan || Number(plan.priceAmount) <= 0) {
+    return `/billing/plans?message=${encodeURIComponent("Your account was created, but the selected pricing plan was not found. Please choose a plan to continue.")}`;
   }
 
-  return new URL(defaultCallbackPath(provider), env.APP_URL).toString();
+  try {
+    const checkout = await createStripeSubscriptionCheckout({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      planId: plan.id,
+      appUrl: env.APP_URL,
+    });
+
+    if (checkout.checkoutUrl) {
+      return checkout.checkoutUrl;
+    }
+  } catch (error) {
+    console.error("Unable to start checkout after registration", error);
+  }
+
+  return `/billing/plans?message=${encodeURIComponent("Your account was created. Payment checkout could not start, so please choose your plan again from Billing.")}`;
+}
+
+function buildCallbackUrl(provider: SocialAuthProvider, configured: unknown, requestOrigin?: string | null) {
+  const generated = getOAuthCallbackUrl(provider, requestOrigin);
+
+  if (isProductionRuntime()) {
+    return generated;
+  }
+
+  if (typeof configured === "string" && configured.trim().startsWith("http")) {
+    try {
+      const callbackUrl = new URL(configured.trim());
+      if (callbackUrl.pathname === defaultCallbackPath(provider)) {
+        if (requestOrigin && isLocalhostUrl(callbackUrl.origin) && !isLocalhostUrl(requestOrigin)) {
+          return getOAuthCallbackUrl(provider, requestOrigin);
+        }
+        return callbackUrl.toString();
+      }
+    } catch {
+      return generated;
+    }
+  }
+
+  return generated;
+}
+
+class OAuthProviderExchangeError extends Error {
+  constructor(
+    message: string,
+    public readonly provider: SocialAuthProvider,
+    public readonly providerErrorCode?: string,
+    public readonly providerErrorDescription?: string,
+  ) {
+    super(message);
+    this.name = "OAuthProviderExchangeError";
+  }
 }
 
 function providerDisplayName(provider: SocialAuthProvider) {
   return provider === "google" ? "Google" : "Facebook";
+}
+
+function providerSetupMessage(provider: SocialAuthProvider, flow: SocialAuthFlow = "login") {
+  const action = flow === "register" ? "sign-up" : "sign-in";
+  return `${providerDisplayName(provider)} ${action} is not configured yet. Platform Owner can add the ${providerDisplayName(provider)} OAuth API in Admin > API Management.`;
 }
 
 function loginDestination(platformRole: string | null, activeOrganizationId?: string | null) {
@@ -154,21 +244,60 @@ function onboardingDestination(defaultOrganizationType: OrganizationType | null)
   return query ? `/onboarding/social?type=${query}` : "/onboarding/social";
 }
 
-async function readOAuthState(provider: SocialAuthProvider) {
+function onboardingDestinationWithPlan(
+  defaultOrganizationType: OrganizationType | null,
+  selectedPlanSlug?: string | null,
+) {
+  const destination = onboardingDestination(defaultOrganizationType);
+  const plan = normalizeSelectedPlanSlug(selectedPlanSlug);
+  if (!plan) return destination;
+
+  const url = new URL(destination, env.APP_URL);
+  url.searchParams.set("plan", plan);
+  return `${url.pathname}${url.search}`;
+}
+
+function normalizeOAuthStates(value: OAuthStateCookie | null) {
+  if (!value) return [];
+  if ("states" in value && Array.isArray(value.states)) {
+    return value.states;
+  }
+
+  if ("state" in value) {
+    return [value];
+  }
+
+  return [];
+}
+
+async function readOAuthStates(provider: SocialAuthProvider) {
   const cookieStore = await cookies();
   const raw = cookieStore.get(stateCookieName(provider))?.value;
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as OAuthStatePayload;
+    return JSON.parse(raw) as OAuthStateCookie;
   } catch {
     return null;
   }
 }
 
+async function readOAuthState(provider: SocialAuthProvider, state?: string | null) {
+  const states = normalizeOAuthStates(await readOAuthStates(provider));
+  if (!state) return states.at(-1) ?? null;
+  return states.find((payload) => payload.state === state) ?? null;
+}
+
 async function writeOAuthState(provider: SocialAuthProvider, payload: OAuthStatePayload) {
   const cookieStore = await cookies();
-  cookieStore.set(stateCookieName(provider), JSON.stringify(payload), {
+  const existingStates = normalizeOAuthStates(await readOAuthStates(provider));
+  const states = [
+    ...existingStates.filter((state) => state.state !== payload.state),
+    payload,
+  ].slice(-5);
+  const cookieValue = states.length === 1 ? states[0] : { states };
+
+  cookieStore.set(stateCookieName(provider), JSON.stringify(cookieValue), {
     httpOnly: true,
     sameSite: "lax",
     secure: env.NODE_ENV === "production",
@@ -178,8 +307,24 @@ async function writeOAuthState(provider: SocialAuthProvider, payload: OAuthState
   });
 }
 
-async function clearOAuthState(provider: SocialAuthProvider) {
+async function clearOAuthState(provider: SocialAuthProvider, state?: string | null) {
   const cookieStore = await cookies();
+  const remainingStates = normalizeOAuthStates(await readOAuthStates(provider)).filter(
+    (payload) => !state || payload.state !== state,
+  );
+
+  if (remainingStates.length) {
+    cookieStore.set(stateCookieName(provider), JSON.stringify({ states: remainingStates }), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      maxAge: OAUTH_STATE_TTL_SECONDS,
+      path: "/",
+      priority: "high",
+    });
+    return;
+  }
+
   cookieStore.set(stateCookieName(provider), "", {
     httpOnly: true,
     sameSite: "lax",
@@ -204,9 +349,56 @@ function normalizeDefaultOrganizationType(value: unknown) {
   return null;
 }
 
-export async function getOAuthProviderConfig(provider: SocialAuthProvider) {
-  const integration = await getActiveIntegration(providerToIntegration(provider));
-  if (!integration) return null;
+function getEnvOAuthProviderConfig(provider: SocialAuthProvider, requestOrigin?: string | null) {
+  const clientId = provider === "google" ? env.GOOGLE_OAUTH_CLIENT_ID : env.FACEBOOK_OAUTH_APP_ID;
+  const clientSecret =
+    provider === "google" ? env.GOOGLE_OAUTH_CLIENT_SECRET : env.FACEBOOK_OAUTH_APP_SECRET;
+  const callbackUrl =
+    provider === "google" ? env.GOOGLE_OAUTH_CALLBACK_URL : env.FACEBOOK_OAUTH_CALLBACK_URL;
+
+  if (!clientId || !clientSecret) return null;
+
+  return {
+    integrationId: `env-${provider}-oauth`,
+    provider,
+    clientId,
+    clientSecret,
+    callbackUrl: buildCallbackUrl(provider, callbackUrl, requestOrigin),
+    allowedDomains: [],
+    autoCreateUser: true,
+    loginButtonVisible: true,
+    defaultOrganizationType: null,
+  } satisfies OAuthProviderConfig;
+}
+
+export async function getOAuthProviderConfig(provider: SocialAuthProvider, requestOrigin?: string | null) {
+  const envConfig = getEnvOAuthProviderConfig(provider, requestOrigin);
+  let integration: Awaited<ReturnType<typeof getActiveIntegration>> = null;
+  const integrationProvider = providerToIntegration(provider);
+
+  try {
+    const vaultRecord = await prisma.platformIntegration.findFirst({
+      where: { provider: integrationProvider },
+      select: { id: true, status: true },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }],
+    });
+
+    if (vaultRecord && vaultRecord.status !== IntegrationStatus.active) {
+      return null;
+    }
+
+    integration = await getActiveIntegration(integrationProvider);
+
+    if (vaultRecord && !integration) {
+      return null;
+    }
+  } catch {
+    return envConfig;
+  }
+
+  if (!integration) {
+    return envConfig;
+  }
 
   const credentials = Object.fromEntries(
     integration.credentials.map((credential) => [credential.keyName, credential.value]),
@@ -221,7 +413,7 @@ export async function getOAuthProviderConfig(provider: SocialAuthProvider) {
     provider === "google" ? credentials.client_secret : credentials.app_secret;
 
   if (!clientId || !clientSecret) {
-    return null;
+    return integration ? null : envConfig;
   }
 
   return {
@@ -229,7 +421,7 @@ export async function getOAuthProviderConfig(provider: SocialAuthProvider) {
     provider,
     clientId,
     clientSecret,
-    callbackUrl: buildCallbackUrl(provider, settings.callbackUrl),
+    callbackUrl: buildCallbackUrl(provider, settings.callbackUrl, requestOrigin),
     allowedDomains: asStringList(settings.allowedDomains),
     autoCreateUser: asBoolean(settings.autoCreateUser, true),
     loginButtonVisible: asBoolean(settings.loginButtonVisible, true),
@@ -237,21 +429,67 @@ export async function getOAuthProviderConfig(provider: SocialAuthProvider) {
   } satisfies OAuthProviderConfig;
 }
 
-export async function listVisibleSocialAuthProviders(flow: SocialAuthFlow) {
+async function isOAuthProviderExplicitlyDisabled(provider: SocialAuthProvider) {
+  try {
+    const integration = await prisma.platformIntegration.findFirst({
+      where: { provider: providerToIntegration(provider) },
+      select: { status: true },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }],
+    });
+
+    return integration?.status === IntegrationStatus.disabled;
+  } catch {
+    return false;
+  }
+}
+
+export async function listVisibleSocialAuthProviders(flow: SocialAuthFlow): Promise<VisibleSocialAuthProvider[]> {
   const providers = await Promise.all([
     getOAuthProviderConfig("google"),
     getOAuthProviderConfig("facebook"),
   ]);
+  const explicitlyDisabled = await Promise.all([
+    isOAuthProviderExplicitlyDisabled("google"),
+    isOAuthProviderExplicitlyDisabled("facebook"),
+  ]);
 
-  return providers
-    .filter((config): config is OAuthProviderConfig => Boolean(config))
-    .filter((config) => config.loginButtonVisible)
-    .filter((config) => flow === "login" || config.autoCreateUser)
-    .map((config) => ({
-      provider: config.provider,
-      label: providerDisplayName(config.provider),
-      href: `/api/auth/oauth/${config.provider}/start?flow=${flow}`,
-    }));
+  return (["google", "facebook"] as const)
+    .map((provider, index) => {
+      const config = providers[index];
+      const label = providerDisplayName(provider);
+      const href = `/api/auth/oauth/${provider}/start?flow=${flow}`;
+
+      if (explicitlyDisabled[index]) return null;
+
+      if (!config) {
+        return {
+          provider,
+          label,
+          href,
+          configured: false,
+          setupMessage: providerSetupMessage(provider, flow),
+        };
+      }
+
+      if (!config.loginButtonVisible) return null;
+      if (flow === "register" && !config.autoCreateUser) {
+        return {
+          provider,
+          label,
+          href,
+          configured: false,
+          setupMessage: `${label} registration is not enabled yet. Platform Owner can enable account creation in Admin > API Management.`,
+        };
+      }
+
+      return {
+        provider: config.provider,
+        label,
+        href,
+        configured: true,
+      };
+    })
+    .filter((provider): provider is VisibleSocialAuthProvider => Boolean(provider));
 }
 
 export async function listVisibleSocialAuthProvidersSafe(flow: SocialAuthFlow) {
@@ -288,10 +526,12 @@ export async function beginOAuthFlow(params: {
   provider: SocialAuthProvider;
   flow: SocialAuthFlow;
   redirectTo?: string | null;
+  selectedPlanSlug?: string | null;
+  requestOrigin?: string | null;
 }) {
-  const config = await getOAuthProviderConfig(params.provider);
+  const config = await getOAuthProviderConfig(params.provider, params.requestOrigin);
   if (!config) {
-    throw new Error(`${providerDisplayName(params.provider)} login is not configured yet.`);
+    throw new Error(providerSetupMessage(params.provider, params.flow));
   }
 
   const state = generateOpaqueToken();
@@ -299,6 +539,7 @@ export async function beginOAuthFlow(params: {
     state,
     flow: params.flow,
     redirectTo: normalizeRedirectPath(params.redirectTo, null),
+    selectedPlanSlug: normalizeSelectedPlanSlug(params.selectedPlanSlug),
   });
 
   return buildAuthorizationUrl(config, state);
@@ -319,7 +560,16 @@ async function exchangeGoogleCode(config: OAuthProviderConfig, code: string) {
   });
 
   if (!response.ok) {
-    throw new Error("Google token exchange failed.");
+    const body = await response.json().catch(() => ({})) as {
+      error?: string;
+      error_description?: string;
+    };
+    throw new OAuthProviderExchangeError(
+      "Google could not verify this sign-in setup. Please check the saved Google OAuth client ID, client secret, and callback URL in API Management.",
+      "google",
+      body.error,
+      body.error_description,
+    );
   }
 
   return response.json() as Promise<{
@@ -336,7 +586,15 @@ async function exchangeFacebookCode(config: OAuthProviderConfig, code: string) {
 
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error("Facebook token exchange failed.");
+    const body = await response.json().catch(() => ({})) as {
+      error?: { message?: string; code?: string | number; type?: string };
+    };
+    throw new OAuthProviderExchangeError(
+      "Facebook could not verify this sign-in setup. Please check the saved Facebook app ID, app secret, and callback URL in API Management.",
+      "facebook",
+      body.error?.code ? `${body.error.code}` : body.error?.type,
+      body.error?.message,
+    );
   }
 
   return response.json() as Promise<{
@@ -426,10 +684,28 @@ function providerCanLinkExistingUser(provider: SocialAuthProvider, profile: Norm
   return profile.emailVerified;
 }
 
+async function recoverIncompleteSocialSignup(user: OAuthUserWithMemberships) {
+  if (user.status !== "disabled" || user.platformRole || user.memberships.length > 0) {
+    return user;
+  }
+
+  return prisma.user.update({
+    where: { id: user.id },
+    data: { status: "active" },
+    include: {
+      memberships: {
+        where: { status: "active" },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+}
+
 async function linkOrCreateOAuthUser(params: {
   provider: SocialAuthProvider;
   config: OAuthProviderConfig;
   profile: NormalizedOAuthProfile;
+  flow: SocialAuthFlow;
 }): Promise<LinkedOAuthUser> {
   const existingAccount = await prisma.oAuthAccount.findUnique({
     where: {
@@ -451,6 +727,17 @@ async function linkOrCreateOAuthUser(params: {
   });
 
   if (existingAccount) {
+    const accountUser =
+      params.flow === "register"
+        ? await recoverIncompleteSocialSignup(existingAccount.user)
+        : existingAccount.user;
+
+    if (accountUser.status !== "active") {
+      throw new Error(
+        `${providerDisplayName(params.provider)} found an existing account, but that account is currently ${accountUser.status}. Ask the Platform Owner to reactivate it, or sign up with a different email address.`,
+      );
+    }
+
     await prisma.oAuthAccount.update({
       where: { id: existingAccount.id },
       data: {
@@ -463,10 +750,10 @@ async function linkOrCreateOAuthUser(params: {
     });
 
     return {
-      user: existingAccount.user,
-      activeOrganizationId: existingAccount.user.memberships[0]?.organizationId ?? null,
+      user: accountUser,
+      activeOrganizationId: accountUser.memberships[0]?.organizationId ?? null,
       isNewUser: false,
-      organizationCount: existingAccount.user.memberships.length,
+      organizationCount: accountUser.memberships.length,
     };
   }
 
@@ -489,13 +776,24 @@ async function linkOrCreateOAuthUser(params: {
   });
 
   if (existingUser) {
+    const accountUser =
+      params.flow === "register"
+        ? await recoverIncompleteSocialSignup(existingUser)
+        : existingUser;
+
+    if (accountUser.status !== "active") {
+      throw new Error(
+        `${providerDisplayName(params.provider)} found an existing account for ${params.profile.email}, but that account is currently ${accountUser.status}. Ask the Platform Owner to reactivate it, or sign up with a different email address.`,
+      );
+    }
+
     if (!providerCanLinkExistingUser(params.provider, params.profile)) {
       throw new Error("Use your existing password sign-in first, then ask an admin to link this account.");
     }
 
     const linkedAccount = await prisma.oAuthAccount.create({
       data: {
-        userId: existingUser.id,
+        userId: accountUser.id,
         provider: params.provider as OAuthProvider,
         providerAccountId: params.profile.providerAccountId,
         email: params.profile.email,
@@ -507,8 +805,8 @@ async function linkOrCreateOAuthUser(params: {
     });
 
     await createAuditEvent({
-      actorUserId: existingUser.id,
-      organizationId: existingUser.memberships[0]?.organizationId ?? null,
+      actorUserId: accountUser.id,
+      organizationId: accountUser.memberships[0]?.organizationId ?? null,
       action: "user.oauth_linked",
       targetType: "oauth_account",
       targetId: linkedAccount.id,
@@ -520,10 +818,10 @@ async function linkOrCreateOAuthUser(params: {
     });
 
     return {
-      user: existingUser,
-      activeOrganizationId: existingUser.memberships[0]?.organizationId ?? null,
+      user: accountUser,
+      activeOrganizationId: accountUser.memberships[0]?.organizationId ?? null,
       isNewUser: false,
-      organizationCount: existingUser.memberships.length,
+      organizationCount: accountUser.memberships.length,
     };
   }
 
@@ -537,6 +835,7 @@ async function linkOrCreateOAuthUser(params: {
       email: params.profile.email,
       fullName: params.profile.displayName ?? params.profile.email.split("@")[0] ?? "NizamKitchen User",
       passwordHash,
+      status: "active",
       oauthAccounts: {
         create: {
           provider: params.provider as OAuthProvider,
@@ -571,30 +870,34 @@ async function createOAuthFailureAudit(action: string, details: Prisma.InputJson
 export async function finishOAuthCallback(params: {
   provider: SocialAuthProvider;
   requestUrl: string;
+  requestOrigin?: string | null;
 }) {
   const url = new URL(params.requestUrl);
   const stateParam = url.searchParams.get("state");
   const code = url.searchParams.get("code");
   const providerError = url.searchParams.get("error");
 
-  const savedState = await readOAuthState(params.provider);
-  await clearOAuthState(params.provider);
+  const savedState = await readOAuthState(params.provider, stateParam);
 
   if (!savedState || !stateParam || savedState.state !== stateParam) {
     await createOAuthFailureAudit("user.oauth_failed", {
       provider: params.provider,
       reason: "invalid_state",
     });
-    throw new Error("OAuth state verification failed.");
+    throw new Error(
+      `${providerDisplayName(params.provider)} sign-in could not be verified. Please start again from the sign-in or sign-up page in the same browser.`,
+    );
   }
 
-  const config = await getOAuthProviderConfig(params.provider);
+  await clearOAuthState(params.provider, stateParam);
+
+  const config = await getOAuthProviderConfig(params.provider, params.requestOrigin);
   if (!config) {
     await createOAuthFailureAudit("user.oauth_failed", {
       provider: params.provider,
       reason: "provider_not_configured",
     });
-    throw new Error(`${providerDisplayName(params.provider)} login is not configured yet.`);
+    throw new Error(providerSetupMessage(params.provider));
   }
 
   if (providerError) {
@@ -622,11 +925,15 @@ export async function finishOAuthCallback(params: {
       provider: params.provider,
       config,
       profile,
+      flow: savedState.flow,
     });
   } catch (error) {
     await createOAuthFailureAudit("user.oauth_failed", {
       provider: params.provider,
       reason: error instanceof Error ? error.message : "oauth_processing_failed",
+      providerErrorCode: error instanceof OAuthProviderExchangeError ? error.providerErrorCode : undefined,
+      providerErrorDescription: error instanceof OAuthProviderExchangeError ? error.providerErrorDescription : undefined,
+      callbackUrlHost: new URL(config.callbackUrl).host,
     });
     throw error;
   }
@@ -663,7 +970,7 @@ export async function finishOAuthCallback(params: {
   });
 
   if (result.organizationCount === 0 && !result.user.platformRole) {
-    return onboardingDestination(config.defaultOrganizationType);
+    return onboardingDestinationWithPlan(config.defaultOrganizationType, savedState.selectedPlanSlug);
   }
 
   const redirectTo = normalizeRedirectPath(savedState.redirectTo, null);
@@ -681,6 +988,7 @@ export async function completeSocialOnboarding(params: {
   accountType: SocialAccountType;
   organizationName: string;
   countryCode: string;
+  selectedPlanSlug?: string | null;
 }) {
   const fullName = params.fullName.trim();
   const organizationName = params.organizationName.trim();
@@ -749,6 +1057,19 @@ export async function completeSocialOnboarding(params: {
           weeklyCookingDays: [],
         },
       });
+    } else if (organizationType === OrganizationType.chef_business) {
+      await tx.chefProfile.create({
+        data: {
+          organizationId: createdOrganization.id,
+          countryCode: country.countryCode,
+          displayName: organizationName,
+          slug: `${slugify(organizationName)}-${Math.random().toString(36).slice(2, 8)}`,
+          bio: "New chef profile. Add your specialties, service area, and verification details before going public.",
+          languages: [],
+          specialties: [],
+          email: updatedUser.email,
+        },
+      });
     } else if (organizationType === OrganizationType.home_catering) {
       await tx.homeCateringProfile.create({
         data: {
@@ -810,7 +1131,12 @@ export async function completeSocialOnboarding(params: {
     ),
   );
 
-  return POST_REGISTER_DESTINATION[params.accountType] ?? "/dashboard";
+  return getCheckoutDestinationForPlan({
+    selectedPlanSlug: params.selectedPlanSlug,
+    organizationId: organization.id,
+    userId: user.id,
+    fallbackDestination: POST_REGISTER_DESTINATION[params.accountType] ?? "/dashboard",
+  });
 }
 
 export function createOAuthStatePayload(flow: SocialAuthFlow, redirectTo?: string | null) {
@@ -823,4 +1149,32 @@ export function createOAuthStatePayload(flow: SocialAuthFlow, redirectTo?: strin
 
 export function verifyOAuthStatePayload(saved: OAuthStatePayload | null, state: string | null) {
   return Boolean(saved && state && saved.state === state);
+}
+
+export function getOAuthUserFacingErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+
+  if (
+    /can't reach database|database server|prisma|p1001|invocation/i.test(message)
+  ) {
+    return "Database unavailable. Please start PostgreSQL, then try social sign-in again.";
+  }
+
+  if (/user account is not active/i.test(message)) {
+    return "This account is not active yet. Ask the Platform Owner to reactivate it, or sign up with a different email address.";
+  }
+
+  if (error instanceof OAuthProviderExchangeError) {
+    if (/redirect_uri|redirect uri|redirect/i.test(error.providerErrorDescription ?? error.providerErrorCode ?? "")) {
+      return `${providerDisplayName(error.provider)} rejected the callback URL. In Google/Facebook developer settings, add the exact production callback URL shown in Admin > API Management, then try again.`;
+    }
+
+    if (/client|secret|unauthorized|invalid_client/i.test(error.providerErrorDescription ?? error.providerErrorCode ?? "")) {
+      return `${providerDisplayName(error.provider)} rejected the saved OAuth credentials. Please re-save the client ID and client secret in Admin > API Management.`;
+    }
+
+    return error.message;
+  }
+
+  return message;
 }

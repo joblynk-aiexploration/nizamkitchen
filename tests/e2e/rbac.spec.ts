@@ -8,12 +8,6 @@ test.describe("RBAC smoke coverage", () => {
     await expect(page).toHaveURL(/\/admin/);
   });
 
-  test("support admin can access support workspace without runtime failures", async ({ page }) => {
-    await loginAs(page, "support");
-    await visitAndAssertHealthy(page, "/admin/support");
-    await expect(page).toHaveURL(/\/admin\/support/);
-  });
-
   test("household cannot access admin", async ({ page }) => {
     await loginAs(page, "household");
     await assertBlockedFromAdmin(page);

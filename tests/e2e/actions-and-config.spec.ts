@@ -8,6 +8,27 @@ test.describe("critical button and optional configuration smoke coverage", () =>
     await assertHealthyPage(page);
   });
 
+  test("public website keeps authenticated session and links back to the right dashboard", async ({ page }) => {
+    await loginAs(page, "owner");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await assertHealthyPage(page);
+
+    await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveAttribute("href", "/admin");
+    await expect(page.getByRole("link", { name: /^sign in$/i })).toHaveCount(0);
+    await page.getByRole("link", { name: /^dashboard$/i }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+    await assertHealthyPage(page);
+
+    await logout(page);
+    await loginAs(page, "household");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await assertHealthyPage(page);
+
+    await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveAttribute("href", "/dashboard");
+  });
+
   test("platform owner can view key admin pages and attempt feature flag creation", async ({ page }) => {
     await loginAs(page, "owner");
     await visitAndAssertHealthy(page, "/admin/users");

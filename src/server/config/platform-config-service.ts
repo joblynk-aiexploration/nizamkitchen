@@ -1,5 +1,6 @@
 import {
   IntegrationCategory,
+  IntegrationEnvironment,
   IntegrationProvider,
   IntegrationStatus,
   IntegrationTestStatus,
@@ -8,7 +9,13 @@ import {
   type Prisma,
   type UserStatus,
 } from "@prisma/client";
+import { getOAuthCallbackPath, getOAuthCallbackUrl, isLocalhostUrl, isProductionRuntime } from "@/lib/app-url";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { env } from "@/lib/env";
+import {
+  providerRequiredCredentialKeys,
+  providerRequiredSettingKeys,
+} from "@/lib/integrations/provider-fields";
 import { prisma } from "@/lib/prisma";
 import {
   normalizeSettingValue,
@@ -18,6 +25,7 @@ import {
   platformIntegrationTestSchema,
 } from "@/lib/validation/platform-config";
 import { createAuditEvent } from "@/server/audit";
+import { loadNodemailer } from "@/server/email/nodemailer-loader";
 import {
   decryptGatewayCredential,
   encryptGatewayCredential,
@@ -210,16 +218,20 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
   smtp: {
     provider: "smtp",
     category: "email",
-    displayName: "SMTP",
-    description: "SMTP host, credentials, and from address for transactional email.",
+    displayName: "SMTP email provider",
+    description: "SMTP host, credentials, sender identity, and active/backup priority for transactional email.",
     publicCredentialKeys: [],
     serverCredentialKeys: ["username", "password"],
     settings: [
-      { key: "host", description: "SMTP host.", example: "smtp.mailgun.org" },
+      { key: "host", description: "SMTP host.", example: "email-smtp.us-east-2.amazonaws.com" },
       { key: "port", description: "SMTP port.", example: "587" },
-      { key: "fromEmail", description: "Default sender address.", example: "hello@nizamkitchen.dev" },
+      { key: "secure", description: "Use TLS from connection start. Usually false for port 587 and true for 465.", example: "false" },
+      { key: "fromEmail", description: "Default sender address.", example: "info@example.com" },
+      { key: "fromName", description: "Default sender name.", example: "NizamKitchen" },
+      { key: "deliveryMode", description: "active sends first; passive is used as fallback only.", example: "active" },
+      { key: "priority", description: "Lower number is tried first among active providers.", example: "1" },
     ],
-    supportedTestTypes: ["smtp_placeholder"],
+    supportedTestTypes: ["smtp_config", "smtp_connection"],
   },
   stripe: {
     provider: "stripe",
@@ -550,6 +562,226 @@ export async function savePlatformIntegration(session: AdminSession, input: unkn
   return integration;
 }
 
+export async function deletePlatformIntegration(session: AdminSession, id: string) {
+  assertPlatformRole(session.user.platformRole, MANAGE_ROLES);
+
+  const integration = await prisma.platformIntegration.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      provider: true,
+      category: true,
+      displayName: true,
+      countryCode: true,
+      environment: true,
+    },
+  });
+
+  if (!integration) {
+    throw new Error("Integration not found.");
+  }
+
+  await prisma.platformIntegration.delete({ where: { id: integration.id } });
+
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    countryCode: integration.countryCode,
+    action: "platform_integration.deleted_or_archived",
+    targetType: "platform_integration",
+    targetId: integration.id,
+    details: {
+      provider: integration.provider,
+      category: integration.category,
+      displayName: integration.displayName,
+      environment: integration.environment,
+    },
+  });
+
+  return integration;
+}
+
+export async function setOAuthIntegrationSignInAvailability(
+  session: AdminSession,
+  id: string,
+  enabled: boolean,
+) {
+  assertPlatformRole(session.user.platformRole, MANAGE_ROLES);
+
+  const integration = await prisma.platformIntegration.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      provider: true,
+      category: true,
+      displayName: true,
+      countryCode: true,
+      environment: true,
+    },
+  });
+
+  if (!integration) {
+    throw new Error("Integration not found.");
+  }
+
+  if (integration.provider !== IntegrationProvider.google_oauth && integration.provider !== IntegrationProvider.facebook_oauth) {
+    throw new Error("Only social sign-in APIs can be enabled or disabled here.");
+  }
+
+  const updated = await prisma.platformIntegration.update({
+    where: { id: integration.id },
+    data: {
+      status: enabled ? IntegrationStatus.active : IntegrationStatus.disabled,
+      updatedById: session.user.id,
+      settings: {
+        upsert: {
+          where: {
+            integrationId_settingKey: {
+              integrationId: integration.id,
+              settingKey: "loginButtonVisible",
+            },
+          },
+          update: {
+            settingValueJson: enabled,
+            isSecret: false,
+          },
+          create: {
+            settingKey: "loginButtonVisible",
+            settingValueJson: enabled,
+            isSecret: false,
+          },
+        },
+      },
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    countryCode: integration.countryCode,
+    action: enabled ? "oauth_provider.enabled" : "oauth_provider.disabled",
+    targetType: "platform_integration",
+    targetId: integration.id,
+    details: {
+      provider: integration.provider,
+      category: integration.category,
+      displayName: integration.displayName,
+      environment: integration.environment,
+      loginButtonVisible: enabled,
+    },
+  });
+
+  return updated;
+}
+
+export async function importOAuthIntegrationFromEnv(
+  session: AdminSession,
+  provider: IntegrationProvider,
+) {
+  assertPlatformRole(session.user.platformRole, MANAGE_ROLES);
+  if (provider !== IntegrationProvider.google_oauth && provider !== IntegrationProvider.facebook_oauth) {
+    throw new Error("Only Google OAuth and Facebook OAuth can be imported from OAuth environment variables.");
+  }
+
+  const template = getIntegrationTemplate(provider);
+  const isGoogle = provider === IntegrationProvider.google_oauth;
+  const clientId = isGoogle ? env.GOOGLE_OAUTH_CLIENT_ID : env.FACEBOOK_OAUTH_APP_ID;
+  const clientSecret = isGoogle ? env.GOOGLE_OAUTH_CLIENT_SECRET : env.FACEBOOK_OAUTH_APP_SECRET;
+  const callbackUrl =
+    (isGoogle ? env.GOOGLE_OAUTH_CALLBACK_URL : env.FACEBOOK_OAUTH_CALLBACK_URL) ||
+    getOAuthCallbackUrl(isGoogle ? "google" : "facebook");
+
+  if (!clientId || !clientSecret) {
+    throw new Error(`Add ${template.displayName} client ID and client secret to the running environment first.`);
+  }
+
+  const existing = await prisma.platformIntegration.findFirst({
+    where: { provider, isGlobal: true },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+  });
+
+  const integration = await savePlatformIntegration(session, {
+    id: existing?.id,
+    provider,
+    category: template.category,
+    displayName: template.displayName,
+    description: template.description,
+    status: IntegrationStatus.active,
+    environment: IntegrationEnvironment.development,
+    countryCode: "",
+    region: "",
+    isGlobal: true,
+    isDefault: true,
+  });
+
+  await savePlatformIntegrationCredential(session, {
+    integrationId: integration.id,
+    keyName: isGoogle ? "client_id" : "app_id",
+    secretValue: clientId,
+    isPublicClientValue: true,
+  });
+  await savePlatformIntegrationCredential(session, {
+    integrationId: integration.id,
+    keyName: isGoogle ? "client_secret" : "app_secret",
+    secretValue: clientSecret,
+    isPublicClientValue: false,
+  });
+
+  await Promise.all([
+    savePlatformIntegrationSetting(session, {
+      integrationId: integration.id,
+      settingKey: "callbackUrl",
+      settingValueText: callbackUrl,
+    }),
+    savePlatformIntegrationSetting(session, {
+      integrationId: integration.id,
+      settingKey: "autoCreateUser",
+      settingValueText: "true",
+    }),
+    savePlatformIntegrationSetting(session, {
+      integrationId: integration.id,
+      settingKey: "loginButtonVisible",
+      settingValueText: "true",
+    }),
+    savePlatformIntegrationSetting(session, {
+      integrationId: integration.id,
+      settingKey: "defaultOrganizationType",
+      settingValueText: "household",
+    }),
+  ]);
+
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    action: "platform_integration.credential_rotated",
+    targetType: "platform_integration",
+    targetId: integration.id,
+    details: {
+      provider,
+      source: "environment_import",
+      secretValuesLogged: false,
+    },
+  });
+
+  return integration;
+}
+
+export async function getIntegrationReadiness(session: AdminSession, id: string) {
+  const integration = await getPlatformIntegration(session, id);
+  const template = getIntegrationTemplate(integration.provider);
+  const credentialKeys = new Set(integration.credentials.map((credential) => credential.keyName));
+  const settingKeys = new Set(integration.settings.map((setting) => setting.settingKey));
+  const requiredCredentialKeys = providerRequiredCredentialKeys(integration.provider);
+  const requiredSettingKeys = providerRequiredSettingKeys(integration.provider);
+
+  return {
+    integration,
+    template,
+    missingCredentialKeys: requiredCredentialKeys.filter((key) => !credentialKeys.has(key)),
+    missingSettingKeys: requiredSettingKeys.filter((key) => !settingKeys.has(key)),
+    savedCredentialKeys: requiredCredentialKeys.filter((key) => credentialKeys.has(key)),
+    suggestedSettingKeys: template.settings.map((setting) => setting.key),
+    savedSettingKeys: template.settings.map((setting) => setting.key).filter((key) => settingKeys.has(key)),
+  };
+}
+
 export async function savePlatformIntegrationCredential(session: AdminSession, input: unknown) {
   assertPlatformRole(session.user.platformRole, SECRET_ROLES);
   if (!isPaymentEncryptionConfigured()) {
@@ -706,6 +938,32 @@ export async function getActiveIntegration(provider: IntegrationProvider, countr
   return integration ? redactIntegrationForServer(integration) : null;
 }
 
+export async function listActiveSmtpIntegrations(countryCode?: string | null) {
+  const integrations = await prisma.platformIntegration.findMany({
+    where: {
+      provider: IntegrationProvider.smtp,
+      status: IntegrationStatus.active,
+      OR: countryCode ? [{ countryCode: countryCode.toUpperCase() }, { isGlobal: true }, { countryCode: null }] : undefined,
+    },
+    include: {
+      credentials: true,
+      settings: true,
+    },
+    orderBy: [{ isDefault: "desc" }, { isGlobal: "desc" }, { createdAt: "asc" }],
+  });
+
+  return integrations
+    .map(redactIntegrationForServer)
+    .sort((left, right) => {
+      const leftMode = getServerSetting(left, "deliveryMode", "active");
+      const rightMode = getServerSetting(right, "deliveryMode", "active");
+      const leftPriority = Number(getServerSetting(left, "priority", 100));
+      const rightPriority = Number(getServerSetting(right, "priority", 100));
+      if (leftMode !== rightMode) return leftMode === "active" ? -1 : 1;
+      return leftPriority - rightPriority;
+    });
+}
+
 export async function getCredential(integrationId: string, keyName: string) {
   const credential = await prisma.platformIntegrationCredential.findUnique({
     where: {
@@ -792,7 +1050,7 @@ export async function runPlatformIntegrationTest(session: AdminSession, input: u
     assertCountryAccess(session as never, integration.countryCode);
   }
 
-  const result = buildTestResult(integration, parsed.testType);
+  const result = await buildTestResult(integration, parsed.testType);
   const log = await prisma.platformIntegrationTestLog.create({
     data: {
       integrationId: integration.id,
@@ -830,7 +1088,7 @@ export async function runPlatformIntegrationTest(session: AdminSession, input: u
   return log;
 }
 
-function buildTestResult(
+async function buildTestResult(
   integration: PlatformIntegration & {
     credentials: Array<{ keyName: string; encryptedValue: string; isPublicClientValue: boolean }>;
     settings: Array<{ settingKey: string; settingValueJson: Prisma.JsonValue; isSecret: boolean }>;
@@ -839,9 +1097,18 @@ function buildTestResult(
 ) {
   const settings = Object.fromEntries(integration.settings.map((setting) => [setting.settingKey, setting.settingValueJson]));
   const credentialKeys = new Set(integration.credentials.map((credential) => credential.keyName));
+  const settingKeys = new Set(integration.settings.map((setting) => setting.settingKey));
   const template = getIntegrationTemplate(integration.provider);
-  const requiredKeys = [...template.publicCredentialKeys, ...template.serverCredentialKeys];
+  const requiredKeys = providerRequiredCredentialKeys(integration.provider);
+  const requiredSettingKeys = providerRequiredSettingKeys(integration.provider);
   const missingKeys = requiredKeys.filter((key) => !credentialKeys.has(key));
+  const missingSettings = requiredSettingKeys.filter((key) => !settingKeys.has(key));
+  const expectedOAuthCallbackPath =
+    integration.provider === IntegrationProvider.google_oauth
+      ? getOAuthCallbackPath("google")
+      : integration.provider === IntegrationProvider.facebook_oauth
+        ? getOAuthCallbackPath("facebook")
+        : null;
 
   if (integration.status !== IntegrationStatus.active) {
     return {
@@ -859,6 +1126,63 @@ function buildTestResult(
     };
   }
 
+  if (missingSettings.length > 0) {
+    return {
+      status: IntegrationTestStatus.failed,
+      message: `Missing settings: ${missingSettings.join(", ")}.`,
+      metadata: { provider: integration.provider, testType, missingSettings },
+    };
+  }
+
+  if (testType === "oauth_config" && expectedOAuthCallbackPath) {
+    const callbackUrl = typeof settings.callbackUrl === "string" ? settings.callbackUrl : "";
+    if (!callbackUrl) {
+      return {
+        status: IntegrationTestStatus.failed,
+        message: `Add the OAuth callback URL ending in ${expectedOAuthCallbackPath}.`,
+        metadata: { provider: integration.provider, testType, expectedCallbackPath: expectedOAuthCallbackPath },
+      };
+    }
+
+    try {
+      const parsedCallbackUrl = new URL(callbackUrl);
+      if (
+        expectedOAuthCallbackPath &&
+        isProductionRuntime() &&
+        isLocalhostUrl(parsedCallbackUrl.toString())
+      ) {
+        return {
+          status: IntegrationTestStatus.failed,
+          message: "Production OAuth callback points to localhost. Configure APP_URL=https://nk.friscodawah.org and use the generated production callback URL.",
+          metadata: {
+            provider: integration.provider,
+            testType,
+            expectedCallbackPath: expectedOAuthCallbackPath,
+            configuredHost: parsedCallbackUrl.host,
+          },
+        };
+      }
+      if (parsedCallbackUrl.pathname !== expectedOAuthCallbackPath) {
+        return {
+          status: IntegrationTestStatus.failed,
+          message: `OAuth callback URL must end in ${expectedOAuthCallbackPath}. Do not use the /start URL as the callback.`,
+          metadata: {
+            provider: integration.provider,
+            testType,
+            expectedCallbackPath: expectedOAuthCallbackPath,
+            configuredPath: parsedCallbackUrl.pathname,
+          },
+        };
+      }
+    } catch {
+      return {
+        status: IntegrationTestStatus.failed,
+        message: "OAuth callback URL must be a full URL, such as http://localhost:3000/api/auth/oauth/google/callback.",
+        metadata: { provider: integration.provider, testType, expectedCallbackPath: expectedOAuthCallbackPath },
+      };
+    }
+  }
+
   if (integration.provider === IntegrationProvider.aws_s3) {
     return {
       status: IntegrationTestStatus.success,
@@ -868,10 +1192,29 @@ function buildTestResult(
   }
 
   if (integration.provider === IntegrationProvider.smtp) {
+    const missingSettings = ["host", "port", "fromEmail"].filter((key) => !settings[key]);
+    if (missingSettings.length > 0) {
+      return {
+        status: IntegrationTestStatus.failed,
+        message: `Missing SMTP settings: ${missingSettings.join(", ")}.`,
+        metadata: { provider: integration.provider, testType, missingSettings },
+      };
+    }
+
+    if (testType === "smtp_connection") {
+      const connectionResult = await testSmtpConnection(integration, settings);
+      return connectionResult;
+    }
+
     return {
       status: IntegrationTestStatus.success,
-      message: "SMTP settings are present. Safe send verification is still a placeholder from this vault page.",
-      metadata: { provider: integration.provider, hostConfigured: Boolean(settings.host) },
+      message: "SMTP settings are present. Run Test smtp connection to verify the host, port, username, and password.",
+      metadata: {
+        provider: integration.provider,
+        hostConfigured: Boolean(settings.host),
+        fromEmailConfigured: Boolean(settings.fromEmail),
+        deliveryMode: settings.deliveryMode ?? "active",
+      },
     };
   }
 
@@ -888,6 +1231,77 @@ function buildTestResult(
     message: "Configuration saved and validated. Provider-specific live test hooks are ready for future adapters.",
     metadata: { provider: integration.provider, testType },
   };
+}
+
+async function testSmtpConnection(
+  integration: PlatformIntegration & {
+    credentials: Array<{ keyName: string; encryptedValue: string; isPublicClientValue: boolean }>;
+  },
+  settings: Record<string, Prisma.JsonValue>,
+) {
+  const nodemailer = loadNodemailer();
+  const username = decryptIntegrationCredential(integration, "username");
+  const password = decryptIntegrationCredential(integration, "password");
+  const host = String(settings.host ?? "");
+  const port = Number(settings.port ?? 587);
+  const secure = settings.secure === true || settings.secure === "true" || port === 465;
+
+  if (!nodemailer) {
+    return {
+      status: IntegrationTestStatus.failed,
+      message: "SMTP testing is not available on this server. Install dependencies and rebuild the app, then try again.",
+      metadata: { provider: integration.provider, testType: "smtp_connection", hostConfigured: Boolean(host) },
+    };
+  }
+
+  if (!username || !password || !host || !Number.isFinite(port)) {
+    return {
+      status: IntegrationTestStatus.failed,
+      message: "SMTP host, port, username, and password are required before testing.",
+      metadata: { provider: integration.provider, testType: "smtp_connection", hostConfigured: Boolean(host) },
+    };
+  }
+
+  try {
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user: username, pass: password },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
+    });
+    await transport.verify();
+    transport.close();
+    return {
+      status: IntegrationTestStatus.success,
+      message: "SMTP connection verified successfully.",
+      metadata: { provider: integration.provider, testType: "smtp_connection", host, port, secure },
+    };
+  } catch {
+    return {
+      status: IntegrationTestStatus.failed,
+      message: "SMTP connection failed. Check host, port, username, password, TLS mode, and provider account status.",
+      metadata: { provider: integration.provider, testType: "smtp_connection", host, port, secure },
+    };
+  }
+}
+
+function decryptIntegrationCredential(
+  integration: { credentials: Array<{ keyName: string; encryptedValue: string }> },
+  keyName: string,
+) {
+  const credential = integration.credentials.find((item) => item.keyName === keyName);
+  return credential ? decryptGatewayCredential(credential.encryptedValue) : null;
+}
+
+function getServerSetting(
+  integration: { settings: Array<{ settingKey: string; settingValueJson: Prisma.JsonValue }> },
+  keyName: string,
+  fallback: string | number,
+) {
+  return integration.settings.find((setting) => setting.settingKey === keyName)?.settingValueJson ?? fallback;
 }
 
 function chooseBestIntegration(

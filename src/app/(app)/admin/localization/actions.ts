@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
   upsertCountryRegionalSetting,
   upsertCurrency,
@@ -23,7 +24,8 @@ export async function saveLocaleAction(formData: FormData) {
     revalidatePath("/admin/localization/locales");
     redirectWithMessage("/admin/localization/locales", "Locale saved.");
   } catch (error) {
-    redirectWithMessage("/admin/localization/locales", error instanceof Error ? error.message : "Unable to save locale.");
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/localization/locales", getActionErrorMessage(error, "Unable to save locale."));
   }
 }
 
@@ -34,7 +36,8 @@ export async function saveTranslationAction(formData: FormData) {
     revalidatePath("/admin/localization/translations");
     redirectWithMessage("/admin/localization/translations", "Translation saved.");
   } catch (error) {
-    redirectWithMessage("/admin/localization/translations", error instanceof Error ? error.message : "Unable to save translation.");
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/localization/translations", getActionErrorMessage(error, "Unable to save translation."));
   }
 }
 
@@ -46,7 +49,8 @@ export async function saveCurrencyAction(formData: FormData) {
     revalidatePath("/admin/localization/currencies");
     redirectWithMessage("/admin/localization/currencies", "Currency saved.");
   } catch (error) {
-    redirectWithMessage("/admin/localization/currencies", error instanceof Error ? error.message : "Unable to save currency.");
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/localization/currencies", getActionErrorMessage(error, "Unable to save currency."));
   }
 }
 
@@ -58,7 +62,8 @@ export async function saveCountryRegionalSettingAction(formData: FormData) {
     revalidatePath("/admin/countries");
     redirectWithMessage("/admin/localization/countries", "Country regional settings saved.");
   } catch (error) {
-    redirectWithMessage("/admin/localization/countries", error instanceof Error ? error.message : "Unable to save country settings.");
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/localization/countries", getActionErrorMessage(error, "Unable to save country settings."));
   }
 }
 
@@ -69,6 +74,7 @@ export async function saveFoodTerminologyAliasAction(formData: FormData) {
     revalidatePath("/admin/localization/units");
     redirectWithMessage("/admin/localization/units", "Food terminology alias saved.");
   } catch (error) {
-    redirectWithMessage("/admin/localization/units", error instanceof Error ? error.message : "Unable to save terminology alias.");
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/localization/units", getActionErrorMessage(error, "Unable to save terminology alias."));
   }
 }

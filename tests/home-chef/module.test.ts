@@ -1,4 +1,7 @@
+import fs from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const repoRoot = process.cwd();
 
 const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => {
   const requestUpdate = vi.fn();
@@ -52,14 +55,25 @@ vi.mock("@/lib/feature-flags", () => ({ isFeatureEnabled }));
 import {
   assignHomeChefRequest,
   canAccessHomeChefs,
+  createChefHomeChefOrderMessage,
   createHomeChefRequest,
   createHomeChefRequestMessage,
+  getChefHomeChefRequest,
   getHomeChefRequest,
   listAdminHomeChefRequests,
   listAssignedChefRequests,
+  listChefRequestInbox,
+  updateChefHomeChefOrderStatus,
   updateAdminHomeChefRequestStatus,
 } from "../../src/server/home-chef";
 import { homeChefRequestCreateSchema } from "../../src/lib/validation/home-chef";
+import { CUSTOM_HOME_CHEF_FOOD_VALUE, homeChefRequestInputFromForm } from "../../src/lib/home-chef-request-form";
+
+function futureIsoDate(daysFromNow = 14) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
 
 const adminSession = {
   user: { id: "admin-1", email: "platform-admin@example.test", status: "active" as const, platformRole: "platform_admin" as const },
@@ -99,7 +113,7 @@ describe("home chef request system", () => {
         requestType: "recipe",
         recipeId: "recipe-1",
         title: "Chef for biryani",
-        requestedDate: "2026-05-23",
+        requestedDate: futureIsoDate(),
         guestCount: 6,
         submit: true,
       },
@@ -150,6 +164,77 @@ describe("home chef request system", () => {
     ).toThrow();
   });
 
+  it("builds recipe-based food requests from the household food dropdown", () => {
+    const formData = new FormData();
+    formData.set("foodChoice", "recipe-1");
+    formData.set("selectedFoodName", "Chicken Dum Biryani");
+    formData.set("requestedDate", "2026-05-23");
+    formData.set("guestCount", "4");
+    formData.set("intent", "submit");
+
+    const input = homeChefRequestInputFromForm(formData);
+
+    expect(input).toEqual(expect.objectContaining({
+      requestType: "recipe",
+      recipeId: "recipe-1",
+      title: "Chef for Chicken Dum Biryani",
+      submit: true,
+    }));
+  });
+
+  it("builds custom food requests when the food is not listed", () => {
+    const formData = new FormData();
+    formData.set("foodChoice", CUSTOM_HOME_CHEF_FOOD_VALUE);
+    formData.set("customFoodTitle", "Chicken 65");
+    formData.set("customFoodDescription", "Crispy spicy appetizer for a birthday dinner.");
+    formData.set("description", "Please keep one portion mild.");
+    formData.set("requestedDate", "2026-05-23");
+    formData.set("guestCount", "4");
+
+    const input = homeChefRequestInputFromForm(formData);
+
+    expect(input).toEqual(expect.objectContaining({
+      requestType: "custom",
+      recipeId: null,
+      title: "Chicken 65",
+      description: "Requested food: Chicken 65\n\nFood details: Crispy spicy appetizer for a birthday dinner.\n\nPlease keep one portion mild.",
+    }));
+  });
+
+  it("uses structured date and time controls on household chef request pages", () => {
+    const scheduleSource = fs.readFileSync(`${repoRoot}/src/components/home-chef/request-schedule-fields.tsx`, "utf8");
+    const generalRequestPage = fs.readFileSync(`${repoRoot}/src/app/(app)/home-chef/request/page.tsx`, "utf8");
+    const chefRequestPage = fs.readFileSync(`${repoRoot}/src/app/(app)/chefs/[slug]/request/page.tsx`, "utf8");
+
+    expect(scheduleSource).toContain('name="requestedDate"');
+    expect(scheduleSource).toContain('name="requestedTimeWindow"');
+    expect(scheduleSource).toContain('type="time"');
+    expect(scheduleSource).toContain("Save date");
+    expect(generalRequestPage).toContain("<RequestScheduleFields");
+    expect(chefRequestPage).toContain("<RequestScheduleFields");
+    expect(generalRequestPage).not.toContain('label="Time window"');
+    expect(chefRequestPage).not.toContain('label="Time window"');
+  });
+
+  it("routes recipe details through a chef or caterer chooser with verified provider cards", () => {
+    const recipePage = fs.readFileSync(`${repoRoot}/src/app/(app)/recipes/[id]/page.tsx`, "utf8");
+    const chooserPage = fs.readFileSync(`${repoRoot}/src/app/(app)/recipes/[id]/request/page.tsx`, "utf8");
+    const chefRequestPage = fs.readFileSync(`${repoRoot}/src/app/(app)/chefs/[slug]/request/page.tsx`, "utf8");
+
+    expect(recipePage).toContain("Request chef/caterer");
+    expect(recipePage).toContain("/request");
+    expect(chooserPage).toContain("Who should cook");
+    expect(chooserPage).toContain("verifiedOnly: true");
+    expect(chooserPage).toContain("Verified home chefs");
+    expect(chooserPage).toContain("Verified caterers");
+    expect(chooserPage).toContain("Restaurant caterer");
+    expect(chooserPage).toContain("Home caterer");
+    expect(chooserPage).toContain("organization.name");
+    expect(chooserPage).toContain("Place order");
+    expect(chefRequestPage).toContain("recipeId?: string");
+    expect(chefRequestPage).toContain("defaultRecipeId={selectedRecipe?.id}");
+  });
+
   it("lets platform admins list all requests", async () => {
     mockPrisma.homeChefRequest.findMany.mockResolvedValue([{ id: "request-1" }]);
 
@@ -175,6 +260,101 @@ describe("home chef request system", () => {
 
     expect(mockPrisma.homeChefRequest.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { assignedChefOrganizationId: "chef-org-1" } }),
+    );
+  });
+
+  it("keeps the chef inbox scoped to assigned requests only", async () => {
+    mockPrisma.homeChefRequest.findMany.mockResolvedValue([{ id: "request-1" }]);
+
+    await listChefRequestInbox({ organizationId: "chef-org-1", countryCode: "US" });
+
+    expect(mockPrisma.homeChefRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { assignedChefOrganizationId: "chef-org-1", countryCode: "US" },
+      }),
+    );
+  });
+
+  it("loads chef order details only when assigned to that chef organization", async () => {
+    mockPrisma.homeChefRequest.findFirst.mockResolvedValue({ id: "request-1" });
+
+    await getChefHomeChefRequest({
+      requestId: "request-1",
+      chefOrganizationId: "chef-org-1",
+      countryCode: "US",
+    });
+
+    expect(mockPrisma.homeChefRequest.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "request-1",
+          assignedChefOrganizationId: "chef-org-1",
+          countryCode: "US",
+        },
+      }),
+    );
+  });
+
+  it("lets an assigned chef accept an order", async () => {
+    mockPrisma.homeChefRequest.findFirst.mockResolvedValue({
+      id: "request-1",
+      status: "matched",
+      title: "Family dinner",
+      organizationId: "household-org",
+      countryCode: "US",
+      createdById: "household-user",
+    });
+    mockPrisma.homeChefRequest.update.mockResolvedValue({ id: "request-1", status: "accepted" });
+
+    await updateChefHomeChefOrderStatus({
+      requestId: "request-1",
+      chefOrganizationId: "chef-org-1",
+      countryCode: "US",
+      actorUserId: "chef-user",
+      status: "accepted",
+    });
+
+    expect(mockPrisma.homeChefRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "request-1" }, data: { status: "accepted" } }),
+    );
+    expect(mockPrisma.homeChefRequestStatusHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          oldStatus: "matched",
+          newStatus: "accepted",
+          changedById: "chef-user",
+        }),
+      }),
+    );
+  });
+
+  it("lets an assigned chef send a household-visible order message", async () => {
+    mockPrisma.homeChefRequest.findFirst.mockResolvedValue({
+      id: "request-1",
+      title: "Family dinner",
+      organizationId: "household-org",
+      countryCode: "US",
+      createdById: "household-user",
+    });
+    mockPrisma.homeChefRequestMessage.create.mockResolvedValue({ id: "message-1" });
+
+    await createChefHomeChefOrderMessage({
+      requestId: "request-1",
+      chefOrganizationId: "chef-org-1",
+      countryCode: "US",
+      actorUserId: "chef-user",
+      input: { message: "I can cook this for you." },
+    });
+
+    expect(mockPrisma.homeChefRequestMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestId: "request-1",
+          senderUserId: "chef-user",
+          senderRole: "chef",
+          isInternal: false,
+        }),
+      }),
     );
   });
 

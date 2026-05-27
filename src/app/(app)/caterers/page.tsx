@@ -10,6 +10,13 @@ import { canAccessHomeCatering, listPublicHomeCateringProfiles } from "@/server/
 
 export const dynamic = "force-dynamic";
 
+function verificationTone(status: string) {
+  if (status === "verified") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "pending") return "warning";
+  return "neutral";
+}
+
 export default async function CaterersPage({
   searchParams,
 }: {
@@ -66,7 +73,7 @@ export default async function CaterersPage({
                     <h2 className="text-xl font-semibold text-[var(--color-ink)]">{profile.displayName}</h2>
                     <p className="mt-1 text-sm text-[var(--color-muted)]">{profile.city ?? "Service area TBD"}{profile.region ? `, ${profile.region}` : ""}</p>
                   </div>
-                  <Badge tone="success">Verified</Badge>
+                  <Badge tone={verificationTone(profile.verificationStatus)}>{profile.verificationStatus}</Badge>
                 </div>
                 {profile.bio ? <p className="mt-4 line-clamp-3 text-sm leading-6 text-[var(--color-muted)]">{profile.bio}</p> : null}
                 <div className="mt-5 flex flex-wrap gap-2">

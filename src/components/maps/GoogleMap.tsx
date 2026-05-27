@@ -94,7 +94,7 @@ export function GoogleMap({ browserApiKey, markers, center, className }: Props) 
   if (!browserApiKey) {
     return (
       <div className={className ?? "rounded-lg border border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]"}>
-        Google Maps is not configured. Platform Owner must configure Google Maps keys in Admin Configuration.
+        Map preview is temporarily unavailable. You can still use the address details on this page.
       </div>
     );
   }

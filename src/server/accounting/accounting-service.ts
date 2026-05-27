@@ -1,5 +1,6 @@
 import { AccountingDocumentType, PaymentOrderStatus, Prisma, type PlatformRole, type UserStatus } from "@prisma/client";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 
@@ -22,6 +23,8 @@ export type AccountingFilters = {
   documentType?: string;
   sellerOrganizationId?: string;
   customerOrganizationId?: string;
+  page?: string | string[] | number;
+  pageSize?: string | string[] | number;
 };
 
 export function assertAccountingAccess(session: AccountingSession) {
@@ -117,6 +120,24 @@ export async function listAccountingDocuments(session: AccountingSession, filter
   });
 }
 
+export async function listAccountingDocumentsPage(session: AccountingSession, filters: AccountingFilters = {}) {
+  assertAccountingAccess(session);
+  const where = accountingDocumentWhere(session, filters);
+
+  return paginatedQuery(
+    prisma.accountingDocument.count({ where }),
+    ({ skip, take }) =>
+      prisma.accountingDocument.findMany({
+        where,
+        include: { paymentOrder: true, organization: { select: { id: true, name: true } } },
+        orderBy: { issuedAt: "desc" },
+        skip,
+        take,
+      }),
+    { page: filters.page, pageSize: filters.pageSize },
+  );
+}
+
 export async function listCommissionRecords(session: AccountingSession, filters: AccountingFilters = {}) {
   assertAccountingAccess(session);
   return prisma.commissionRecord.findMany({
@@ -151,6 +172,86 @@ export async function listMemberAccountingDocuments(session: MemberSession, docu
     orderBy: { issuedAt: "desc" },
     take: 100,
   });
+}
+
+export async function listMemberAccountingDocumentsPage(
+  session: MemberSession,
+  documentType?: "invoice" | "receipt",
+  params: { page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = {
+    documentType,
+    OR: [
+      { organizationId: session.activeOrganization.id },
+      { customerOrganizationId: session.activeOrganization.id },
+      { sellerOrganizationId: session.activeOrganization.id },
+    ],
+  };
+
+  return paginatedQuery(
+    prisma.accountingDocument.count({ where }),
+    ({ skip, take }) =>
+      prisma.accountingDocument.findMany({
+        where,
+        include: { paymentOrder: true },
+        orderBy: { issuedAt: "desc" },
+        skip,
+        take,
+      }),
+    params,
+  );
+}
+
+export async function getMemberAccountingDocument(session: MemberSession, documentId: string, documentType?: "invoice" | "receipt") {
+  const document = await prisma.accountingDocument.findFirst({
+    where: {
+      id: documentId,
+      documentType,
+      OR: [
+        { organizationId: session.activeOrganization.id },
+        { customerOrganizationId: session.activeOrganization.id },
+        { sellerOrganizationId: session.activeOrganization.id },
+      ],
+    },
+    include: {
+      paymentOrder: true,
+      organization: { select: { id: true, name: true, countryCode: true, currencyCode: true } },
+    },
+  });
+  return hydrateAccountingDocumentParties(document);
+}
+
+export async function getAccountingDocument(session: AccountingSession, documentId: string, documentType?: "invoice" | "receipt") {
+  assertAccountingAccess(session);
+  const document = await prisma.accountingDocument.findFirst({
+    where: {
+      ...accountingDocumentWhere(session, { documentType }),
+      id: documentId,
+    },
+    include: {
+      paymentOrder: true,
+      organization: { select: { id: true, name: true, countryCode: true, currencyCode: true } },
+    },
+  });
+  return hydrateAccountingDocumentParties(document);
+}
+
+async function hydrateAccountingDocumentParties<T extends { customerOrganizationId: string | null; sellerOrganizationId: string | null } | null>(document: T) {
+  if (!document) return null;
+  const organizationIds = [document.customerOrganizationId, document.sellerOrganizationId].filter(Boolean) as string[];
+  const organizations = organizationIds.length
+    ? await prisma.organization.findMany({
+        where: { id: { in: organizationIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const nameById = new Map(organizations.map((organization) => [organization.id, organization.name]));
+
+  return {
+    ...document,
+    customerOrganizationName: document.customerOrganizationId ? nameById.get(document.customerOrganizationId) ?? null : null,
+    sellerOrganizationName: document.sellerOrganizationId ? nameById.get(document.sellerOrganizationId) ?? null : null,
+  };
 }
 
 export async function listSellerSettlementReports(organizationId: string) {

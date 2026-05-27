@@ -11,6 +11,7 @@ services:
       NODE_ENV: production
       DEPLOYMENT_ENVIRONMENT: production
       PORT: 3000
+      HOSTNAME: 0.0.0.0
       DATABASE_URL: ${DATABASE_URL}
       SESSION_SECRET: ${SESSION_SECRET}
       APP_URL: ${APP_URL}

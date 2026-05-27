@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { normalizePhoneFromForm } from "@/lib/phone";
 import {
   cancelCustomerFoodOrder,
   createFoodOrder,
@@ -17,7 +18,13 @@ export async function createFoodOrderAction(formData: FormData) {
   const session = await requireMembership();
   const order = await createFoodOrder({
     session,
-    input: Object.fromEntries(formData),
+    input: {
+      ...Object.fromEntries(formData),
+      customerPhone: normalizePhoneFromForm(formData, {
+        countryCodeName: "customerPhoneCountryCode",
+        nationalNumberName: "customerPhoneNationalNumber",
+      }),
+    },
   });
   revalidatePath("/orders");
   redirect(`/orders/${order.id}`);

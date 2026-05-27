@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicNav } from "@/components/public/public-nav";
+import { getCurrentSession } from "@/lib/auth/session";
 import { GooglePlatformScripts } from "@/components/seo/google-platform-scripts";
 import { organizationJsonLd, websiteJsonLd } from "@/server/seo/seo-service";
 
@@ -39,7 +40,27 @@ const footerSections = [
   },
 ];
 
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
+function dashboardHrefForSession(session: Awaited<ReturnType<typeof getCurrentSession>>) {
+  if (!session) return null;
+
+  if (session.user.platformRole) return "/admin";
+
+  switch (session.activeOrganization?.organizationType) {
+    case "chef_business":
+      return "/chef";
+    case "home_catering":
+      return "/catering";
+    case "restaurant":
+      return "/restaurant";
+    default:
+      return "/dashboard";
+  }
+}
+
+export default async function PublicLayout({ children }: { children: React.ReactNode }) {
+  const session = await getCurrentSession().catch(() => null);
+  const dashboardHref = dashboardHrefForSession(session);
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <script
@@ -48,7 +69,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd(), websiteJsonLd()]) }}
       />
       <GooglePlatformScripts />
-      <PublicNav />
+      <PublicNav dashboardHref={dashboardHref} />
       <main className="flex-1">{children}</main>
       <footer data-testid="public-footer" className="relative z-10 border-t border-[var(--color-border)] bg-slate-50">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">

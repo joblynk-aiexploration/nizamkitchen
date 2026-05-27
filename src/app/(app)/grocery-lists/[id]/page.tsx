@@ -222,7 +222,7 @@ export default async function GroceryListPage({
                             className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]"
                           >
                             {item.isChecked && (
-                              <span className="block h-2.5 w-2.5 rounded-full bg-[var(--color-primary)]" />
+                              <span className="text-lg font-bold leading-none text-[var(--color-primary)]" aria-hidden="true">✓</span>
                             )}
                           </button>
                         </form>

@@ -337,18 +337,24 @@ model User {
   location                         String?
   locationText                     String?
   phone                            String?
+  religion                         String?
   preferredLanguage                String?
   publicProfileEnabled             Boolean                        @default(false)
   preferredLocale                  String?                        @default("en-US")
-  preferredTimezone                String?                        @default("UTC")
+  preferredTimezone                String?                        @default("America/Chicago")
   lastLoginAt                      DateTime?
   createdAt                        DateTime                       @default(now())
   updatedAt                        DateTime                       @updatedAt
   sessions                         Session[]
+  passwordResetTokens              PasswordResetToken[]
   memberships                      Membership[]
   countryAssignments               CountryAssignment[]
   auditLogs                        AuditLog[]
   emailLogs                        EmailLog[]
+  emailTemplatesCreated            EmailTemplate[]                 @relation("EmailTemplateCreatedBy")
+  emailTemplatesUpdated            EmailTemplate[]                 @relation("EmailTemplateUpdatedBy")
+  emailPreference                  EmailPreference?
+  emailSuppressionsCreated         EmailSuppression[]              @relation("EmailSuppressionCreatedBy")
   apiKeys                          ApiKey[]
   groceryLists                     GroceryList[]
   groceryListShares                GroceryListShare[]             @relation("GroceryListShareCreatedBy")
@@ -458,6 +464,23 @@ model Session {
   @@index([userId])
   @@index([activeOrganizationId])
   @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
 }
 
 model OAuthAccount {
@@ -1264,23 +1287,179 @@ model SeoSetting {
   @@index([createdById])
 }
 
+enum EmailTemplateCategory {
+  authentication
+  account
+  legal_privacy
+  household
+  meal_planning
+  grocery
+  home_chef
+  chef_staff
+  home_catering
+  restaurant
+  food_order
+  payment
+  billing
+  invoice
+  refund
+  payout
+  verification
+  storage
+  support
+  notification
+  review
+  promotion
+  referral
+  admin_alert
+  system
+}
+
+enum EmailTemplateStatus {
+  draft
+  active
+  archived
+}
+
+enum EmailDeliveryStatus {
+  queued
+  sent
+  failed
+  skipped
+  suppressed
+}
+
+enum EmailProvider {
+  disabled
+  smtp
+  sendgrid_placeholder
+  resend_placeholder
+  postmark_placeholder
+  ses_placeholder
+}
+
+enum EmailSuppressionReason {
+  unsubscribed
+  bounced
+  complaint
+  admin_suppressed
+  invalid_email
+}
+
+model EmailTemplate {
+  id           String                @id @default(cuid())
+  templateKey  String
+  name         String
+  description  String?
+  category     EmailTemplateCategory
+  subject      String
+  preheader    String?
+  htmlBody     String
+  textBody     String
+  status       EmailTemplateStatus   @default(draft)
+  locale       String?
+  countryCode  String?
+  version      Int                   @default(1)
+  isSystem     Boolean               @default(false)
+  createdById  String?
+  updatedById  String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  createdBy    User?                 @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?                 @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  variables    EmailTemplateVariable[]
+
+  @@unique([templateKey, locale, countryCode, version])
+  @@index([templateKey])
+  @@index([category])
+  @@index([status])
+  @@index([locale])
+  @@index([countryCode])
+  @@index([isSystem])
+}
+
+model EmailTemplateVariable {
+  id            String        @id @default(cuid())
+  templateId    String
+  variableKey   String
+  description   String?
+  exampleValue  String?
+  isRequired    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  template      EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, variableKey])
+  @@index([templateId])
+}
+
 model EmailLog {
-  id                String        @id @default(cuid())
+  id                String                @id @default(cuid())
   organizationId    String?
   userId            String?
+  recipientUserId   String?
   countryCode       String?
-  templateKey       String
+  templateKey       String?
   recipientEmail    String
-  deliveryStatus    String
+  category          EmailTemplateCategory @default(notification)
+  subject           String                @default("NizamKitchen update")
+  status            EmailDeliveryStatus   @default(queued)
+  deliveryStatus    String                @default("queued")
+  provider          EmailProvider         @default(disabled)
   providerMessageId String?
+  errorMessage      String?
   metadata          Json?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  metadataJson      Json?
+  sentAt            DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  organization      Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user              User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([countryCode])
+  @@index([recipientUserId])
+  @@index([recipientEmail])
+  @@index([templateKey])
+  @@index([category])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model EmailPreference {
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  transactionalEnabled       Boolean  @default(true)
+  marketingEnabled           Boolean  @default(false)
+  mealPlanningEmails         Boolean  @default(true)
+  groceryEmails              Boolean  @default(true)
+  orderEmails                Boolean  @default(true)
+  homeChefEmails             Boolean  @default(true)
+  sellerEmails               Boolean  @default(true)
+  paymentEmails              Boolean  @default(true)
+  verificationEmails         Boolean  @default(true)
+  supportEmails              Boolean  @default(true)
+  reviewEmails               Boolean  @default(true)
+  promotionEmails            Boolean  @default(false)
+  adminAlertEmails           Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailSuppression {
+  id          String                  @id @default(cuid())
+  email       String
+  reason      EmailSuppressionReason
+  category    EmailTemplateCategory?
+  createdAt   DateTime                @default(now())
+  createdById String?
+  createdBy   User?                   @relation("EmailSuppressionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([email, category])
+  @@index([email])
+  @@index([reason])
+  @@index([category])
 }
 
 model SystemSetting {
@@ -1492,6 +1671,11 @@ enum HomeCateringProfileStatus {
   paused
   suspended
   disabled
+}
+
+enum CateringOperationType {
+  home_caterer
+  restaurant_caterer
 }
 
 enum HomeCateringVerificationStatus {
@@ -2940,6 +3124,7 @@ model FavoriteRecipe {
   organizationId String
   recipeId       String
   createdById    String
+  targetServings Int?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   recipe         Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
@@ -2991,6 +3176,10 @@ model HomeCateringProfile {
   slug                   String                         @unique
   ownerName              String?
   bio                    String?
+  operationType          CateringOperationType          @default(home_caterer)
+  restaurantName         String?
+  restaurantAddress      String?
+  restaurantLicense      String?
   status                 HomeCateringProfileStatus      @default(draft)
   verificationStatus     HomeCateringVerificationStatus @default(unverified)
   profilePhotoUrl        String?

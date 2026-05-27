@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage } from "@/lib/server-action-errors";
 import { DEFAULT_ALLOWED_MIME_TYPES, storageUploadSchema, validateFileInput } from "@/server/storage/file-validation";
 import { buildStorageObjectKey } from "@/server/storage/storage-keys";
 import { getStorageProvider } from "@/server/storage/storage-service";
@@ -35,6 +36,6 @@ export async function POST(request: Request) {
     const url = await provider.getSignedUploadUrl({ objectKey, mimeType: validation.mimeType, expiresInSeconds: configuration.signedUrlExpiresInSeconds });
     return NextResponse.json({ fileId, objectKey, url, expiresInSeconds: configuration.signedUrlExpiresInSeconds });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create signed upload URL." }, { status: 400 });
+    return NextResponse.json({ error: getActionErrorMessage(error, "Unable to create signed upload URL.") }, { status: 400 });
   }
 }

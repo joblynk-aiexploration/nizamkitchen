@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LocationPicker } from "@/components/maps/LocationPicker";
 import { DocumentUploadField } from "@/components/storage/file-upload-field";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
+import type { PhoneCountryOption } from "@/lib/phone";
 import type { GoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 
 type MenuItemForOrder = {
@@ -40,12 +42,14 @@ export function FoodOrderRequestForm({
   customerName,
   customerEmail,
   mapsConfig,
+  phoneOptions,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   item: MenuItemForOrder;
   customerName: string;
   customerEmail: string;
   mapsConfig: GoogleMapsPublicConfig;
+  phoneOptions: PhoneCountryOption[];
 }) {
   const fulfillmentOptions = [
     item.pickupAvailable ? { value: "pickup", label: "Pickup" } : null,
@@ -80,7 +84,12 @@ export function FoodOrderRequestForm({
           <TextInput label="Requested date" name="requestedDate" type="date" />
           <TextInput label="Requested time window" name="requestedTimeWindow" placeholder="Example: 5 PM - 7 PM" />
           <TextInput label="Your name" name="customerName" defaultValue={customerName} />
-          <TextInput label="Phone" name="customerPhone" />
+          <PhoneNumberInput
+            countryCodeName="customerPhoneCountryCode"
+            nationalNumberName="customerPhoneNationalNumber"
+            defaultCountryCode={phoneOptions.find((option) => option.countryCode === mapsConfig.defaultCountry)?.phoneCountryCode}
+            options={phoneOptions}
+          />
           <TextInput label="Email" name="customerEmail" type="email" defaultValue={customerEmail} />
           <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
         </div>
@@ -110,7 +119,7 @@ export function FoodOrderRequestForm({
           purpose="order_attachment"
           visibility="organization"
           entityType="food_order"
-          hint="Optional: upload a reference image or document to S3 for the seller/admin team."
+          hint="Optional: upload a reference image or document for the seller or support team."
         />
         <Button type="submit">Submit order request</Button>
       </form>

@@ -1,24 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FoodRequestFields } from "@/components/home-chef/food-request-fields";
+import { RequestScheduleFields } from "@/components/home-chef/request-schedule-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
+import { listEnabledCountryPhoneOptions, listEnabledLanguageOptions } from "@/server/localization/localization-service";
+import { listRecipes } from "@/server/recipes";
 import { requestSpecificChefAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
-
-const requestTypeOptions = [
-  { value: "custom", label: "Custom request" },
-  { value: "weekly_cooking", label: "Weekly cooking" },
-  { value: "daily_cooking", label: "Daily cooking" },
-  { value: "occasion", label: "Occasion cooking" },
-  { value: "recipe", label: "Recipe specific" },
-];
 
 function tomorrowDateInput() {
   const date = new Date();
@@ -26,13 +23,30 @@ function tomorrowDateInput() {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function RequestChefPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function RequestChefPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ recipeId?: string }>;
+}) {
   const session = await requireMembership();
   const { slug } = await params;
+  const query = await searchParams;
   const enabled = await canAccessChefMarketplace({ organizationId: session.activeOrganization.id, platformRole: session.user.platformRole });
   if (!enabled) notFound();
-  const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
+  const [chef, recipes, languageOptions, phoneOptions] = await Promise.all([
+    getPublicChefProfile(slug, session.activeOrganization.id),
+    listRecipes({
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      publishedOnly: true,
+    }),
+    listEnabledLanguageOptions(),
+    listEnabledCountryPhoneOptions(),
+  ]);
   if (!chef) notFound();
+  const selectedRecipe = recipes.find((recipe) => recipe.id === query.recipeId);
 
   return (
     <div className="space-y-8">
@@ -48,20 +62,28 @@ export default async function RequestChefPage({ params }: { params: Promise<{ sl
         <Card className="space-y-5">
           <h2 className="text-lg font-semibold text-[var(--color-ink)]">Request details</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <SelectInput label="Request type" name="requestType" options={requestTypeOptions} />
-            <TextInput label="Title" name="title" defaultValue={`Request ${chef.displayName}`} required />
-            <TextInput label="Requested date" name="requestedDate" type="date" defaultValue={tomorrowDateInput()} required />
-            <TextInput label="Time window" name="requestedTimeWindow" placeholder="4 PM - 8 PM" />
+            <FoodRequestFields recipes={recipes.map((recipe) => ({ id: recipe.id, name: recipe.name }))} defaultRecipeId={selectedRecipe?.id} />
+            <RequestScheduleFields defaultDate={tomorrowDateInput()} />
             <TextInput label="Guest count" name="guestCount" type="number" min={1} defaultValue={4} required />
             <TextInput label="Household size" name="householdSize" type="number" min={1} defaultValue={4} />
-            <TextInput label="Phone" name="phone" />
-            <TextInput label="Preferred language" name="preferredLanguage" />
+            <PhoneNumberInput
+              defaultCountryCode={phoneOptions.find((option) => option.countryCode === session.activeOrganization.countryCode)?.phoneCountryCode}
+              options={phoneOptions}
+            />
+            <SelectInput
+              label="Preferred language"
+              name="preferredLanguage"
+              options={[
+                { value: "", label: "Select a language" },
+                ...languageOptions.map((option) => ({ value: option.value, label: option.label })),
+              ]}
+            />
             <TextInput label="City" name="city" />
             <TextInput label="Region" name="region" />
             <TextInput label="Budget amount" name="budgetAmount" type="number" min={0} step="0.01" />
             <TextInput label="Budget currency" name="budgetCurrency" defaultValue={session.activeOrganization.currencyCode} maxLength={3} />
           </div>
-          <TextArea label="Description" name="description" placeholder="What would you like this chef to help with?" />
+          <TextArea label="Anything else the chef should know?" name="description" placeholder="Share timing, allergies, spice level, occasion details, or household needs." />
           <TextArea label="Notes" name="notes" placeholder="Dietary, timing, family, or support notes." />
         </Card>
 

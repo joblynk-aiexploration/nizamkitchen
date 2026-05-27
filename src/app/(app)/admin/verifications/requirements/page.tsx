@@ -8,19 +8,29 @@ import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getPaginationInput, getPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { listSellerVerificationPolicies } from "@/server/seller-verification-gates";
 import { saveSellerVerificationPolicyAction } from "../../../seller-verification-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function VerificationRequirementsPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
-  const [session, params, requirements, policies] = await Promise.all([
+export default async function VerificationRequirementsPage({ searchParams }: { searchParams: Promise<{ message?: string; page?: string; pageSize?: string }> }) {
+  const [session, params, policies] = await Promise.all([
     requirePlatformRole(["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"]),
     searchParams,
-    prisma.sellerVerificationRequirement.findMany({ orderBy: [{ sellerType: "asc" }, { countryCode: "asc" }, { sortOrder: "asc" }] }),
     listSellerVerificationPolicies(),
   ]);
+  const paginationInput = getPaginationInput(params, { defaultPageSize: 25 });
+  const [totalRequirements, requirements] = await Promise.all([
+    prisma.sellerVerificationRequirement.count(),
+    prisma.sellerVerificationRequirement.findMany({
+      orderBy: [{ sellerType: "asc" }, { countryCode: "asc" }, { sortOrder: "asc" }],
+      skip: paginationInput.skip,
+      take: paginationInput.take,
+    }),
+  ]);
+  const requirementsPagination = getPaginationMeta(totalRequirements, paginationInput);
   const canEditPolicy = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
   return (
     <AdminShell session={session} title="Verification requirements" description="Configure country, region, and seller-type compliance requirements.">
@@ -79,6 +89,10 @@ export default async function VerificationRequirementsPage({ searchParams }: { s
       <AdminDataTable
         data={requirements}
         emptyMessage="No configured requirements yet. Sellers will see safe default requirements."
+        pagination={requirementsPagination}
+        paginationBasePath="/admin/verifications/requirements"
+        paginationSearchParams={params}
+        paginationItemLabel="requirements"
         columns={[
           { key: "title", header: "Title", render: (item) => item.title },
           { key: "seller", header: "Seller type", render: (item) => item.sellerType.replace(/_/g, " ") },

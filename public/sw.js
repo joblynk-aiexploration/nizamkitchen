@@ -1,5 +1,20 @@
-const CACHE_NAME = "nizamkitchen-offline-v1";
+const CACHE_NAME = "nizamkitchen-offline-v3";
 const OFFLINE_URL = "/offline";
+const NETWORK_ONLY_PREFIXES = [
+  "/admin",
+  "/api",
+  "/settings",
+  "/dashboard",
+  "/billing",
+  "/notifications",
+  "/support",
+  "/profile",
+  "/orders",
+  "/catering",
+  "/restaurant",
+  "/chef",
+  "/household",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -9,13 +24,24 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) => Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))))
+      .then(() => self.clients.claim()),
+  );
 });
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
   if (request.mode !== "navigate") {
+    return;
+  }
+
+  const url = new URL(request.url);
+  if (NETWORK_ONLY_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+    event.respondWith(fetch(request));
     return;
   }
 

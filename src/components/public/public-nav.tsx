@@ -15,11 +15,13 @@ const navLinks = [
   { href: "/about", label: "About" },
 ];
 
-export function PublicNav() {
+export function PublicNav({ dashboardHref }: { dashboardHref?: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isLogin = pathname === "/login";
   const isRegister = pathname === "/register";
+  const isAuthPage = isLogin || isRegister;
+  const isSignedIn = Boolean(dashboardHref);
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-white/95 text-[var(--text-primary)] backdrop-blur-sm">
@@ -52,30 +54,41 @@ export function PublicNav() {
 
         {/* Desktop CTAs */}
         <div className="hidden items-center gap-2 lg:flex">
-          <Link
-            href="/login"
-            aria-current={isLogin ? "page" : undefined}
-            className={cn(
-              "rounded-xl px-4 py-2 text-sm font-semibold transition",
-              isLogin
-                ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
-                : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
-            )}
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/register"
-            aria-current={isRegister ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition",
-              isRegister
-                ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
-                : "bg-[#0b625c] text-white hover:bg-[#084c47]",
-            )}
-          >
-            Sign up
-          </Link>
+          {isSignedIn ? (
+            <Link
+              href={dashboardHref ?? "/dashboard"}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#0b625c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084c47]"
+            >
+              Dashboard
+            </Link>
+          ) : isAuthPage ? null : (
+            <>
+              <Link
+                href="/login"
+                aria-current={isLogin ? "page" : undefined}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                  isLogin
+                    ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
+                    : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
+                )}
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/register"
+                aria-current={isRegister ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition",
+                  isRegister
+                    ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                    : "bg-[#0b625c] text-white hover:bg-[#084c47]",
+                )}
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -109,32 +122,44 @@ export function PublicNav() {
             ))}
           </nav>
           <div className="mt-4 flex flex-col gap-2 border-t border-[var(--color-border)] pt-4">
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              aria-current={isLogin ? "page" : undefined}
-              className={cn(
-                "rounded-xl border border-[var(--button-outline-border)] px-4 py-2 text-center text-sm font-semibold",
-                isLogin
-                  ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
-                  : "bg-white text-[var(--text-primary)] hover:bg-slate-100",
-              )}
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              onClick={() => setOpen(false)}
-              aria-current={isRegister ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-sm transition",
-                isRegister
-                  ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  : "bg-[#0b625c] text-white hover:bg-[#084c47]",
-              )}
-            >
-              Sign up
-            </Link>
+            {isSignedIn ? (
+              <Link
+                href={dashboardHref ?? "/dashboard"}
+                onClick={() => setOpen(false)}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#0b625c] px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[#084c47]"
+              >
+                Dashboard
+              </Link>
+            ) : isAuthPage ? null : (
+              <>
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  aria-current={isLogin ? "page" : undefined}
+                  className={cn(
+                    "rounded-xl border border-[var(--button-outline-border)] px-4 py-2 text-center text-sm font-semibold",
+                    isLogin
+                      ? "bg-[#e4f2f0] text-[var(--color-primary-strong)]"
+                      : "bg-white text-[var(--text-primary)] hover:bg-slate-100",
+                  )}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setOpen(false)}
+                  aria-current={isRegister ? "page" : undefined}
+                  className={cn(
+                    "inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-sm transition",
+                    isRegister
+                      ? "border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                      : "bg-[#0b625c] text-white hover:bg-[#084c47]",
+                  )}
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -63,6 +63,16 @@ export const BUILT_IN_PLAN_LIMITS: Record<string, PlanLimits> = {
     groceryExportsEnabled: true,
     restaurantFallbackEnabled: false,
   },
+  "home-catering-seller": {
+    maxMealPlans: 5,
+    maxGroceryListsPerMonth: 10,
+    maxHouseholdMembers: 5,
+    maxSavedRestaurants: 10,
+    maxChefRequestsPerMonth: 0,
+    chefMarketplaceEnabled: false,
+    groceryExportsEnabled: true,
+    restaurantFallbackEnabled: false,
+  },
   "restaurant-partner": {
     maxMealPlans: 2,
     maxGroceryListsPerMonth: 5,

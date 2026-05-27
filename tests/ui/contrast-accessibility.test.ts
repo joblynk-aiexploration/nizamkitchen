@@ -11,7 +11,7 @@ describe("UI contrast and accessibility guards", () => {
   it("homepage keeps visible primary and secondary CTA labels", () => {
     const source = read("src/app/(public)/page.tsx");
 
-    expect(source).toContain("Start beta");
+    expect(source).toContain("Sign up");
     expect(source).toContain("See all features");
     expect(source).toContain("Button asChild");
     expect(source).toContain("hover:bg-white hover:text-[#10263a]");
@@ -21,9 +21,9 @@ describe("UI contrast and accessibility guards", () => {
   it("public navigation renders readable beta and sign-in actions", () => {
     const source = read("src/components/public/public-nav.tsx");
 
-    expect(source).toContain("Start beta");
+    expect(source).toContain("Sign up");
     expect(source).toContain("Sign in");
-    expect(source).toContain("Button asChild");
+    expect(source).toContain("inline-flex min-h-11 items-center justify-center");
     expect(source).toContain("text-[var(--text-secondary)]");
     expect(source).toContain("aria-label=\"Toggle menu\"");
     expect(source).toContain("const isLogin = pathname === \"/login\"");

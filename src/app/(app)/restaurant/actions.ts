@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
+import { createAuditEvent } from "@/server/audit";
 import { upsertPrimaryLocation } from "@/server/maps/location-service";
 import { updateOrganizationMedia } from "@/server/organizations/media";
 
@@ -33,7 +35,7 @@ export async function upsertRestaurantSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateRestaurantPaths();
-    redirect("/restaurant/profile?message=Social link saved.");
+    redirect("/restaurant/profile?message=Successfully saved social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save social link."))}`);
@@ -50,10 +52,40 @@ export async function deleteRestaurantSocialLinkAction(formData: FormData) {
       input: Object.fromEntries(formData),
     });
     revalidateRestaurantPaths();
-    redirect("/restaurant/profile?message=Social link deleted.");
+    redirect("/restaurant/profile?message=Successfully deleted social link.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to delete social link."))}`);
+  }
+}
+
+export async function updateRestaurantProfileBasicsAction(formData: FormData) {
+  try {
+    const session = await requireRestaurantAccess();
+    const name = String(formData.get("name") ?? "").trim();
+    if (name.length < 2 || name.length > 120) {
+      throw new Error("Restaurant name must be between 2 and 120 characters.");
+    }
+
+    await prisma.organization.update({
+      where: { id: session.activeOrganization.id },
+      data: { name },
+    });
+    await createAuditEvent({
+      actorUserId: session.user.id,
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+      action: "restaurant_profile.updated",
+      targetType: "organization",
+      targetId: session.activeOrganization.id,
+      details: { name },
+    });
+    revalidateRestaurantPaths();
+    revalidatePath("/settings");
+    redirect("/restaurant/profile?message=Successfully saved restaurant profile.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save restaurant profile."))}`);
   }
 }
 
@@ -68,7 +100,7 @@ export async function updateRestaurantMediaAction(formData: FormData) {
       coverPhotoFileId: String(formData.get("coverPhotoFileId") ?? ""),
     });
     revalidateRestaurantPaths();
-    redirect("/restaurant/profile?message=Restaurant images saved.");
+    redirect("/restaurant/profile?message=Successfully saved restaurant images.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save restaurant images."))}`);
@@ -95,7 +127,7 @@ export async function updateRestaurantLocationAction(formData: FormData) {
       providerPlaceId: String(formData.get("locationProviderPlaceId") ?? ""),
     });
     revalidateRestaurantPaths();
-    redirect("/restaurant/profile?message=Restaurant location saved.");
+    redirect("/restaurant/profile?message=Successfully saved restaurant location.");
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/profile?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save restaurant location."))}`);

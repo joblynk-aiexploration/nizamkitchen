@@ -106,7 +106,7 @@ export async function upsertRestaurantMenuItemAction(formData: FormData) {
       input: inputFromMenuItemForm(formData, session.activeOrganization.currencyCode),
     });
     revalidateRestaurantMenuPaths();
-    redirect(`/restaurant/menu-items/${item.id}?message=Menu item saved.`);
+    redirect(`/restaurant/menu-items?message=${encodeURIComponent(`${item.name} was successfully saved.`)}`);
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/restaurant/menu-items?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save menu item."))}`);

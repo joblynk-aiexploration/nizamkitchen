@@ -6,9 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
 import { createSession, getRequestMetadata } from "@/lib/session";
 import { slugify } from "@/lib/utils";
-import { registerSchema } from "@/lib/validation/auth";
+import { getRegistrationValidationMessage, registerSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
+import { env } from "@/lib/env";
+import { ensureCoreRegistrationCountries } from "@/server/auth/registration-countries";
 import { createAcceptance, getRequiredLegalDocumentsForUser } from "@/server/legal/legal-service";
+import { getActiveBillingPlanBySlug } from "@/server/billing/plans";
+import { createStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 import { verifyRecaptcha } from "@/server/seo/seo-service";
 
 const orgTypeMap: Record<string, OrganizationType> = {
@@ -67,15 +71,21 @@ export async function POST(request: Request) {
     organizationName: formData.get("organizationName"),
     countryCode: formData.get("countryCode"),
     accountType: formData.get("accountType") ?? "household",
+    cateringOperationType: formData.get("cateringOperationType") ?? "home_caterer",
+    restaurantName: formData.get("restaurantName") ?? undefined,
+    restaurantAddress: formData.get("restaurantAddress") ?? undefined,
+    restaurantLicense: formData.get("restaurantLicense") ?? undefined,
     acceptLegalTerms: formData.get("acceptLegalTerms"),
+    selectedPlanSlug: formData.get("selectedPlanSlug") ?? undefined,
     householdSize: formData.get("householdSize") ?? undefined,
     spiceLevel: formData.get("spiceLevel") ?? undefined,
     cuisineIds: cuisineIds.length > 0 ? cuisineIds : undefined,
   });
 
   if (!parsed.success) {
+    const message = getRegistrationValidationMessage(parsed.error);
     return NextResponse.redirect(
-      new URL("/register?message=Invalid registration data.", request.url),
+      new URL(`/register?message=${encodeURIComponent(message)}`, request.url),
     );
   }
 
@@ -91,12 +101,19 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/register?message=Email already exists.", request.url));
   }
 
-  const country = await prisma.country.findUnique({
+  let country = await prisma.country.findUnique({
     where: { countryCode: parsed.data.countryCode },
   });
 
   if (!country || !country.isActive) {
-    return NextResponse.redirect(new URL("/register?message=Invalid country selected.", request.url));
+    await ensureCoreRegistrationCountries().catch(() => null);
+    country = await prisma.country.findUnique({
+      where: { countryCode: parsed.data.countryCode },
+    });
+  }
+
+  if (!country || !country.isActive) {
+    return NextResponse.redirect(new URL("/register?message=That country is not available yet. Please choose a country from the list.", request.url));
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -158,6 +175,10 @@ export async function POST(request: Request) {
           countryCode: country.countryCode,
           displayName: parsed.data.organizationName,
           slug: `${slugify(parsed.data.organizationName)}-${Math.random().toString(36).slice(2, 8)}`,
+          operationType: parsed.data.cateringOperationType,
+          restaurantName: parsed.data.cateringOperationType === "restaurant_caterer" ? parsed.data.restaurantName ?? null : null,
+          restaurantAddress: parsed.data.cateringOperationType === "restaurant_caterer" ? parsed.data.restaurantAddress ?? null : null,
+          restaurantLicense: parsed.data.cateringOperationType === "restaurant_caterer" ? parsed.data.restaurantLicense ?? null : null,
           cuisineSpecialtiesJson: [],
           languagesJson: [],
           acceptsPickup: true,
@@ -232,5 +253,32 @@ export async function POST(request: Request) {
   );
 
   const destination = getPostRegisterDestination(parsed.data.accountType, result.user.platformRole);
+  const selectedPlanSlug = parsed.data.selectedPlanSlug?.trim();
+  if (selectedPlanSlug && selectedPlanSlug !== "free") {
+    const plan = await getActiveBillingPlanBySlug(selectedPlanSlug);
+    if (!plan || Number(plan.priceAmount) <= 0) {
+      return NextResponse.redirect(
+        new URL(`/billing/plans?message=${encodeURIComponent("Your account was created, but the selected pricing plan was not found. Please choose a plan to continue.")}`, request.url),
+      );
+    }
+
+    try {
+      const checkout = await createStripeSubscriptionCheckout({
+        organizationId: result.organization.id,
+        userId: result.user.id,
+        planId: plan.id,
+        appUrl: env.APP_URL,
+      });
+      if (checkout.checkoutUrl) {
+        return NextResponse.redirect(checkout.checkoutUrl);
+      }
+    } catch (error) {
+      console.error("Unable to start checkout after registration", error);
+    }
+
+    return NextResponse.redirect(
+      new URL(`/billing/plans?message=${encodeURIComponent("Your account was created. Payment checkout could not start, so please choose your plan again from Billing.")}`, request.url),
+    );
+  }
   return NextResponse.redirect(new URL(destination, request.url));
 }

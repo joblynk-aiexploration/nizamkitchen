@@ -133,7 +133,7 @@ describe("runRestaurantSearch", () => {
       apiKey: null,
       defaultRadiusMeters: 5000,
       regionCode: null,
-      reason: "Google Maps is not configured. Platform Owner must configure Google Maps keys in Admin Configuration.",
+      reason: "Restaurant search is temporarily unavailable. You can still enter restaurant details manually or try again later.",
     });
 
     const result = await runRestaurantSearch({ ...BASE_PARAMS, input: BASE_INPUT });
@@ -141,7 +141,10 @@ describe("runRestaurantSearch", () => {
     expect(result.searchId).toBe("search-1");
     expect(mockPrisma.restaurantFallbackSearch.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "failed" }),
+        data: expect.objectContaining({
+          status: "failed",
+          errorMessage: expect.not.stringContaining("Platform Owner"),
+        }),
       }),
     );
     expect(mockSearch).not.toHaveBeenCalled();

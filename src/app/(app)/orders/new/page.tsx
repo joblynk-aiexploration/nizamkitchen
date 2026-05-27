@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { listEnabledCountryPhoneOptions } from "@/server/localization/localization-service";
 import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { createFoodOrderAction } from "../actions";
 
@@ -21,7 +22,7 @@ export default async function NewFoodOrderPage({
   }
   const { menuItemId } = await searchParams;
   if (!menuItemId) notFound();
-  const [item, mapsConfig] = await Promise.all([
+  const [item, mapsConfig, phoneOptions] = await Promise.all([
     prisma.menuItem.findFirst({
       where: {
         id: menuItemId,
@@ -36,6 +37,7 @@ export default async function NewFoodOrderPage({
       },
     }),
     getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
+    listEnabledCountryPhoneOptions(),
   ]);
   if (!item) notFound();
 
@@ -52,6 +54,7 @@ export default async function NewFoodOrderPage({
         customerName={session.user.fullName}
         customerEmail={session.user.email}
         mapsConfig={mapsConfig}
+        phoneOptions={phoneOptions}
       />
       <CommerceSafetyNotice />
     </div>

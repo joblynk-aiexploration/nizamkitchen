@@ -1,5 +1,7 @@
-import { env } from "@/lib/env";
+import { EmailDeliveryStatus, EmailProvider, EmailTemplateCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { renderSeedTemplate } from "@/server/email/email-renderer";
+import { sendTemplateEmail } from "@/server/email/email-service";
 
 export type EmailTemplateKey =
   | "home_chef_request_submitted"
@@ -8,6 +10,7 @@ export type EmailTemplateKey =
   | "chef_profile_approved"
   | "chef_profile_suspended"
   | "grocery_list_shared"
+  | "password_reset"
   | "support_ticket_created"
   | "support_ticket_reply"
   | "support_ticket_status_changed";
@@ -23,79 +26,84 @@ type EmailInput = {
   metadata?: Record<string, unknown>;
 };
 
-export function renderEmailTemplate(templateKey: EmailTemplateKey, data: Record<string, string | null | undefined>) {
-  const appName = "NizamKitchen";
-  const title = data.title ?? "NizamKitchen update";
-  const actionUrl = data.actionUrl;
+const TEMPLATE_KEY_MAP: Record<EmailTemplateKey, string> = {
+  home_chef_request_submitted: "home_chef.request_submitted",
+  home_chef_request_status_updated: "home_chef.request_under_review",
+  home_chef_new_message: "home_chef.message_received",
+  chef_profile_approved: "verification.approved",
+  chef_profile_suspended: "verification.suspended",
+  grocery_list_shared: "grocery_list.shared",
+  password_reset: "auth.password_reset",
+  support_ticket_created: "support.ticket_created",
+  support_ticket_reply: "support.reply_received",
+  support_ticket_status_changed: "support.status_changed",
+};
 
-  const subjects: Record<EmailTemplateKey, string> = {
-    home_chef_request_submitted: "Your home chef request was submitted",
-    home_chef_request_status_updated: "Your home chef request status changed",
-    home_chef_new_message: "New message on your home chef request",
-    chef_profile_approved: "Your chef profile was approved",
-    chef_profile_suspended: "Your chef profile needs attention",
-    grocery_list_shared: "A grocery list was shared",
-    support_ticket_created: "New support ticket received",
-    support_ticket_reply: "New reply on your support ticket",
-    support_ticket_status_changed: "Your support ticket status changed",
-  };
+export function renderEmailTemplate(templateKey: EmailTemplateKey, data: Record<string, string | null | undefined>) {
+  const mappedKey = TEMPLATE_KEY_MAP[templateKey];
+  const rendered = renderSeedTemplate(mappedKey, {
+    ...data,
+    userName: data.userName ?? "there",
+    requestTitle: data.title,
+    ticketTitle: data.title,
+    dashboardUrl: data.actionUrl,
+  });
 
   return {
-    subject: subjects[templateKey],
-    body: [
-      `${appName}`,
-      "",
-      title,
-      "",
-      data.body ?? "There is a new update in your workspace.",
-      actionUrl ? "" : null,
-      actionUrl ? `Open: ${actionUrl}` : null,
-      "",
-      "This is an operational notification from NizamKitchen.",
-    ].filter(Boolean).join("\n"),
+    subject: rendered.subject,
+    body: rendered.text,
   };
 }
 
 export async function sendEmail(input: EmailInput) {
-  const smtpConfigured = Boolean(env.SMTP_HOST && env.EMAIL_FROM);
-
-  if (!smtpConfigured) {
-    if (env.NODE_ENV !== "production") {
-      console.info("[email-placeholder] SMTP is not configured; email was not sent.", {
-        templateKey: input.templateKey,
-        to: input.to,
-      });
-    }
-    await recordEmailLog(input, "skipped_no_smtp");
-    return { sent: false, reason: "smtp_not_configured" as const };
-  }
-
-  // SMTP transport wiring is intentionally abstracted for deployment-specific providers.
-  if (env.NODE_ENV !== "production") {
-    console.info("[email-placeholder] SMTP provider placeholder recorded.", {
-      templateKey: input.templateKey,
+  const mappedKey = TEMPLATE_KEY_MAP[input.templateKey];
+  try {
+    return await sendTemplateEmail({
       to: input.to,
-      host: env.SMTP_HOST,
-    });
-  }
-  await recordEmailLog(input, "placeholder");
-  return { sent: false, reason: "provider_placeholder" as const };
-}
-
-async function recordEmailLog(input: EmailInput, deliveryStatus: string) {
-  return prisma.emailLog.create({
-    data: {
-      organizationId: input.organizationId ?? null,
-      userId: input.userId ?? null,
-      countryCode: input.countryCode ?? null,
-      templateKey: input.templateKey,
-      recipientEmail: input.to,
-      deliveryStatus,
+      templateKey: mappedKey,
+      recipientUserId: input.userId,
+      organizationId: input.organizationId,
+      countryCode: input.countryCode,
+      variables: {
+        userEmail: input.to,
+        userName: input.metadata?.userName ?? "there",
+        requestTitle: input.subject,
+        ticketTitle: input.subject,
+        primaryActionLabel: "View details",
+        dashboardUrl: input.metadata?.actionUrl,
+        ...(input.metadata ?? {}),
+      },
       metadata: {
-        subject: input.subject,
+        legacyTemplateKey: input.templateKey,
         bodyPreview: input.body.slice(0, 280),
         ...(input.metadata ?? {}),
       },
-    },
-  });
+    });
+  } catch {
+    const log = await prisma.emailLog.create({
+      data: {
+        organizationId: input.organizationId ?? null,
+        userId: input.userId ?? null,
+        recipientUserId: input.userId ?? null,
+        countryCode: input.countryCode ?? null,
+        templateKey: mappedKey,
+        recipientEmail: input.to,
+        category: EmailTemplateCategory.notification,
+        subject: input.subject,
+        status: EmailDeliveryStatus.skipped,
+        deliveryStatus: "skipped_no_smtp",
+        provider: EmailProvider.disabled,
+        metadata: {
+          legacyTemplateKey: input.templateKey,
+          bodyPreview: input.body.slice(0, 280),
+          ...(input.metadata ?? {}),
+        },
+        metadataJson: {
+          legacyTemplateKey: input.templateKey,
+          ...(input.metadata ?? {}),
+        },
+      },
+    });
+    return { sent: false, reason: "smtp_not_configured" as const, logId: log.id };
+  }
 }

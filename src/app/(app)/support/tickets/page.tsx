@@ -1,16 +1,22 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { requireMembership } from "@/lib/auth/session";
-import { listUserSupportTickets } from "@/server/support";
+import { requireUser } from "@/lib/auth/session";
+import { listUserSupportTicketsPage } from "@/server/support";
 
 export const dynamic = "force-dynamic";
 
-export default async function SupportTicketsPage() {
-  const session = await requireMembership();
-  const tickets = await listUserSupportTickets(session);
+export default async function SupportTicketsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const session = await requireUser();
+  const params = await searchParams;
+  const tickets = await listUserSupportTicketsPage(session, { page: params.page });
 
   return (
     <div className="space-y-6">
@@ -22,7 +28,7 @@ export default async function SupportTicketsPage() {
       />
 
       <div className="grid gap-4">
-        {tickets.map((ticket) => (
+        {tickets.items.map((ticket) => (
           <Card key={ticket.id} className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -36,12 +42,18 @@ export default async function SupportTicketsPage() {
             </Button>
           </Card>
         ))}
-        {tickets.length === 0 ? (
+        {tickets.items.length === 0 ? (
           <Card>
             <p className="text-sm text-[var(--color-muted)]">No support tickets yet.</p>
           </Card>
         ) : null}
       </div>
+      <PaginationControls
+        pagination={tickets.pagination}
+        basePath="/support/tickets"
+        searchParams={params}
+        itemLabel="tickets"
+      />
     </div>
   );
 }

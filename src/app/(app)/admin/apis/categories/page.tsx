@@ -23,7 +23,7 @@ export default async function ApiCategoriesPage() {
       ...template,
       configuredCount: configured.length,
       activeStatus: active?.status ?? configured[0]?.status ?? "draft",
-      href: configured[0] ? `/admin/apis/${configured[0].id}` : "/admin/apis/new",
+      href: configured[0] ? `/admin/apis/${configured[0].id}` : `/admin/apis/new?provider=${template.provider}`,
     };
   });
 

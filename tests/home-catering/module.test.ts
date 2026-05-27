@@ -207,6 +207,9 @@ describe("home catering seller foundation", () => {
       "/catering/fulfillment",
       "/catering/promotions",
       "/catering/verification",
+      "/billing",
+      "/profile",
+      "/support",
       "/catering/settings",
     ]);
   });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -15,9 +16,13 @@ import {
   Inbox,
   LayoutDashboard,
   Logs,
+  Mail,
+  PanelLeftClose,
+  PanelLeftOpen,
   Ruler,
   Scale,
   Settings,
+  Settings2,
   Shield,
   ServerCog,
   ShoppingCart,
@@ -36,6 +41,7 @@ const adminNavGroups = [
     title: "Platform",
     items: [
       { href: "/admin", label: "Admin Overview", icon: LayoutDashboard },
+      { href: "/admin/settings", label: "My Settings", icon: Settings2 },
       { href: "/admin/organizations", label: "Organizations", icon: Building2 },
       { href: "/admin/users", label: "Users", icon: Users },
       { href: "/admin/countries", label: "Countries", icon: Globe2 },
@@ -95,6 +101,7 @@ const adminNavGroups = [
       { href: "/admin/grocery-engine", label: "Grocery Engine", icon: ShoppingCart },
       { href: "/admin/grocery-partners", label: "Grocery Partners", icon: Building2 },
       { href: "/admin/support", label: "Support", icon: UserRoundSearch },
+      { href: "/admin/emails", label: "Email Center", icon: Mail },
       { href: "/admin/reports", label: "Reports", icon: BarChart3 },
       { href: "/admin/notifications", label: "Notifications", icon: Inbox },
     ],
@@ -122,6 +129,7 @@ function canSeeLink(session: Session, href: string) {
   if (role === "country_manager") {
     return [
       "/admin",
+      "/admin/settings",
       "/admin/my-countries",
       "/admin/countries",
       "/admin/organizations",
@@ -151,6 +159,7 @@ function canSeeLink(session: Session, href: string) {
   if (role === "support_admin") {
     return [
       "/admin",
+      "/admin/settings",
       "/admin/organizations",
       "/admin/users",
       "/admin/audit-logs",
@@ -174,6 +183,7 @@ function canSeeLink(session: Session, href: string) {
   if (role === "auditor") {
     return [
       "/admin",
+      "/admin/settings",
       "/admin/organizations",
       "/admin/users",
       "/admin/audit-logs",
@@ -188,6 +198,7 @@ function canSeeLink(session: Session, href: string) {
     href === "/admin/apis" ||
     href === "/admin/seo" ||
     href === "/admin/localization" ||
+    href === "/admin/emails" ||
     href === "/admin/content" ||
     href.startsWith("/admin/storage") ||
     href === "/admin/dropbox/uploads" ||
@@ -214,27 +225,72 @@ function canSeeLink(session: Session, href: string) {
   return true;
 }
 
+const ADMIN_SIDEBAR_COLLAPSED_KEY = "nizamkitchen.adminSidebar.collapsed";
+
 export function AdminSidebar({ session }: { session: Session }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem(ADMIN_SIDEBAR_COLLAPSED_KEY) === "true",
+  );
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(ADMIN_SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  }
 
   return (
-    <aside className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 text-[var(--text-primary)]">
-      <div className="mb-5 rounded-2xl bg-slate-950 px-4 py-4 text-white">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Platform scope
-        </p>
-        <p className="mt-2 text-lg font-semibold">
-          {session.user.platformRole === "country_manager"
-            ? `${session.countryAssignments.length} assigned countries`
-            : "Global administration"}
-        </p>
+    <aside
+      className={cn(
+        "rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 text-[var(--text-primary)] transition-all duration-300",
+        collapsed ? "xl:w-[88px]" : "xl:w-[260px]",
+      )}
+      aria-label="Admin navigation"
+      data-collapsed={collapsed ? "true" : "false"}
+    >
+      <div className={cn("mb-5 rounded-2xl bg-slate-950 text-white", collapsed ? "px-3 py-3" : "px-4 py-4")}>
+        <div className={cn("flex items-start justify-between gap-3", collapsed && "justify-center")}>
+          <div className={cn(collapsed && "sr-only")}>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Platform scope
+            </p>
+            <p className="mt-2 text-lg font-semibold">
+              {session.user.platformRole === "country_manager"
+                ? `${session.countryAssignments.length} assigned countries`
+                : "Global administration"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            aria-label={collapsed ? "Expand admin navigation" : "Collapse admin navigation"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand menu" : "Collapse menu"}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
+        {collapsed ? (
+          <p className="mt-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-300" aria-hidden="true">
+            Admin
+          </p>
+        ) : null}
       </div>
       <nav className="space-y-6">
         {adminNavGroups.map((group) => (
-          <div key={group.title} className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+          <div key={group.title} className={cn("space-y-2", collapsed && "space-y-1")}>
+            <p
+              className={cn(
+                "px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600",
+                collapsed && "sr-only",
+              )}
+            >
               {group.title}
             </p>
+            {collapsed ? <div className="mx-auto h-px w-8 bg-slate-200" aria-hidden="true" /> : null}
             {group.items
               .filter((item) => canSeeLink(session, item.href))
               .map((item) => {
@@ -247,15 +303,18 @@ export function AdminSidebar({ session }: { session: Session }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? item.label : undefined}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition",
+                      collapsed && "justify-center px-0",
                       active
                         ? "bg-[#e4f2f0] font-semibold text-[var(--color-primary-strong)] ring-1 ring-[#c6dfdb]"
                         : "text-[var(--text-secondary)] hover:bg-slate-100 hover:text-[var(--text-primary)]",
                     )}
                   >
                     <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <span className={cn(collapsed && "sr-only")}>{item.label}</span>
                   </Link>
                 );
               })}

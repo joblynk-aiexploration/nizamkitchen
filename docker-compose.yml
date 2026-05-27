@@ -9,12 +9,13 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/nizamkitchen?schema=public}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
-      SMTP_PORT: ${SMTP_PORT:-1025}
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/nizamkitchen?schema=public}
+      REDIS_URL: ${DOCKER_REDIS_URL:-redis://redis:6379}
+      OBJECT_STORAGE_ENDPOINT: ${DOCKER_OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      SMTP_HOST: ${DOCKER_SMTP_HOST:-mailpit}
+      SMTP_PORT: ${DOCKER_SMTP_PORT:-1025}
       DEPLOYMENT_ENVIRONMENT: docker-local
+      TZ: America/Chicago
     ports:
       - "3000:3000"
     volumes:

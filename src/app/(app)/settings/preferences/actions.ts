@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { updateUserLocalizationPreferences } from "@/server/localization/localization-service";
 
 export async function saveUserPreferencesAction(formData: FormData) {
@@ -11,9 +12,10 @@ export async function saveUserPreferencesAction(formData: FormData) {
     await updateUserLocalizationPreferences(session, formData);
     revalidatePath("/settings");
     revalidatePath("/settings/preferences");
-    redirect("/settings/preferences?message=Preferences saved.");
+    redirect("/settings/preferences?message=Successfully saved preferences.");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to save preferences.";
+    rethrowIfRedirectError(error);
+    const message = getActionErrorMessage(error, "Unable to save preferences.");
     redirect(`/settings/preferences?message=${encodeURIComponent(message)}`);
   }
 }

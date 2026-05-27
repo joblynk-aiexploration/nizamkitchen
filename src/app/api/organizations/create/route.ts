@@ -119,6 +119,7 @@ export async function POST(request: Request) {
         countryCode: organization.countryCode,
         displayName: organization.name,
         slug: `${slugify(organization.name)}-${Math.random().toString(36).slice(2, 8)}`,
+        operationType: "home_caterer",
         cuisineSpecialtiesJson: [],
         languagesJson: [],
         acceptsPickup: true,

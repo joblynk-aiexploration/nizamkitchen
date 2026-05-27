@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
   generateAccountingForPaidOrders,
   generateSellerSettlementReports,
@@ -33,7 +34,8 @@ export async function saveTaxConfigurationAction(formData: FormData) {
     revalidatePath("/admin/accounting/taxes");
     go("/admin/accounting/taxes", "Tax configuration saved.");
   } catch (error) {
-    go("/admin/accounting/taxes", error instanceof Error ? error.message : "Unable to save tax configuration.");
+    rethrowIfRedirectError(error);
+    go("/admin/accounting/taxes", getActionErrorMessage(error, "Unable to save tax configuration."));
   }
 }
 
@@ -47,7 +49,8 @@ export async function generateAccountingRecordsAction() {
     revalidatePath("/admin/accounting/commissions");
     go("/admin/accounting", `Generated ${result.documentsCreated} documents and ${result.commissionsCreated} commission records.`);
   } catch (error) {
-    go("/admin/accounting", error instanceof Error ? error.message : "Unable to generate accounting records.");
+    rethrowIfRedirectError(error);
+    go("/admin/accounting", getActionErrorMessage(error, "Unable to generate accounting records."));
   }
 }
 
@@ -63,6 +66,7 @@ export async function generateSettlementReportsAction(formData: FormData) {
     revalidatePath("/admin/accounting/settlements");
     go("/admin/accounting/settlements", `Generated ${result.created} settlement reports.`);
   } catch (error) {
-    go("/admin/accounting/settlements", error instanceof Error ? error.message : "Unable to generate settlement reports.");
+    rethrowIfRedirectError(error);
+    go("/admin/accounting/settlements", getActionErrorMessage(error, "Unable to generate settlement reports."));
   }
 }

@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
-import { finishOAuthCallback } from "@/server/auth/oauth-service";
+import { getPublicRequestOrigin, publicRedirectUrl } from "@/lib/request-origin";
+import { finishOAuthCallback, getOAuthUserFacingErrorMessage } from "@/server/auth/oauth-service";
 
 export async function GET(request: Request) {
   try {
     const redirectPath = await finishOAuthCallback({
       provider: "google",
       requestUrl: request.url,
+      requestOrigin: getPublicRequestOrigin(request),
     });
 
-    return NextResponse.redirect(new URL(redirectPath, request.url), { status: 303 });
+    return NextResponse.redirect(publicRedirectUrl(redirectPath, request), { status: 303 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to complete Google sign-in.";
+    const message = getOAuthUserFacingErrorMessage(error, "Unable to complete Google sign-in.");
     return NextResponse.redirect(
-      new URL(`/login?message=${encodeURIComponent(message)}`, request.url),
+      publicRedirectUrl(`/login?message=${encodeURIComponent(message)}`, request),
       { status: 303 },
     );
   }

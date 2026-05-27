@@ -32,6 +32,7 @@ export function AuditLogTable({
   selectedLogId?: string | null;
 }) {
   const selected = selectedLogId ? logs.find((log) => log.id === selectedLogId) ?? null : null;
+  const detailSeparator = detailHrefBase.includes("?") ? "&" : "?";
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
@@ -45,7 +46,7 @@ export function AuditLogTable({
             render: (log) => (
               <div className="space-y-2">
                 <Link
-                  href={`${detailHrefBase}?logId=${log.id}`}
+                  href={`${detailHrefBase}${detailSeparator}logId=${log.id}`}
                   className="font-semibold text-[var(--color-primary)]"
                 >
                   {log.action}
@@ -87,7 +88,9 @@ export function AuditLogTable({
             render: (log) => (
               <div>
                 <p>{log.createdAt.toLocaleDateString()}</p>
-                <p className="text-[var(--color-muted)]">{log.createdAt.toLocaleTimeString()}</p>
+                <p className="text-[var(--color-muted)]">
+                  {log.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                </p>
               </div>
             ),
           },

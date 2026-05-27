@@ -1,4 +1,7 @@
+import fs from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const repoRoot = process.cwd();
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
@@ -84,6 +87,18 @@ describe("shared menu builder", () => {
       expect(result.data.currencyCode).toBe("USD");
       expect(result.data.priceAmount).toBe(85);
     }
+  });
+
+  it("renders seller menu item currency as a supported-currency dropdown and shows save messages", () => {
+    const formSource = fs.readFileSync(`${repoRoot}/src/components/menus/menu-forms.tsx`, "utf8");
+    const cateringListSource = fs.readFileSync(`${repoRoot}/src/app/(app)/catering/menu-items/page.tsx`, "utf8");
+    const cateringActionSource = fs.readFileSync(`${repoRoot}/src/app/(app)/catering/menu/actions.ts`, "utf8");
+
+    expect(formSource).toContain("currencyOptions");
+    expect(formSource).toContain('label="Currency"');
+    expect(formSource).not.toContain('<TextInput label="Currency"');
+    expect(cateringListSource).toContain("<FormMessage message={query.message} />");
+    expect(cateringActionSource).toContain("was successfully saved");
   });
 
   it("home catering seller creates an organization-scoped menu item", async () => {

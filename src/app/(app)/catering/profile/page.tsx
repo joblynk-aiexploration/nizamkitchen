@@ -4,7 +4,9 @@ import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromNa
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { BusinessCoverUploader, ImageUploadField } from "@/components/storage/file-upload-field";
@@ -17,6 +19,7 @@ import {
 import { listBusinessSocialLinks } from "@/server/business-social-links";
 import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { getPrimaryLocation } from "@/server/maps/location-service";
+import { listEnabledCountryPhoneOptions } from "@/server/localization/localization-service";
 import { prisma } from "@/lib/prisma";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
 import { getBusinessProfileCompletion } from "@/server/users/profile";
@@ -24,8 +27,12 @@ import { deleteCateringSocialLinkAction, upsertCateringSocialLinkAction, upsertH
 
 export const dynamic = "force-dynamic";
 
-export default async function CateringProfilePage() {
-  const session = await requireMembership();
+export default async function CateringProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const [session, query] = await Promise.all([requireMembership(), searchParams]);
   const enabled = await canAccessHomeCatering({
     organizationId: session.activeOrganization.id,
     platformRole: session.user.platformRole,
@@ -39,12 +46,13 @@ export default async function CateringProfilePage() {
     getHomeCateringProfileForOrganization(session.activeOrganization.id),
     listBusinessSocialLinks(session.activeOrganization.id),
   ]);
-  const [profileImageUrl, coverImageUrl, menuItemCount, mapsConfig, primaryLocation] = await Promise.all([
+  const [profileImageUrl, coverImageUrl, menuItemCount, mapsConfig, primaryLocation, phoneOptions] = await Promise.all([
     getStorageImageUrl(session, profile?.profilePhotoFileId, profile?.profilePhotoUrl),
     getStorageImageUrl(session, profile?.coverPhotoFileId, profile?.coverPhotoUrl),
     prisma.menuItem.count({ where: { organizationId: session.activeOrganization.id } }),
     getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
     profile ? getPrimaryLocation("home_catering_profile", profile.id) : Promise.resolve(null),
+    listEnabledCountryPhoneOptions(),
   ]);
   const completion = profile ? getBusinessProfileCompletion(profile, { menuItems: menuItemCount, socialLinks: socialLinks.length }) : 0;
   const specialties = Array.isArray(profile?.cuisineSpecialtiesJson) ? profile.cuisineSpecialtiesJson.join(", ") : "";
@@ -55,8 +63,9 @@ export default async function CateringProfilePage() {
       <PageHeader
         eyebrow="Home catering"
         title="Seller profile"
-        description="Share city-level service details only. Exact home addresses stay private until a future explicit seller workflow is built."
+        description="Set whether you prepare from a home kitchen or from a restaurant kitchen. Exact private addresses stay protected."
       />
+      <FormMessage message={query.message} />
 
       {profile ? (
         <ProfileHeader
@@ -77,6 +86,36 @@ export default async function CateringProfilePage() {
       <form action={upsertHomeCateringProfileAction} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="space-y-5">
           <h2 className="text-lg font-semibold text-[var(--color-ink)]">Business details</h2>
+          <div className="rounded-3xl border border-[var(--color-border)] bg-slate-50/80 p-4">
+            <label className="block text-sm font-semibold text-[var(--color-ink)]" htmlFor="operationType">
+              What type of caterer is this?
+            </label>
+            <select
+              id="operationType"
+              name="operationType"
+              defaultValue={profile?.operationType ?? "home_caterer"}
+              className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm"
+            >
+              <option value="home_caterer">Home caterer - I cook from my own home or private kitchen</option>
+              <option value="restaurant_caterer">Restaurant caterer - I prepare catering from a restaurant</option>
+            </select>
+            <p className="mt-2 text-xs leading-5 text-[var(--color-muted)]">
+              Home caterers prepare food at their own place for pickup or delivery. Restaurant caterers prepare food from a restaurant and need restaurant details below.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-[var(--color-border)] bg-white p-4">
+            <p className="text-sm font-semibold text-[var(--color-ink)]">Restaurant caterer details</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--color-muted)]">
+              Fill these in only if this catering profile is connected to a restaurant.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <TextInput label="Restaurant name" name="restaurantName" defaultValue={profile?.restaurantName ?? ""} />
+              <TextInput label="Restaurant license or permit number" name="restaurantLicense" defaultValue={profile?.restaurantLicense ?? ""} />
+              <div className="md:col-span-2">
+                <TextInput label="Restaurant address" name="restaurantAddress" defaultValue={profile?.restaurantAddress ?? ""} />
+              </div>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput label="Display name" name="displayName" defaultValue={profile?.displayName ?? session.activeOrganization.name} required />
             <TextInput label="Owner name" name="ownerName" defaultValue={profile?.ownerName ?? ""} />
@@ -86,7 +125,11 @@ export default async function CateringProfilePage() {
             <TextInput label="Legacy cover photo URL fallback" name="coverPhotoUrl" defaultValue={profile?.coverPhotoUrl ?? ""} />
             <TextInput label="Cuisine specialties" name="cuisineSpecialties" defaultValue={specialties} hint="Comma-separated, e.g. biryani, haleem, sweets" />
             <TextInput label="Languages" name="languages" defaultValue={languages} hint="Comma-separated, e.g. English, Urdu, Hindi" />
-            <TextInput label="Phone" name="phone" defaultValue={profile?.phone ?? ""} />
+            <PhoneNumberInput
+              defaultValue={profile?.phone}
+              defaultCountryCode={phoneOptions.find((option) => option.countryCode === session.activeOrganization.countryCode)?.phoneCountryCode}
+              options={phoneOptions}
+            />
             <TextInput label="Email" name="email" type="email" defaultValue={profile?.email ?? ""} />
             <TextInput label="Minimum notice hours" name="minimumNoticeHours" type="number" min={0} defaultValue={profile?.minimumNoticeHours ?? ""} />
           </div>

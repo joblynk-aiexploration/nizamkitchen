@@ -3,7 +3,9 @@ import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromNa
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { BusinessCoverUploader, DocumentUploadField, ImageUploadField } from "@/components/storage/file-upload-field";
@@ -11,14 +13,19 @@ import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
 import { listBusinessSocialLinks } from "@/server/business-social-links";
+import { listEnabledCountryPhoneOptions } from "@/server/localization/localization-service";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
 import { getBusinessProfileCompletion } from "@/server/users/profile";
 import { addChefSpecialtyAction, addChefVerificationDocumentAction, deleteChefSocialLinkAction, upsertChefProfileAction, upsertChefSocialLinkAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function ChefProfilePage() {
-  const session = await requireMembership();
+export default async function ChefProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const [session, query] = await Promise.all([requireMembership(), searchParams]);
   const enabled = await canAccessChefMarketplace({
     organizationId: session.activeOrganization.id,
     platformRole: session.user.platformRole,
@@ -27,10 +34,11 @@ export default async function ChefProfilePage() {
     return <EmptyState title="Chef profile unavailable" description="Chef profile tools are available only for enabled chef business organizations." />;
   }
 
-  const [profile, recipes, socialLinks] = await Promise.all([
+  const [profile, recipes, socialLinks, phoneOptions] = await Promise.all([
     getChefProfileForOrganization(session.activeOrganization.id),
     listRecipes({ organizationId: session.activeOrganization.id, countryCode: session.activeOrganization.countryCode, publishedOnly: true }),
     listBusinessSocialLinks(session.activeOrganization.id),
+    listEnabledCountryPhoneOptions(),
   ]);
   const [profileImageUrl, coverImageUrl] = await Promise.all([
     getStorageImageUrl(session, profile?.profilePhotoFileId, profile?.profilePhotoUrl),
@@ -45,6 +53,7 @@ export default async function ChefProfilePage() {
         title="Chef profile"
         description="Profiles stay private until a platform admin approves and verifies them."
       />
+      <FormMessage message={query.message} />
 
       {profile ? (
         <ProfileHeader
@@ -77,7 +86,11 @@ export default async function ChefProfilePage() {
             <TextInput label="Base city" name="baseCity" defaultValue={profile?.baseCity ?? ""} />
             <TextInput label="Base region" name="baseRegion" defaultValue={profile?.baseRegion ?? ""} />
             <TextInput label="Postal code" name="postalCode" defaultValue={profile?.postalCode ?? ""} />
-            <TextInput label="Phone" name="phone" defaultValue={profile?.phone ?? ""} />
+            <PhoneNumberInput
+              defaultValue={profile?.phone}
+              defaultCountryCode={phoneOptions.find((option) => option.countryCode === session.activeOrganization.countryCode)?.phoneCountryCode}
+              options={phoneOptions}
+            />
             <TextInput label="Email" name="email" type="email" defaultValue={profile?.email ?? ""} />
           </div>
           <TextArea label="Bio" name="bio" defaultValue={profile?.bio ?? ""} required />

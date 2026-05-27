@@ -38,7 +38,7 @@ export const groceryPartnerSchema = z.object({
   countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
   name: z.string().trim().min(2).max(120),
   websiteUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
-  logoUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
+  logoUrl: z.string().trim().url().max(5000).optional().or(z.literal("")),
   supportedRegions: z.string().max(2000).optional(),
   integrationType: z.enum(["manual_link", "affiliate_link", "api_placeholder", "export_only"]),
   status: z.enum(["draft", "active", "paused", "disabled"]),

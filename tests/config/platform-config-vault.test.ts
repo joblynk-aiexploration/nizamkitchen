@@ -8,8 +8,10 @@ const { mockPrisma } = vi.hoisted(() => ({
     platformIntegration: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     platformIntegrationCredential: {
       findUnique: vi.fn(),
@@ -29,6 +31,13 @@ const { mockPrisma } = vi.hoisted(() => ({
 vi.mock("@/lib/env", () => ({
   env: {
     ENCRYPTION_KEY: "platform-config-test-encryption-key",
+    APP_URL: "http://localhost:3000",
+    GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+    GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
+    GOOGLE_OAUTH_CALLBACK_URL: "",
+    FACEBOOK_OAUTH_APP_ID: "facebook-app-id",
+    FACEBOOK_OAUTH_APP_SECRET: "facebook-app-secret",
+    FACEBOOK_OAUTH_CALLBACK_URL: "",
   },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -38,8 +47,10 @@ import { createAuditEvent } from "@/server/audit";
 import { decryptGatewayCredential, encryptGatewayCredential } from "@/server/payments/credentials";
 import {
   getActiveIntegration,
+  deletePlatformIntegration,
   getPlatformIntegration,
   getPublicIntegrationConfig,
+  importOAuthIntegrationFromEnv,
   listIntegrationTemplates,
   listPlatformIntegrations,
   requireIntegration,
@@ -87,6 +98,8 @@ describe("platform configuration vault", () => {
       updatedById: "admin-1",
       ...data,
     }));
+    mockPrisma.platformIntegration.delete.mockImplementation(async ({ where }) => ({ id: where.id }));
+    mockPrisma.platformIntegration.findFirst.mockResolvedValue(null);
     mockPrisma.platformIntegrationCredential.create.mockImplementation(async ({ data }) => ({
       id: "credential-1",
       createdAt: new Date(),
@@ -201,6 +214,68 @@ describe("platform configuration vault", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "platform_integration.created" }));
   });
 
+  it("allows platform owner to delete an API integration and records audit logs", async () => {
+    mockPrisma.platformIntegration.findUnique.mockResolvedValue({
+      id: "integration-1",
+      provider: "google_oauth",
+      category: "auth",
+      displayName: "Google OAuth",
+      countryCode: null,
+      environment: "production",
+    });
+
+    await deletePlatformIntegration(adminSession(), "integration-1");
+
+    expect(mockPrisma.platformIntegration.delete).toHaveBeenCalledWith({ where: { id: "integration-1" } });
+    expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "platform_integration.deleted_or_archived",
+      targetId: "integration-1",
+    }));
+  });
+
+  it("imports Google OAuth from local env into encrypted platform configuration", async () => {
+    mockPrisma.platformIntegration.findUnique.mockResolvedValue({
+      id: "integration-1",
+      provider: "google_oauth",
+      countryCode: null,
+    });
+    mockPrisma.platformIntegrationCredential.findUnique.mockResolvedValue(null);
+    mockPrisma.platformIntegrationSetting.upsert.mockImplementation(async ({ create, update }) => ({
+      id: "setting-1",
+      ...create,
+      ...update,
+    }));
+
+    const integration = await importOAuthIntegrationFromEnv(adminSession(), IntegrationProvider.google_oauth);
+
+    expect(integration.id).toBe("integration-1");
+    expect(mockPrisma.platformIntegration.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        provider: "google_oauth",
+        status: "active",
+        environment: "development",
+      }),
+    }));
+    expect(mockPrisma.platformIntegrationCredential.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        keyName: "client_id",
+        isPublicClientValue: true,
+      }),
+    }));
+    expect(mockPrisma.platformIntegrationCredential.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        keyName: "client_secret",
+        isPublicClientValue: false,
+      }),
+    }));
+    expect(mockPrisma.platformIntegrationSetting.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        settingKey: "callbackUrl",
+        settingValueJson: "http://localhost:3000/api/auth/oauth/google/callback",
+      }),
+    }));
+  });
+
   it("blocks non-admin users from managing integrations", async () => {
     await expect(savePlatformIntegration(adminSession(null), {
       provider: "google_oauth",
@@ -299,6 +374,92 @@ describe("platform configuration vault", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "platform_integration.tested" }));
   });
 
+  it("flags OAuth callback URLs that point to the start route", async () => {
+    mockPrisma.platformIntegration.findUnique.mockResolvedValue({
+      id: "integration-1",
+      provider: "google_oauth",
+      category: "auth",
+      displayName: "Google OAuth",
+      description: null,
+      status: "active",
+      environment: "development",
+      countryCode: null,
+      region: null,
+      isGlobal: true,
+      isDefault: true,
+      createdById: "admin-1",
+      updatedById: "admin-1",
+      lastTestedAt: null,
+      lastTestStatus: "not_tested",
+      lastTestMessage: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      credentials: [
+        { keyName: "client_id", encryptedValue: encryptGatewayCredential("client-id"), isPublicClientValue: true },
+        { keyName: "client_secret", encryptedValue: encryptGatewayCredential("client-secret"), isPublicClientValue: false },
+      ],
+      settings: [
+        {
+          settingKey: "callbackUrl",
+          settingValueJson: "http://localhost:3000/api/auth/oauth/google/start?flow=register",
+          isSecret: false,
+        },
+      ],
+    });
+
+    await runPlatformIntegrationTest(adminSession(), { integrationId: "integration-1", testType: "oauth_config" });
+
+    expect(mockPrisma.platformIntegrationTestLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("Do not use the /start URL"),
+      }),
+    }));
+  });
+
+  it("allows localhost OAuth callbacks while the app is running locally", async () => {
+    mockPrisma.platformIntegration.findUnique.mockResolvedValue({
+      id: "integration-1",
+      provider: "google_oauth",
+      category: "auth",
+      displayName: "Google OAuth",
+      description: null,
+      status: "active",
+      environment: "production",
+      countryCode: null,
+      region: null,
+      isGlobal: true,
+      isDefault: true,
+      createdById: "admin-1",
+      updatedById: "admin-1",
+      lastTestedAt: null,
+      lastTestStatus: "not_tested",
+      lastTestMessage: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      credentials: [
+        { keyName: "client_id", encryptedValue: encryptGatewayCredential("client-id"), isPublicClientValue: true },
+        { keyName: "client_secret", encryptedValue: encryptGatewayCredential("client-secret"), isPublicClientValue: false },
+      ],
+      settings: [
+        {
+          settingKey: "callbackUrl",
+          settingValueJson: "http://localhost:3000/api/auth/oauth/google/callback",
+          isSecret: false,
+        },
+      ],
+    });
+
+    await runPlatformIntegrationTest(adminSession(), { integrationId: "integration-1", testType: "oauth_config" });
+
+    expect(mockPrisma.platformIntegrationTestLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: "success",
+        message: expect.stringContaining("Configuration saved and validated"),
+      }),
+    }));
+  });
+
   it("ships templates and admin pages without exposing secret values in source", () => {
     const templates = listIntegrationTemplates();
     expect(templates.find((template) => template.provider === "google_oauth")?.serverCredentialKeys).toContain("client_secret");
@@ -330,10 +491,27 @@ describe("platform configuration vault", () => {
 
     const overviewPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/page.tsx"), "utf8");
     const detailPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/[id]/page.tsx"), "utf8");
+    const newPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/new/page.tsx"), "utf8");
+    const providerPicker = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/new/provider-picker.tsx"), "utf8");
+    const categoriesPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/categories/page.tsx"), "utf8");
     const publicKeysPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/apis/public-keys/page.tsx"), "utf8");
     const sidebar = fs.readFileSync(path.join(process.cwd(), "src/components/admin/admin-sidebar.tsx"), "utf8");
     expect(overviewPage).toContain("requirePlatformRole([\"platform_owner\"])");
-    expect(detailPage).toContain("Save / rotate credential");
+    expect(overviewPage).toContain("Google sign-in");
+    expect(overviewPage).toContain("Configure ${item.name}");
+    expect(overviewPage).toContain("Import from local env");
+    expect(newPage).toContain("IntegrationProvider.google_oauth");
+    expect(newPage).toContain("GOOGLE_OAUTH_CLIENT_ID");
+    expect(newPage).toContain("GOOGLE_OAUTH_CLIENT_SECRET");
+    expect(newPage).toContain("GOOGLE_OAUTH_CALLBACK_URL");
+    expect(newPage).toContain("createApiWithSetupAction");
+    expect(providerPicker).toContain("Selecting an API type updates the required setup fields below.");
+    expect(categoriesPage).toContain("provider=${template.provider}");
+    expect(detailPage).toContain("Replace saved value");
+    expect(detailPage).toContain("Provider-specific API setup");
+    expect(detailPage).toContain("Advanced settings");
+    expect(detailPage).toContain("Developer details");
+    expect(detailPage).toContain("Delete API");
     expect(publicKeysPage).toContain("Public API keys");
     expect(detailPage).not.toContain("encryptedValue");
     expect(sidebar).toContain("API Management");

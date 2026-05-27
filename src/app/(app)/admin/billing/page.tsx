@@ -3,12 +3,9 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card } from "@/components/ui/card";
 import { getBillingAdminSummary } from "@/server/billing/safe-billing";
+import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 
 export const dynamic = "force-dynamic";
-
-const stripeConfigured =
-  Boolean(process.env.STRIPE_SECRET_KEY) &&
-  process.env.STRIPE_SECRET_KEY !== "";
 
 export default async function AdminBillingPage() {
   const session = await requirePlatformRole([
@@ -17,7 +14,11 @@ export default async function AdminBillingPage() {
     "support_admin",
   ]);
 
-  const billingSummary = await getBillingAdminSummary();
+  const [billingSummary, stripeReadiness] = await Promise.all([
+    getBillingAdminSummary(),
+    getStripePaymentReadiness(),
+  ]);
+  const stripeConfigured = stripeReadiness.configured;
   const { planCount, subscriptionCount, statusCounts } = billingSummary;
 
   return (
@@ -28,8 +29,7 @@ export default async function AdminBillingPage() {
     >
       {!stripeConfigured && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-          Payments are not configured yet — <code className="font-mono">STRIPE_SECRET_KEY</code> is not set.
-          Subscriptions are managed manually until a payment provider is wired up.
+          Payments are not fully configured yet. {stripeReadiness.message}
         </div>
       )}
 
@@ -57,12 +57,12 @@ export default async function AdminBillingPage() {
         <Card>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Provider</p>
           <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
-            {stripeConfigured ? "Stripe (configured)" : "Manual only"}
+            {stripeConfigured ? stripeReadiness.providerLabel : "Manual only"}
           </p>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
             {stripeConfigured
-              ? "Stripe keys are present. Checkout integration not yet enabled."
-              : "No payment provider configured. All subscriptions are assigned manually."}
+              ? "Stripe is active for hosted checkout."
+              : "Subscriptions stay manual until Stripe is active in API Management or Payment Gateways."}
           </p>
         </Card>
       </div>

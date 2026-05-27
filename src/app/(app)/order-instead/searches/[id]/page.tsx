@@ -75,7 +75,7 @@ export default async function SearchResultPage({
       ) : null}
 
       <div className="text-xs text-[var(--color-muted)]">
-        Results sourced from Google Places. Ratings, price levels, and open-now labels appear only when Google returns them.
+        Restaurant details come from Google when search is available, so ratings, price levels, and hours appear only when Google provides them.
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ export default async function AdminOrganizationsPage({
       countryCode: params.countryCode,
       organizationType: params.organizationType,
       status: params.status,
+      page: params.page,
     }),
     prisma.country.findMany({
       select: { countryCode: true, countryName: true },
@@ -64,8 +65,12 @@ export default async function AdminOrganizationsPage({
       </AdminFilterBar>
 
       <AdminDataTable
-        data={organizations}
+        data={organizations.items}
         emptyMessage="No organizations matched the current filters."
+        pagination={organizations.pagination}
+        paginationBasePath="/admin/organizations"
+        paginationSearchParams={params}
+        paginationItemLabel="organizations"
         columns={[
           {
             key: "name",

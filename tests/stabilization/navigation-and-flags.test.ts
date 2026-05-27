@@ -11,6 +11,7 @@ describe("stabilized role navigation", () => {
 
     expect(links).toEqual(expect.arrayContaining([
       "/admin",
+      "/admin/settings",
       "/admin/countries",
       "/admin/organizations",
       "/admin/users",
@@ -39,6 +40,7 @@ describe("stabilized role navigation", () => {
     }).map((item) => item.href);
 
     expect(links).toContain("/admin/my-countries");
+    expect(links).toContain("/admin/settings");
     expect(links).toContain("/admin/grocery-partners");
     expect(links).not.toContain("/admin/system-settings");
     expect(links).not.toContain("/admin/feature-flags");
@@ -83,11 +85,37 @@ describe("stabilized role navigation", () => {
       "/chef/availability",
       "/chef/requests",
       "/chef/reviews",
+      "/billing",
+      "/profile",
+      "/support",
       "/settings",
     ]);
     expect(links).not.toContain("/household");
     expect(links).not.toContain("/home-chef");
     expect(links).not.toContain("/chefs");
+  });
+
+  it("shows chef staff only assigned-request workspace links", () => {
+    const links = getWorkspaceNavItems({
+      user: { platformRole: null },
+      activeOrganization: { organizationType: "chef_business" },
+      activeMembership: { role: "chef_staff" },
+    }).map((item) => item.href);
+
+    expect(links).toEqual([
+      "/chef",
+      "/chef/requests",
+      "/chef/profile",
+      "/chef/availability",
+      "/billing",
+      "/profile",
+      "/notifications",
+      "/support",
+      "/settings",
+    ]);
+    expect(links).not.toContain("/chef/services");
+    expect(links).not.toContain("/chef/verification");
+    expect(links).not.toContain("/admin");
   });
 
   it("shows restaurant accounts restaurant menu tools and settings", () => {
@@ -106,6 +134,9 @@ describe("stabilized role navigation", () => {
       "/restaurant/fulfillment",
       "/restaurant/promotions",
       "/restaurant/verification",
+      "/billing",
+      "/profile",
+      "/support",
       "/restaurant/settings",
     ]);
   });

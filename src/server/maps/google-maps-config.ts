@@ -64,8 +64,10 @@ export type GoogleGeocodingConfig =
 
 const DEFAULT_MAP_CENTER: MapCenter = { lat: 17.385, lng: 78.4867 };
 const DEFAULT_RADIUS_METERS = 5000;
-const SETUP_MESSAGE =
-  "Google Maps is not configured. Platform Owner must configure Google Maps keys in Admin Configuration.";
+const MAPS_UNAVAILABLE_MESSAGE =
+  "Map features are temporarily unavailable. You can still enter the address manually.";
+const PLACES_UNAVAILABLE_MESSAGE =
+  "Restaurant search is temporarily unavailable. You can still enter restaurant details manually or try again later.";
 
 function normalizeCountryCode(value: string | null | undefined) {
   const trimmed = value?.trim().toUpperCase() ?? "";
@@ -154,7 +156,7 @@ export async function getGoogleMapsPublicConfig(countryCode?: string | null): Pr
   if (!browserApiKey) {
     return {
       enabled: false,
-      reason: SETUP_MESSAGE,
+      reason: MAPS_UNAVAILABLE_MESSAGE,
       browserApiKey: null,
       allowedCountries,
       defaultCountry,
@@ -204,7 +206,7 @@ export async function getGooglePlacesSearchConfig(countryCode?: string | null): 
   if (!placesSearchEnabled) {
     return {
       enabled: false,
-      reason: "Google Places search is disabled in the platform configuration vault.",
+      reason: PLACES_UNAVAILABLE_MESSAGE,
       apiKey: null,
       defaultRadiusMeters,
       regionCode: normalizedCountryCode,
@@ -214,7 +216,7 @@ export async function getGooglePlacesSearchConfig(countryCode?: string | null): 
   if (!apiKey) {
     return {
       enabled: false,
-      reason: SETUP_MESSAGE,
+      reason: PLACES_UNAVAILABLE_MESSAGE,
       apiKey: null,
       defaultRadiusMeters,
       regionCode: normalizedCountryCode,
@@ -247,7 +249,7 @@ export async function getGoogleGeocodingConfig(countryCode?: string | null): Pro
   if (!apiKey) {
     return {
       enabled: false,
-      reason: SETUP_MESSAGE,
+      reason: MAPS_UNAVAILABLE_MESSAGE,
       apiKey: null,
     };
   }

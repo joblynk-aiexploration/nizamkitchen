@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,13 @@ type FileUploadFieldProps = {
   accept?: string;
   hint?: string;
   previewKind?: "image" | "document" | "generic";
+  cropOptions?: {
+    aspectRatio: number;
+    outputWidth: number;
+    outputHeight: number;
+    label: string;
+    helperText: string;
+  };
   className?: string;
 };
 
@@ -38,21 +45,42 @@ export function FileUploadField({
   accept,
   hint,
   previewKind = "generic",
+  cropOptions,
   className,
 }: FileUploadFieldProps) {
   const [fileId, setFileId] = useState(defaultFileId ?? "");
   const [uploaded, setUploaded] = useState<UploadResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [cropPreviewUrl, setCropPreviewUrl] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [cropZoom, setCropZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setError(null);
+    event.target.value = "";
+
+    if (previewKind === "image" && cropOptions) {
+      if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
+      setSelectedImage(file);
+      setCropPosition({ x: 0, y: 0 });
+      setCropZoom(1);
+      setCropPreviewUrl(URL.createObjectURL(file));
+      return;
+    }
+
+    await uploadFile(file, previewKind === "image" ? URL.createObjectURL(file) : null);
+  }
+
+  async function uploadFile(file: File, nextPreviewUrl: string | null) {
     setIsUploading(true);
     setError(null);
-    setPreviewUrl(previewKind === "image" ? URL.createObjectURL(file) : null);
-
+    if (nextPreviewUrl) setPreviewUrl(nextPreviewUrl);
     const formData = new FormData();
     formData.set("file", file);
     formData.set("module", module);
@@ -74,6 +102,36 @@ export function FileUploadField({
     setFileId(payload.file.id);
   }
 
+  async function applyCrop() {
+    if (!selectedImage || !cropOptions || !imageRef.current) return;
+    setError(null);
+    try {
+      const cropped = await cropImageToFile({
+        image: imageRef.current,
+        originalFile: selectedImage,
+        aspectRatio: cropOptions.aspectRatio,
+        outputWidth: cropOptions.outputWidth,
+        outputHeight: cropOptions.outputHeight,
+        panX: cropPosition.x,
+        panY: cropPosition.y,
+        zoom: cropZoom,
+      });
+      const nextPreviewUrl = URL.createObjectURL(cropped);
+      closeCropper();
+      await uploadFile(cropped, nextPreviewUrl);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to crop this image.");
+    }
+  }
+
+  function closeCropper() {
+    if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
+    setCropPreviewUrl(null);
+    setSelectedImage(null);
+    setCropPosition({ x: 0, y: 0 });
+    setCropZoom(1);
+  }
+
   return (
     <div className={cn("rounded-2xl border border-[var(--color-border)] bg-white p-4", className)}>
       <input type="hidden" name={name} value={fileId} />
@@ -90,6 +148,53 @@ export function FileUploadField({
           <input type="file" accept={accept} onChange={onFileChange} className="sr-only" disabled={isUploading} />
         </label>
       </div>
+      {cropPreviewUrl && cropOptions ? (
+        <div className="mt-5 rounded-3xl border border-teal-100 bg-slate-50 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-semibold text-[var(--color-ink)]">{cropOptions.label}</p>
+              <p className="mt-1 text-sm text-[var(--color-muted)]">{cropOptions.helperText}</p>
+            </div>
+            <Button type="button" variant="ghost" onClick={closeCropper}>Cancel</Button>
+          </div>
+          <div
+            className="relative mt-4 overflow-hidden rounded-3xl border border-white bg-slate-950 shadow-inner"
+            style={{ aspectRatio: `${cropOptions.outputWidth} / ${cropOptions.outputHeight}` }}
+          >
+            {/* Local object URL preview before the form is saved. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imageRef}
+              src={cropPreviewUrl}
+              alt="Crop preview"
+              className="absolute left-1/2 top-1/2 h-full w-full object-cover"
+              style={{
+                transform: `translate(calc(-50% + ${cropPosition.x}px), calc(-50% + ${cropPosition.y}px)) scale(${cropZoom})`,
+              }}
+            />
+            <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-white/80" />
+            <div className="pointer-events-none absolute inset-3 rounded-[1.25rem] border border-white/60" />
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <label className="space-y-2 text-sm font-semibold text-[var(--color-ink)]">
+              Zoom
+              <input className="w-full accent-[var(--color-primary)]" type="range" min="1" max="3" step="0.05" value={cropZoom} onChange={(event) => setCropZoom(Number(event.target.value))} />
+            </label>
+            <label className="space-y-2 text-sm font-semibold text-[var(--color-ink)]">
+              Move left/right
+              <input className="w-full accent-[var(--color-primary)]" type="range" min="-80" max="80" step="1" value={cropPosition.x} onChange={(event) => setCropPosition((current) => ({ ...current, x: Number(event.target.value) }))} />
+            </label>
+            <label className="space-y-2 text-sm font-semibold text-[var(--color-ink)]">
+              Move up/down
+              <input className="w-full accent-[var(--color-primary)]" type="range" min="-80" max="80" step="1" value={cropPosition.y} onChange={(event) => setCropPosition((current) => ({ ...current, y: Number(event.target.value) }))} />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button type="button" onClick={applyCrop} disabled={isUploading}>{isUploading ? "Uploading..." : "Crop and upload"}</Button>
+            <Button type="button" variant="secondary" onClick={() => { setCropPosition({ x: 0, y: 0 }); setCropZoom(1); }}>Reset crop</Button>
+          </div>
+        </div>
+      ) : null}
       {previewUrl && previewKind === "image" ? (
         // Local object URL preview before the form is saved.
         // eslint-disable-next-line @next/next/no-img-element
@@ -113,11 +218,37 @@ export function DocumentUploadField(props: Omit<FileUploadFieldProps, "accept" |
 }
 
 export function ProfilePhotoUpload(props: Omit<FileUploadFieldProps, "purpose" | "visibility">) {
-  return <ImageUploadField {...props} purpose="user_profile_photo" visibility="organization" />;
+  return (
+    <ImageUploadField
+      {...props}
+      purpose="user_profile_photo"
+      visibility="organization"
+      cropOptions={{
+        aspectRatio: 1,
+        outputWidth: 800,
+        outputHeight: 800,
+        label: "Adjust profile photo",
+        helperText: "Zoom, reposition, and crop your photo before it is uploaded.",
+      }}
+    />
+  );
 }
 
 export function CoverPhotoUpload(props: Omit<FileUploadFieldProps, "purpose" | "visibility">) {
-  return <ImageUploadField {...props} purpose="user_cover_photo" visibility="organization" />;
+  return (
+    <ImageUploadField
+      {...props}
+      purpose="user_cover_photo"
+      visibility="organization"
+      cropOptions={{
+        aspectRatio: 3,
+        outputWidth: 1800,
+        outputHeight: 600,
+        label: "Adjust cover photo",
+        helperText: "Create a wide banner crop that looks polished across desktop and mobile.",
+      }}
+    />
+  );
 }
 
 export function AvatarWithUpload(props: Omit<FileUploadFieldProps, "purpose" | "visibility">) {
@@ -155,4 +286,55 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function cropImageToFile({
+  image,
+  originalFile,
+  aspectRatio,
+  outputWidth,
+  outputHeight,
+  panX,
+  panY,
+  zoom,
+}: {
+  image: HTMLImageElement;
+  originalFile: File;
+  aspectRatio: number;
+  outputWidth: number;
+  outputHeight: number;
+  panX: number;
+  panY: number;
+  zoom: number;
+}) {
+  if (!image.naturalWidth || !image.naturalHeight) {
+    throw new Error("Image is still loading. Please try again.");
+  }
+
+  const naturalAspect = image.naturalWidth / image.naturalHeight;
+  const baseCropWidth = naturalAspect > aspectRatio ? image.naturalHeight * aspectRatio : image.naturalWidth;
+  const baseCropHeight = naturalAspect > aspectRatio ? image.naturalHeight : image.naturalWidth / aspectRatio;
+  const sourceWidth = Math.max(1, baseCropWidth / zoom);
+  const sourceHeight = Math.max(1, baseCropHeight / zoom);
+  const maxX = Math.max(0, image.naturalWidth - sourceWidth);
+  const maxY = Math.max(0, image.naturalHeight - sourceHeight);
+  const sourceX = clamp(maxX / 2 - (panX / 80) * (maxX / 2), 0, maxX);
+  const sourceY = clamp(maxY / 2 - (panY / 80) * (maxY / 2), 0, maxY);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Your browser could not prepare this image.");
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("Your browser could not crop this image.");
+  const filename = originalFile.name.replace(/\.[^.]+$/, "") || "profile-photo";
+  return new File([blob], `${filename}-cropped.jpg`, { type: "image/jpeg" });
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

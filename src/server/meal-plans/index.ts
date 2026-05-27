@@ -2,6 +2,7 @@ import { Prisma, type MealPlan, type PlatformRole, type SpiceLevel } from "@pris
 import { prisma } from "@/lib/prisma";
 import { hasPlatformRole, PLATFORM_ADMIN_ROLES } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { paginatedQuery } from "@/lib/pagination";
 import {
   mealPlanCreateSchema,
   mealPlanDuplicateSchema,
@@ -64,6 +65,35 @@ const mealPlanDetailArgs = Prisma.validator<Prisma.MealPlanDefaultArgs>()({
 export type MealPlanListItem = Prisma.MealPlanGetPayload<typeof mealPlanListArgs>;
 export type MealPlanDetail = Prisma.MealPlanGetPayload<typeof mealPlanDetailArgs>;
 
+const readyMadeMealTypes = ["breakfast", "lunch", "dinner"] as const;
+
+type ReadyMadeMealPlanInput = {
+  name?: unknown;
+  startDate?: unknown;
+  duration?: unknown;
+  householdSize?: unknown;
+  restrictions?: unknown;
+  dietPreference?: unknown;
+  preferredFoods?: unknown;
+  weekdayPreferenceDays?: unknown;
+  weekdayPreferenceRecipeIds?: unknown;
+  occasionName?: unknown;
+  occasionDate?: unknown;
+  occasionCulture?: unknown;
+  occasionFoods?: unknown;
+};
+
+type ReadyMadeRecipeOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  cuisine: { name: string };
+  dietaryTags: Array<{ dietaryTag: { name: string; slug: string } }>;
+  ingredients: Array<{ ingredient: { name: string; canonicalName: string } }>;
+};
+
+const weekdayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
 function startOfUtcDay(dateString: string) {
   return new Date(`${dateString}T00:00:00.000Z`);
 }
@@ -82,6 +112,104 @@ function eachUtcDay(startDate: Date, endDate: Date) {
 
 function formatWeekday(date: Date) {
   return date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+}
+
+function listFromText(value: unknown) {
+  return String(value ?? "")
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizedTokens(value: unknown) {
+  return listFromText(value).map((item) => item.toLowerCase());
+}
+
+function valuesFromInput(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => String(item));
+  return listFromText(value);
+}
+
+function parseWeekdayPreferences(input: ReadyMadeMealPlanInput) {
+  const days = valuesFromInput(input.weekdayPreferenceDays);
+  const recipeIds = valuesFromInput(input.weekdayPreferenceRecipeIds);
+
+  return days
+    .map((day, index) => ({
+      day: day.trim().toLowerCase(),
+      recipeId: recipeIds[index]?.trim() ?? "",
+    }))
+    .filter((preference) =>
+      weekdayKeys.includes(preference.day as (typeof weekdayKeys)[number]) &&
+      preference.recipeId.length > 0,
+    );
+}
+
+function parseReadyMadeInput(input: ReadyMadeMealPlanInput) {
+  const name = String(input.name ?? "Ready-made family meal plan").trim();
+  const startDate = String(input.startDate ?? "").trim();
+  const duration = String(input.duration ?? "week") === "month" ? "month" : "week";
+  const householdSize = Number(input.householdSize ?? 4);
+  if (!name) throw new Error("Enter a meal plan title.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Choose a valid start date.");
+  if (!Number.isInteger(householdSize) || householdSize < 1 || householdSize > 100) {
+    throw new Error("People count must be between 1 and 100.");
+  }
+  return {
+    name,
+    startDate,
+    duration,
+    householdSize,
+    restrictions: normalizedTokens(input.restrictions),
+    dietPreference: String(input.dietPreference ?? "").trim().toLowerCase(),
+    preferredFoods: normalizedTokens(input.preferredFoods),
+    weekdayPreferences: parseWeekdayPreferences(input),
+    occasionName: String(input.occasionName ?? "").trim(),
+    occasionDate: String(input.occasionDate ?? "").trim(),
+    occasionCulture: String(input.occasionCulture ?? "").trim(),
+    occasionFoods: normalizedTokens(input.occasionFoods),
+  };
+}
+
+function scoreRecipeForReadyMadePlan(
+  recipe: ReadyMadeRecipeOption,
+  mealType: (typeof readyMadeMealTypes)[number],
+  preferredFoods: string[],
+  dietPreference: string,
+) {
+  const haystack = [
+    recipe.name,
+    recipe.description ?? "",
+    recipe.cuisine.name,
+    ...recipe.dietaryTags.flatMap((tag) => [tag.dietaryTag.name, tag.dietaryTag.slug]),
+  ].join(" ").toLowerCase();
+  let score = 0;
+  for (const preferred of preferredFoods) {
+    if (haystack.includes(preferred)) score += 8;
+  }
+  if (dietPreference && haystack.includes(dietPreference)) score += 10;
+  if (mealType === "breakfast" && /breakfast|idli|dosa|upma|poha|paratha|omelet|oats|pancake/.test(haystack)) score += 6;
+  if (mealType === "lunch" && /rice|dal|curry|salan|khichdi|lunch|biryani/.test(haystack)) score += 4;
+  if (mealType === "dinner" && /dinner|biryani|curry|rice|roti|naan|haleem|kebab/.test(haystack)) score += 4;
+  return score;
+}
+
+function recipeMatchesRestrictions(
+  recipe: ReadyMadeRecipeOption,
+  restrictions: string[],
+) {
+  if (!restrictions.length) return false;
+  const haystack = [
+    recipe.name,
+    recipe.description ?? "",
+    ...recipe.ingredients.flatMap((item) => [item.ingredient.name, item.ingredient.canonicalName]),
+    ...recipe.dietaryTags.flatMap((tag) => [tag.dietaryTag.name, tag.dietaryTag.slug]),
+  ].join(" ").toLowerCase();
+  return restrictions.some((restriction) => haystack.includes(restriction));
+}
+
+function getDayKey(date: Date) {
+  return date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }).toLowerCase();
 }
 
 async function ensureRecipeAccessible(recipeId: string, organizationId: string) {
@@ -180,6 +308,26 @@ export async function listMealPlans(organizationId: string) {
   });
 }
 
+export async function listMealPlansPage(
+  organizationId: string,
+  params: { page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = { organizationId };
+
+  return paginatedQuery(
+    prisma.mealPlan.count({ where }),
+    ({ skip, take }) =>
+      prisma.mealPlan.findMany({
+        where,
+        ...mealPlanListArgs,
+        orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+        skip,
+        take,
+      }),
+    params,
+  );
+}
+
 export async function getMealPlan(id: string, organizationId: string) {
   return getMealPlanScoped(id, organizationId);
 }
@@ -227,6 +375,155 @@ export async function createMealPlan(params: {
       startDate: parsed.startDate,
       endDate: parsed.endDate,
       householdSize: parsed.householdSize,
+    },
+  });
+
+  return plan;
+}
+
+export async function createReadyMadeMealPlan(params: {
+  organizationId: string;
+  countryCode: string;
+  createdById: string;
+  input: ReadyMadeMealPlanInput;
+}) {
+  const parsed = parseReadyMadeInput(params.input);
+  const startDate = startOfUtcDay(parsed.startDate);
+  const endDate = new Date(startDate);
+  endDate.setUTCDate(endDate.getUTCDate() + (parsed.duration === "month" ? 29 : 6));
+  const days = eachUtcDay(startDate, endDate);
+  if (parsed.occasionDate && !/^\d{4}-\d{2}-\d{2}$/.test(parsed.occasionDate)) {
+    throw new Error("Choose a valid occasion date.");
+  }
+  const occasionDate = parsed.occasionDate ? startOfUtcDay(parsed.occasionDate) : null;
+  const occasionDayIndex = occasionDate
+    ? days.findIndex((day) => day.toISOString() === occasionDate.toISOString())
+    : -1;
+
+  if (parsed.occasionDate && occasionDayIndex === -1) {
+    throw new Error("Occasion date must be within the meal plan date range.");
+  }
+
+  const recipes = await prisma.recipe.findMany({
+    where: {
+      isPublished: true,
+      OR: [
+        { organizationId: params.organizationId },
+        { organizationId: null, visibility: "global" },
+      ],
+    },
+    include: {
+      cuisine: true,
+      dietaryTags: { include: { dietaryTag: true } },
+      ingredients: { include: { ingredient: true } },
+    },
+    orderBy: [{ isGlobal: "desc" }, { name: "asc" }],
+  });
+
+  const safeRecipes = recipes.filter((recipe) => !recipeMatchesRestrictions(recipe, parsed.restrictions));
+  const availableRecipes = safeRecipes.length > 0 ? safeRecipes : recipes;
+  if (!availableRecipes.length) {
+    throw new Error("Publish recipes before creating a ready-made meal plan.");
+  }
+  const recipeById = new Map(availableRecipes.map((recipe) => [recipe.id, recipe]));
+  const weekdayPreferences = parsed.weekdayPreferences.filter((preference) => recipeById.has(preference.recipeId));
+  const weekdayPreferenceSummary = weekdayPreferences
+    .map((preference) => {
+      const recipe = recipeById.get(preference.recipeId);
+      return `${preference.day}: ${recipe?.name ?? "selected recipe"}`;
+    })
+    .join(", ");
+
+  const getRankedRecipes = (
+    mealType: (typeof readyMadeMealTypes)[number],
+    occasionActive: boolean,
+  ) => {
+    const occasionTokens = occasionActive
+      ? normalizedTokens([
+          parsed.occasionName,
+          parsed.occasionCulture,
+          ...parsed.occasionFoods,
+        ].join(","))
+      : [];
+    const preferredFoods = [...parsed.preferredFoods, ...occasionTokens];
+
+    return [...availableRecipes].sort((a, b) =>
+      scoreRecipeForReadyMadePlan(b, mealType, preferredFoods, parsed.dietPreference) -
+      scoreRecipeForReadyMadePlan(a, mealType, preferredFoods, parsed.dietPreference),
+    );
+  };
+
+  const plan = await prisma.mealPlan.create({
+    data: {
+      organizationId: params.organizationId,
+      countryCode: params.countryCode,
+      createdById: params.createdById,
+      name: parsed.name,
+      status: "draft",
+      startDate,
+      endDate,
+      householdSize: parsed.householdSize,
+      notes: [
+        parsed.dietPreference ? `Diet preference: ${parsed.dietPreference}` : null,
+        parsed.restrictions.length ? `Restrictions: ${parsed.restrictions.join(", ")}` : null,
+        parsed.preferredFoods.length ? `Preferred foods: ${parsed.preferredFoods.join(", ")}` : null,
+        weekdayPreferenceSummary ? `Day preferences: ${weekdayPreferenceSummary}` : null,
+        parsed.occasionName && parsed.occasionDate
+          ? `Occasion: ${parsed.occasionName} on ${parsed.occasionDate}${parsed.occasionCulture ? ` (${parsed.occasionCulture})` : ""}`
+          : null,
+        parsed.occasionFoods.length ? `Occasion foods: ${parsed.occasionFoods.join(", ")}` : null,
+      ].filter(Boolean).join("\n") || null,
+      days: {
+        create: days.map((day, dayIndex) => ({
+          date: day,
+          dayLabel: formatWeekday(day),
+          entries: {
+            create: readyMadeMealTypes.map((mealType, mealIndex) => {
+              const isOccasionDay = dayIndex === occasionDayIndex;
+              const weekdayPreference = weekdayPreferences.find((preference) => preference.day === getDayKey(day));
+              const options = getRankedRecipes(mealType, isOccasionDay);
+              const preferredWeekdayRecipe = mealType === "dinner" && weekdayPreference
+                ? recipeById.get(weekdayPreference.recipeId)
+                : null;
+              const recipe = preferredWeekdayRecipe ?? options[(dayIndex * readyMadeMealTypes.length + mealIndex) % options.length];
+              const notes = [
+                preferredWeekdayRecipe ? `Selected weekday preference: ${preferredWeekdayRecipe.name}` : null,
+                isOccasionDay && parsed.occasionName
+                  ? `Occasion meal for ${parsed.occasionName}${parsed.occasionCulture ? ` (${parsed.occasionCulture})` : ""}. Prioritize available matching recipes and adjust after creation if needed.`
+                  : null,
+              ].filter(Boolean).join("\n") || null;
+
+              return {
+                recipeId: recipe.id,
+                mealType,
+                targetServings: parsed.householdSize,
+                status: "planned",
+                displayOrder: mealIndex,
+                notes,
+              };
+            }),
+          },
+        })),
+      },
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.createdById,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode,
+    action: "meal_plan.ready_made_created",
+    targetType: "meal_plan",
+    targetId: plan.id,
+    details: {
+      duration: parsed.duration,
+      days: days.length,
+      meals: days.length * readyMadeMealTypes.length,
+      restrictions: parsed.restrictions,
+      dietPreference: parsed.dietPreference,
+      weekdayPreferences,
+      occasionName: parsed.occasionName || null,
+      occasionDate: parsed.occasionDate || null,
     },
   });
 

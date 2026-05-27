@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SelectInput } from "@/components/ui/select-input";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { listAdminSupportTickets } from "@/server/support";
+import { listAdminSupportTicketsPage } from "@/server/support";
 import type { SupportTicketPriority, SupportTicketStatus, SupportTicketType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +16,15 @@ const supportRoles = ["platform_owner", "platform_admin", "support_admin"] as co
 export default async function AdminSupportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; status?: string; priority?: string }>;
+  searchParams: Promise<{ type?: string; status?: string; priority?: string; page?: string }>;
 }) {
   const session = await requirePlatformRole([...supportRoles]);
   const params = await searchParams;
-  const tickets = await listAdminSupportTickets(session, {
+  const tickets = await listAdminSupportTicketsPage(session, {
     type: params.type as SupportTicketType | undefined,
     status: params.status as SupportTicketStatus | undefined,
     priority: params.priority as SupportTicketPriority | undefined,
+    page: params.page,
   });
 
   return (
@@ -78,8 +79,12 @@ export default async function AdminSupportPage({
       </form>
 
       <AdminDataTable
-        data={tickets}
+        data={tickets.items}
         emptyMessage="No support tickets found."
+        pagination={tickets.pagination}
+        paginationBasePath="/admin/support"
+        paginationSearchParams={params}
+        paginationItemLabel="tickets"
         columns={[
           {
             key: "ticket",

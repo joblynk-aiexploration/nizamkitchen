@@ -78,6 +78,7 @@ export default async function ChefsMarketplacePage({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-semibold text-[var(--color-ink)]">{chef.displayName}</h2>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-muted)]">{chef.organization.name}</p>
                     <p className="mt-1 text-sm text-[var(--color-muted)]">{chef.baseCity ?? "Service area TBD"}{chef.baseRegion ? `, ${chef.baseRegion}` : ""}</p>
                   </div>
                   {chef.verificationStatus === "verified" ? <Badge tone="success">Verified</Badge> : null}

@@ -12,11 +12,11 @@ export const defaultSecurityHeaders = {
   "Cross-Origin-Resource-Policy": "same-site",
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.cloudflareinsights.com",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com https://api.maptiler.com https://*.tile.openstreetmap.org",
+    "img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com https://maps.googleapis.com https://maps.gstatic.com https://*.gstatic.com https://*.googleusercontent.com https://platform-lookaside.fbsbx.com https://*.fbcdn.net https://*.s3.amazonaws.com https://*.amazonaws.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.maptiler.com https://*.maptiler.com",
+    "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com https://geocode.googleapis.com https://maps.gstatic.com https://*.gstatic.com",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -82,6 +82,7 @@ export function rateLimitKey(scope: string, request: Request, identifier = "") {
 
 export const rateLimitPolicies = {
   login: { limit: 10, windowMs: 60_000 },
+  passwordReset: { limit: 5, windowMs: 60_000 },
   publicShare: { limit: 120, windowMs: 60_000 },
   restaurantSearch: { limit: 20, windowMs: 60_000 },
   youtubeDiscovery: { limit: 6, windowMs: 60_000 },

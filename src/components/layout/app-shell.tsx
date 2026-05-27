@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, MessageSquarePlus, Sparkles } from "lucide-react";
+import { ChevronLeft, Inbox, MessageSquarePlus, Settings2, Sparkles, User } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
+import { initialsFromName } from "@/components/profiles/profile-components";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { LogoutForm } from "@/components/layout/logout-form";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { getUnreadNotificationCount } from "@/server/notifications/notification-service";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getUserOAuthAvatarImageUrl } from "@/server/users/profile";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await getCurrentSession();
@@ -27,6 +30,20 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     }
     return { accepted: true, missing: [] };
   });
+  const [oauthAvatarUrl, avatarUrl] = await Promise.all([
+    getUserOAuthAvatarImageUrl(session.user.id),
+    getStorageImageUrl(session, session.user.profilePhotoFileId),
+  ]);
+  const resolvedAvatarUrl = avatarUrl ?? oauthAvatarUrl;
+  const initials = initialsFromName(session.user.fullName);
+  const accountSettingsHref = session.user.platformRole ? "/admin/settings" : "/settings/profile";
+  const navSession = {
+    user: { platformRole: session.user.platformRole },
+    activeMembership: session.activeMembership ? { role: session.activeMembership.role } : null,
+    activeOrganization: session.activeOrganization
+      ? { organizationType: session.activeOrganization.organizationType }
+      : null,
+  };
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -35,12 +52,42 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* User card */}
         <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">Signed in as</p>
-          <p className="mt-3 font-semibold text-white">{session.user.fullName}</p>
-          <p className="text-sm text-slate-300">{session.user.email}</p>
-          <div className="mt-4 flex items-center gap-2 text-sm text-emerald-200">
-            <Sparkles className="h-4 w-4" />
-            <span>{session.activeOrganization?.name ?? "No active organization"}</span>
+          <div className="flex items-center gap-3">
+            {resolvedAvatarUrl ? (
+              <img
+                src={resolvedAvatarUrl}
+                alt={session.user.fullName}
+                className="h-12 w-12 flex-shrink-0 rounded-full object-cover ring-2 ring-white/20"
+              />
+            ) : (
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-emerald-700/60 ring-2 ring-white/20">
+                <span className="text-sm font-semibold text-white">{initials}</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-white">{session.user.fullName}</p>
+              <p className="truncate text-xs text-slate-300">{session.user.email}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-200">
+            <Sparkles className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{session.activeOrganization?.name ?? "No active organization"}</span>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Link
+              href="/profile"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+            >
+              <User className="h-3.5 w-3.5" />
+              My Profile
+            </Link>
+            <Link
+              href={accountSettingsHref}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Settings
+            </Link>
           </div>
         </div>
 
@@ -49,14 +96,18 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mb-2">
             <NotificationBell unreadCount={unreadNotifications} />
           </div>
-          <SidebarNav session={session} />
+          <SidebarNav session={navSession} />
         </div>
 
         {/* Footer */}
         <div className="border-t border-white/10 pt-4 space-y-1">
+          <Link href="/support/tickets" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
+            <Inbox className="h-4 w-4" />
+            My tickets
+          </Link>
           <Link href="/support/new" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
             <MessageSquarePlus className="h-4 w-4" />
-            Send Feedback
+            Submit a ticket
           </Link>
           <Link href="/" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
             <ChevronLeft className="h-4 w-4" />

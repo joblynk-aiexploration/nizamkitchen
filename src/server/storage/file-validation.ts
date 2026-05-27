@@ -15,6 +15,10 @@ export const DEFAULT_ALLOWED_MIME_TYPES = [
 ];
 
 const blockedExtensions = new Set([".exe", ".sh", ".bat", ".cmd", ".js", ".mjs", ".html", ".htm", ".svg", ".php"]);
+const optionalTextField = (maxLength: number) => z.preprocess(
+  (value) => (value === null || value === undefined ? "" : value),
+  z.string().max(maxLength),
+);
 
 export const storageConfigurationSchema = z.object({
   id: z.string().optional(),
@@ -38,10 +42,10 @@ export const storageUploadSchema = z.object({
   module: z.nativeEnum(StorageModule),
   purpose: z.nativeEnum(StorageFilePurpose),
   visibility: z.nativeEnum(StorageFileVisibility).default("private"),
-  entityType: z.string().max(80).optional().or(z.literal("")),
-  entityId: z.string().max(120).optional().or(z.literal("")),
-  altText: z.string().max(240).optional().or(z.literal("")),
-  caption: z.string().max(500).optional().or(z.literal("")),
+  entityType: optionalTextField(80),
+  entityId: optionalTextField(120),
+  altText: optionalTextField(240),
+  caption: optionalTextField(500),
 });
 
 export function parseAllowedMimeTypes(input?: string | null) {

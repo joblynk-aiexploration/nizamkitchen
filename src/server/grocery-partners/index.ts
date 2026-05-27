@@ -34,34 +34,52 @@ function escapePdfText(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
-function textLinesForList(list: GroceryListForExport) {
-  const lines = [
-    "NizamKitchen Grocery List",
-    list.name,
-    `Generated ${new Date().toLocaleDateString("en-US")}`,
-    `${list.items.length} items`,
-    "",
-  ];
+function formatExportDate(list: GroceryListForExport) {
+  const date = list.createdAt instanceof Date ? list.createdAt : new Date();
+  return date.toLocaleDateString("en-US");
+}
 
-  if (list.recipes.length) {
-    lines.push("Sources:");
-    for (const recipe of list.recipes) {
-      lines.push(`- ${recipe.recipeNameSnapshot} (${recipe.targetServings} servings)`);
-    }
-    lines.push("");
-  }
-
+function groupGroceryItemsByCategory(list: GroceryListForExport) {
   const grouped = new Map<string, typeof list.items>();
   for (const item of list.items) {
     const group = grouped.get(item.category) ?? [];
     group.push(item);
     grouped.set(item.category, group);
   }
+  return grouped;
+}
 
-  for (const [category, items] of grouped.entries()) {
-    lines.push(category.toUpperCase());
+function titleCaseCategory(category: string) {
+  return category.replace(/[_-]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function itemLine(item: GroceryListForExport["items"][number]) {
+  return `[ ] ${item.displayQuantity} ${item.displayUnit} ${item.canonicalIngredientName}`;
+}
+
+export function groceryListToTextLines(list: GroceryListForExport) {
+  const lines = [
+    "NizamKitchen",
+    list.name,
+    `${list.recipes.length} recipe${list.recipes.length !== 1 ? "s" : ""} · ${list.items.length} ingredient${list.items.length !== 1 ? "s" : ""} · Generated ${formatExportDate(list)}`,
+    "",
+  ];
+
+  if (list.recipes.length) {
+    lines.push("Recipes");
+    for (const recipe of list.recipes) {
+      lines.push(`- ${recipe.recipeNameSnapshot} - ${recipe.targetServings} servings`);
+    }
+    lines.push("");
+  }
+
+  for (const [category, items] of groupGroceryItemsByCategory(list).entries()) {
+    lines.push(titleCaseCategory(category));
     for (const item of items) {
-      lines.push(`[ ] ${item.canonicalIngredientName} - ${item.displayQuantity} ${item.displayUnit}`);
+      lines.push(itemLine(item));
+      const sources = item.sources.map((source) => source.recipeNameSnapshot).filter(Boolean);
+      if (sources.length > 1) lines.push(`    From: ${sources.join(", ")}`);
+      if (item.notes) lines.push(`    Note: ${item.notes}`);
     }
     lines.push("");
   }
@@ -73,11 +91,11 @@ function textLinesForList(list: GroceryListForExport) {
     }
   }
 
-  return lines;
+  return lines.map((line) => line.trimEnd());
 }
 
 export function groceryListToClipboardText(list: GroceryListForExport) {
-  return textLinesForList(list).join("\n");
+  return groceryListToTextLines(list).join("\n").trimEnd();
 }
 
 export function groceryListToCsv(list: GroceryListForExport) {
@@ -97,13 +115,13 @@ export function groceryListToCsv(list: GroceryListForExport) {
 }
 
 export function groceryListToPdf(list: GroceryListForExport) {
-  const lines = textLinesForList(list).slice(0, 42);
+  const lines = groceryListToTextLines(list).slice(0, 58);
   const content = [
     "BT",
-    "/F1 18 Tf",
+    "/F1 20 Tf",
     "72 760 Td",
     ...lines.flatMap((line, index) => [
-      index === 0 ? "" : "0 -16 Td",
+      index === 0 ? "" : "0 -14 Td",
       `(${escapePdfText(line.slice(0, 95))}) Tj`,
     ]).filter(Boolean),
     "ET",

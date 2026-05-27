@@ -11,19 +11,18 @@ const protectedPrefixes = [
   "/billing",
   "/developer",
   "/admin",
+  "/onboarding",
 ];
 
 const sessionCookieName = process.env.SESSION_COOKIE_NAME ?? "nk_session";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const requestId = createRequestId();
   const pathname = request.nextUrl.pathname;
-  const hasSessionCookie = !!request.cookies.get(sessionCookieName)?.value;
+  const hasSessionCookie = Boolean(request.cookies.get(sessionCookieName)?.value);
+  const isProtectedPath = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
 
-  if (
-    protectedPrefixes.some((prefix) => pathname.startsWith(prefix)) &&
-    !hasSessionCookie
-  ) {
+  if (isProtectedPath && !hasSessionCookie) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("message", "Please sign in.");
 
@@ -34,6 +33,11 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
   response.headers.set("X-Request-Id", requestId);
+  if (isProtectedPath || pathname.startsWith("/api/admin")) {
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+  }
   return applySecurityHeaders(response);
 }
 

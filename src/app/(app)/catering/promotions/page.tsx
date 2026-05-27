@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
@@ -11,8 +12,9 @@ import { createCateringPromotionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CateringPromotionsPage() {
+export default async function CateringPromotionsPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
   const session = await requireMembership();
+  const query = await searchParams;
   if (session.activeOrganization.organizationType !== "home_catering") {
     return <EmptyState title="Home catering only" description="Promotion tools are available for home catering organizations." />;
   }
@@ -21,10 +23,11 @@ export default async function CateringPromotionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Home catering" title="Promotions" description="Create seller-scoped discounts that are validated server-side by country, seller, date, and usage limits." />
+      <FormMessage message={query.message} />
       <Card>
         <h2 className="text-base font-semibold text-[var(--color-ink)]">New seller promotion</h2>
         <form action={createCateringPromotionAction} className="mt-4 grid gap-4 md:grid-cols-2">
-          <TextInput label="Code" name="code" placeholder="WEEKEND10" required />
+          <TextInput label="Code" name="code" placeholder="WEEKEND10" minLength={3} maxLength={40} pattern="[A-Za-z0-9_-]+" hint="Use at least 3 characters: letters, numbers, dashes, or underscores." required />
           <TextInput label="Name" name="name" placeholder="Weekend biryani discount" required />
           <SelectInput label="Status" name="status" options={[{ value: "active", label: "Active" }, { value: "draft", label: "Draft" }, { value: "disabled", label: "Disabled" }]} />
           <SelectInput label="Discount type" name="discountType" options={[{ value: "percent", label: "Percent" }, { value: "fixed_amount", label: "Fixed amount" }]} />

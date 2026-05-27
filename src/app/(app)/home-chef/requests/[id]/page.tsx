@@ -128,6 +128,7 @@ export default async function HomeChefRequestDetailPage({
               <p className="text-sm text-[var(--color-muted)]">No description was added.</p>
             )}
             <div className="grid gap-3 md:grid-cols-2">
+              <Info label="Food requested" value={request.recipe?.name ?? request.title} />
               <Info label="Time window" value={request.requestedTimeWindow} />
               <Info label="Household size" value={request.householdSize?.toString()} />
               <Info label="Phone" value={request.phone} />

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFormattedPhoneNumber } from "@/lib/phone";
 
 const fulfillmentValues = ["pickup", "delivery", "preorder", "inquiry_only"] as const;
 const sellerStatusValues = ["accepted", "declined", "preparing", "ready_for_pickup", "out_for_delivery", "completed", "cancelled"] as const;
@@ -22,7 +23,7 @@ export const foodOrderCreateSchema = z.object({
   requestedDate: optionalDate.optional(),
   requestedTimeWindow: nullableString(120).optional(),
   customerName: nullableString(160).optional(),
-  customerPhone: nullableString(80).optional(),
+  customerPhone: nullableString(40).optional().refine(isFormattedPhoneNumber, "Phone number must include a country code and a 10 digit number."),
   customerEmail: z.preprocess(
     (value) => (value === "" || value === null || value === undefined ? null : String(value).trim()),
     z.string().email().max(180).nullable(),

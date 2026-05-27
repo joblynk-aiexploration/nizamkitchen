@@ -20,7 +20,7 @@ describe("production env validation", () => {
     }
   });
 
-  it("allows missing optional MapTiler and YouTube keys", async () => {
+  it("allows missing optional Google Maps and YouTube keys", async () => {
     const { validateEnv } = await import("../../src/lib/env");
     const result = validateEnv({
       NODE_ENV: "production",
@@ -31,7 +31,7 @@ describe("production env validation", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.MAPTILER_API_KEY).toBe("");
+      expect(result.data.GOOGLE_MAPS_BROWSER_API_KEY).toBe("");
       expect(result.data.YOUTUBE_DATA_API_KEY).toBe("");
     }
   });
@@ -46,6 +46,10 @@ describe("security headers and rate limits", () => {
     expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("frame-src https://www.youtube.com https://www.youtube-nocookie.com");
+    expect(csp).toContain("https://*.googleusercontent.com");
+    expect(csp).toContain("https://platform-lookaside.fbsbx.com");
+    expect(csp).toContain("https://*.amazonaws.com");
+    expect(csp).toContain("https://static.cloudflareinsights.com");
   });
 
   it("enforces login rate limit policy", () => {

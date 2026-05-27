@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { homeChefRequestInputFromForm } from "@/lib/home-chef-request-form";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
   canAccessHomeChefs,
@@ -36,32 +37,6 @@ async function requireHomeChefHouseholdAccess() {
   return session;
 }
 
-function requestInputFromForm(formData: FormData) {
-  return {
-    requestType: formData.get("requestType"),
-    title: formData.get("title"),
-    description: formData.get("description"),
-    mealPlanId: formData.get("mealPlanId"),
-    recipeId: formData.get("recipeId"),
-    requestedDate: formData.get("requestedDate"),
-    requestedTimeWindow: formData.get("requestedTimeWindow"),
-    guestCount: formData.get("guestCount"),
-    householdSize: formData.get("householdSize"),
-    serviceAddressLine1: formData.get("serviceAddressLine1"),
-    serviceAddressLine2: formData.get("serviceAddressLine2"),
-    city: formData.get("city"),
-    region: formData.get("region"),
-    postalCode: formData.get("postalCode"),
-    phone: formData.get("phone"),
-    preferredLanguage: formData.get("preferredLanguage"),
-    genderPreference: formData.get("genderPreference") || "no_preference",
-    budgetAmount: formData.get("budgetAmount"),
-    budgetCurrency: formData.get("budgetCurrency"),
-    notes: formData.get("notes"),
-    submit: formData.get("intent") === "submit",
-  };
-}
-
 function parseLocationNumber(value: FormDataEntryValue | null) {
   if (typeof value !== "string" || value.trim().length === 0) return null;
   const parsed = Number(value);
@@ -76,7 +51,7 @@ export async function createHomeChefRequestAction(formData: FormData) {
       countryCode: session.activeOrganization.countryCode,
       createdById: session.user.id,
       defaultCurrencyCode: session.activeOrganization.currencyCode,
-      input: requestInputFromForm(formData),
+      input: homeChefRequestInputFromForm(formData),
     });
     await upsertPrimaryLocation({
       organizationId: session.activeOrganization.id,
@@ -97,6 +72,7 @@ export async function createHomeChefRequestAction(formData: FormData) {
 
     revalidatePath("/home-chef");
     revalidatePath("/home-chef/requests");
+    revalidatePath("/chef/requests");
     redirect(`/home-chef/requests/${request.id}?message=Home chef request saved.`);
   } catch (error) {
     rethrowIfRedirectError(error);
@@ -114,7 +90,7 @@ export async function updateHomeChefRequestAction(formData: FormData) {
       organizationId: session.activeOrganization.id,
       actorUserId: session.user.id,
       defaultCurrencyCode: session.activeOrganization.currencyCode,
-      input: requestInputFromForm(formData),
+      input: homeChefRequestInputFromForm(formData),
     });
     await upsertPrimaryLocation({
       organizationId: session.activeOrganization.id,
@@ -135,6 +111,7 @@ export async function updateHomeChefRequestAction(formData: FormData) {
 
     revalidatePath(`/home-chef/requests/${requestId}`);
     revalidatePath("/home-chef/requests");
+    revalidatePath("/chef/requests");
     redirect(`/home-chef/requests/${requestId}?message=Home chef request updated.`);
   } catch (error) {
     rethrowIfRedirectError(error);

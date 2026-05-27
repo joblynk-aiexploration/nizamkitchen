@@ -56,7 +56,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml restart app
 ### Optional Provider Outage
 
 - Disable the related feature flag if users are impacted.
-- Missing MapTiler, YouTube, SMTP, or Stripe placeholder config should degrade cleanly.
+- Missing Google Maps Platform, YouTube, SMTP, or Stripe placeholder config should degrade cleanly.
 - Never paste provider keys into logs or incident notes.
 
 ### Suspicious Access

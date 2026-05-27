@@ -1,7 +1,9 @@
 import type { MeasurementSystem, Prisma } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 import { assertPlatformRole } from "@/lib/auth";
+import { DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT, normalizeDateFormat, normalizeTimeFormat } from "@/lib/date-time-formats";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_APP_TIME_ZONE, getTimeZoneOptionsForCountries } from "@/lib/timezones";
 import { recordAdminAuditLog } from "@/server/audit/audit-service";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
@@ -16,14 +18,14 @@ const VIEW_ROLES: Array<"platform_owner" | "platform_admin" | "country_manager" 
 ];
 
 export const INITIAL_LOCALES = [
-  { localeCode: "en-US", languageName: "English (United States)", nativeName: "English", textDirection: "ltr", dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-US", isDefault: true },
-  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr", dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "en-IN", isDefault: false },
-  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr", dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "en-GB", isDefault: false },
-  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl", dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-SA", isDefault: false },
-  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl", dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-AE", isDefault: false },
-  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr", dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "hi-IN", isDefault: false },
-  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl", dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-IN", isDefault: false },
-  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl", dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-PK", isDefault: false },
+  { localeCode: "en-US", languageName: "English (United States)", nativeName: "English", textDirection: "ltr", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "en-US", isDefault: true },
+  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "en-IN", isDefault: false },
+  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "en-GB", isDefault: false },
+  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "ar-SA", isDefault: false },
+  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "ar-AE", isDefault: false },
+  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "hi-IN", isDefault: false },
+  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "ur-IN", isDefault: false },
+  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl", dateFormat: DEFAULT_DATE_FORMAT, timeFormat: DEFAULT_TIME_FORMAT, numberFormat: "ur-PK", isDefault: false },
 ] as const;
 
 export const INITIAL_CURRENCIES = [
@@ -39,6 +41,92 @@ export function parseCsv(value: FormDataEntryValue | null): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function jsonStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => (typeof item === "string" ? item.trim().toUpperCase() : "")).filter(Boolean)
+    : [];
+}
+
+export async function listEnabledCountryCurrencyOptions() {
+  const [countries, currencies] = await Promise.all([
+    prisma.country.findMany({
+      where: { isActive: true },
+      include: { regionalSetting: true },
+      orderBy: { countryName: "asc" },
+    }),
+    prisma.currencySetting.findMany({ where: { status: "active" }, orderBy: { currencyCode: "asc" } }),
+  ]);
+
+  const enabledCountryCurrencyCodes = new Set<string>();
+  for (const country of countries) {
+    const regionalCurrencies = jsonStringArray(country.regionalSetting?.supportedCurrencyCodesJson);
+    const codes = regionalCurrencies.length ? regionalCurrencies : [country.currencyCode];
+    for (const code of codes) {
+      enabledCountryCurrencyCodes.add(code.trim().toUpperCase());
+    }
+  }
+
+  if (!enabledCountryCurrencyCodes.size) {
+    return currencies;
+  }
+
+  return currencies.filter((currency) => enabledCountryCurrencyCodes.has(currency.currencyCode));
+}
+
+export async function listEnabledCountryTimeZoneOptions() {
+  const countries = await prisma.country.findMany({
+    where: { isActive: true },
+    orderBy: { countryName: "asc" },
+  });
+
+  return getTimeZoneOptionsForCountries(countries);
+}
+
+export async function listEnabledCountryPhoneOptions() {
+  const countries = await prisma.country.findMany({
+    where: { isActive: true },
+    orderBy: { countryName: "asc" },
+    select: { countryCode: true, countryName: true, phoneCountryCode: true },
+  });
+
+  return countries.map((country) => ({
+    countryCode: country.countryCode,
+    countryName: country.countryName,
+    phoneCountryCode: country.phoneCountryCode.startsWith("+")
+      ? country.phoneCountryCode
+      : `+${country.phoneCountryCode.replace(/\D/g, "")}`,
+  }));
+}
+
+function displayLanguageName(locale: { languageName: string; nativeName?: string | null; localeCode: string }) {
+  return locale.languageName.replace(/\s*\([^)]*\)\s*$/, "").trim() || locale.localeCode.split("-")[0];
+}
+
+export async function listEnabledLanguageOptions() {
+  const locales = await prisma.localizationLocale.findMany({
+    where: { status: "active" },
+    orderBy: [{ isDefault: "desc" }, { languageName: "asc" }, { localeCode: "asc" }],
+  });
+  const seen = new Set<string>();
+
+  return locales
+    .map((locale) => {
+      const languageName = displayLanguageName(locale);
+      return {
+        value: languageName,
+        label: locale.nativeName && locale.nativeName !== languageName
+          ? `${languageName} - ${locale.nativeName}`
+          : languageName,
+        localeCode: locale.localeCode,
+      };
+    })
+    .filter((option) => {
+      if (seen.has(option.value)) return false;
+      seen.add(option.value);
+      return true;
+    });
 }
 
 export async function listLocalizationDashboard(session: Session) {
@@ -74,8 +162,8 @@ export async function upsertLocale(session: Session, formData: FormData) {
     textDirection: String(formData.get("textDirection") ?? "ltr") === "rtl" ? "rtl" : "ltr",
     status: formData.get("status") === "disabled" ? "disabled" : "active",
     isDefault: formData.get("isDefault") === "on",
-    dateFormat: String(formData.get("dateFormat") ?? "MM/dd/yyyy").trim(),
-    timeFormat: String(formData.get("timeFormat") ?? "h:mm a").trim(),
+    dateFormat: normalizeDateFormat(formData.get("dateFormat")),
+    timeFormat: normalizeTimeFormat(),
     numberFormat: String(formData.get("numberFormat") ?? localeCode).trim(),
     updatedById: session.user.id,
   } satisfies Prisma.LocalizationLocaleUpdateInput;
@@ -174,8 +262,8 @@ export async function upsertCountryRegionalSetting(session: Session, formData: F
     supportedLocalesJson: supportedLocales as Prisma.InputJsonValue,
     supportedCurrencyCodesJson: supportedCurrencies as Prisma.InputJsonValue,
     measurementSystem,
-    dateFormat: String(formData.get("dateFormat") ?? "MM/dd/yyyy").trim(),
-    timeFormat: String(formData.get("timeFormat") ?? "h:mm a").trim(),
+    dateFormat: normalizeDateFormat(formData.get("dateFormat")),
+    timeFormat: normalizeTimeFormat(),
     addressFormatJson: addressLines as Prisma.InputJsonValue,
     rtlEnabled: formData.get("rtlEnabled") === "on",
     updatedById: session.user.id,
@@ -241,20 +329,40 @@ export async function upsertFoodTerminologyAlias(session: Session, formData: For
 }
 
 export async function getUserLocalizationPreferences(session: Session) {
-  const [preference, locales, currencies] = await Promise.all([
+  const [preference, locales, currencies, timeZones] = await Promise.all([
     prisma.userLocalizationPreference.findUnique({ where: { userId: session.user.id } }),
     prisma.localizationLocale.findMany({ where: { status: "active" }, orderBy: [{ isDefault: "desc" }, { localeCode: "asc" }] }),
-    prisma.currencySetting.findMany({ where: { status: "active" }, orderBy: { currencyCode: "asc" } }),
+    listEnabledCountryCurrencyOptions(),
+    listEnabledCountryTimeZoneOptions(),
   ]);
 
-  return { preference, locales, currencies };
+  return { preference, locales, currencies, timeZones };
 }
 
 export async function updateUserLocalizationPreferences(session: Session, formData: FormData) {
   const localeCode = String(formData.get("localeCode") ?? session.user.preferredLocale ?? "en-US").trim();
-  const timezone = String(formData.get("timezone") ?? session.user.preferredTimezone ?? "UTC").trim();
+  const timezone = String(formData.get("timezone") ?? session.user.preferredTimezone ?? DEFAULT_APP_TIME_ZONE).trim();
   const currencyCode = String(formData.get("currencyCode") ?? "").trim().toUpperCase() || null;
   const measurementSystem = String(formData.get("measurementSystem") ?? "") as MeasurementSystem | "";
+  const [enabledTimeZones, activeLocales] = await Promise.all([
+    listEnabledCountryTimeZoneOptions(),
+    prisma.localizationLocale.findMany({ where: { status: "active" }, orderBy: [{ isDefault: "desc" }, { localeCode: "asc" }] }),
+  ]);
+  const enabledTimeZoneValues = new Set(enabledTimeZones.map((timeZone) => timeZone.value));
+  if (enabledTimeZoneValues.size > 0 && !enabledTimeZoneValues.has(timezone)) {
+    throw new Error("Choose a timezone supported by an enabled country.");
+  }
+
+  const selectedLocale = activeLocales.find((locale) => locale.localeCode === localeCode);
+  if (activeLocales.length > 0 && !selectedLocale) {
+    throw new Error("Choose a supported language.");
+  }
+
+  const enabledCurrencies = await listEnabledCountryCurrencyOptions();
+  const enabledCurrencyCodes = new Set(enabledCurrencies.map((currency) => currency.currencyCode));
+  if (currencyCode && enabledCurrencyCodes.size > 0 && !enabledCurrencyCodes.has(currencyCode)) {
+    throw new Error("Choose a currency supported by an enabled country.");
+  }
 
   const preference = await prisma.userLocalizationPreference.upsert({
     where: { userId: session.user.id },
@@ -264,16 +372,16 @@ export async function updateUserLocalizationPreferences(session: Session, formDa
       timezone,
       currencyCode,
       measurementSystem: measurementSystem || null,
-      dateFormat: String(formData.get("dateFormat") ?? "").trim() || null,
-      timeFormat: String(formData.get("timeFormat") ?? "").trim() || null,
+      dateFormat: normalizeDateFormat(formData.get("dateFormat")),
+      timeFormat: normalizeTimeFormat(),
     },
     update: {
       localeCode,
       timezone,
       currencyCode,
       measurementSystem: measurementSystem || null,
-      dateFormat: String(formData.get("dateFormat") ?? "").trim() || null,
-      timeFormat: String(formData.get("timeFormat") ?? "").trim() || null,
+      dateFormat: normalizeDateFormat(formData.get("dateFormat")),
+      timeFormat: normalizeTimeFormat(),
     },
   });
 
@@ -281,7 +389,7 @@ export async function updateUserLocalizationPreferences(session: Session, formDa
     where: { id: session.user.id },
     data: {
       preferredLocale: localeCode,
-      preferredLanguage: localeCode.split("-")[0],
+      preferredLanguage: selectedLocale ? displayLanguageName(selectedLocale) : localeCode.split("-")[0],
       preferredTimezone: timezone,
     },
   });

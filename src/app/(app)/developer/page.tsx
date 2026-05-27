@@ -3,16 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
+import { getPaginationInput, getPaginationMeta } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function DeveloperPage() {
+export default async function DeveloperPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requireMembership();
-  const apiKeys = await prisma.apiKey.findMany({
-    where: { organizationId: session.activeOrganization.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const params = await searchParams;
+  const paginationInput = getPaginationInput({ page: params.page });
+  const where = { organizationId: session.activeOrganization.id };
+  const [totalApiKeys, apiKeys] = await Promise.all([
+    prisma.apiKey.count({ where }),
+    prisma.apiKey.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: paginationInput.skip,
+      take: paginationInput.take,
+    }),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -43,6 +57,12 @@ export default async function DeveloperPage() {
           </Card>
         ))
       )}
+      <PaginationControls
+        pagination={getPaginationMeta(totalApiKeys, paginationInput)}
+        basePath="/developer"
+        searchParams={params}
+        itemLabel="API keys"
+      />
     </div>
   );
 }

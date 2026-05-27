@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { ChefProfileStatus, RecipeVisibility, TemplateStatus, TemplateVisibility } from "@prisma/client";
+import { shouldSkipBuildTimeDatabase } from "@/lib/build-phase";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/server/seo/seo-service";
 
@@ -23,6 +24,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/caterers",
     "/restaurants",
   ];
+
+  if (shouldSkipBuildTimeDatabase()) {
+    return staticPaths.map((path) => ({
+      url: siteUrl(path),
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: path === "/" ? 1 : 0.7,
+    }));
+  }
 
   const [recipes, chefs, caterers, restaurants, templates] = await Promise.all([
     prisma.recipe.findMany({ where: { isPublished: true, visibility: RecipeVisibility.global }, select: { id: true, updatedAt: true } }).catch(() => []),

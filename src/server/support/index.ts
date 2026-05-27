@@ -1,5 +1,6 @@
 import type { PlatformRole, Prisma, SupportTicketPriority, SupportTicketStatus, SupportTicketType } from "@prisma/client";
 import { assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import {
   supportTicketAdminUpdateSchema,
@@ -23,11 +24,50 @@ export type SupportSession = {
 };
 
 const ticketInclude = {
-  createdBy: { select: { id: true, fullName: true, email: true } },
-  assignedTo: { select: { id: true, fullName: true, email: true } },
+  createdBy: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      profilePhotoFileId: true,
+      oauthAccounts: {
+        select: { avatarUrl: true },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+      },
+    },
+  },
+  assignedTo: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      profilePhotoFileId: true,
+      oauthAccounts: {
+        select: { avatarUrl: true },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+      },
+    },
+  },
   organization: { select: { id: true, name: true, organizationType: true } },
   comments: {
-    include: { author: { select: { id: true, fullName: true, email: true, platformRole: true } } },
+    include: {
+      author: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          platformRole: true,
+          profilePhotoFileId: true,
+          oauthAccounts: {
+            select: { avatarUrl: true },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
     orderBy: { createdAt: "asc" },
   },
 } satisfies Prisma.SupportTicketInclude;
@@ -79,6 +119,26 @@ export async function listUserSupportTickets(session: SupportSession) {
     include: ticketInclude,
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function listUserSupportTicketsPage(
+  session: SupportSession,
+  params: { page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = userTicketWhere(session);
+
+  return paginatedQuery(
+    prisma.supportTicket.count({ where }),
+    ({ skip, take }) =>
+      prisma.supportTicket.findMany({
+        where,
+        include: ticketInclude,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+    params,
+  );
 }
 
 export async function getUserSupportTicket(session: SupportSession, ticketId: string) {
@@ -141,6 +201,34 @@ export async function listAdminSupportTickets(session: SupportSession, filters?:
     include: ticketInclude,
     orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
   });
+}
+
+export async function listAdminSupportTicketsPage(session: SupportSession, filters?: {
+  type?: SupportTicketType;
+  status?: SupportTicketStatus;
+  priority?: SupportTicketPriority;
+  page?: string | string[] | number;
+  pageSize?: string | string[] | number;
+}) {
+  assertPlatformRole(session.user.platformRole, SUPPORT_ADMIN_ROLES);
+  const where = {
+    ...(filters?.type ? { type: filters.type } : {}),
+    ...(filters?.status ? { status: filters.status } : {}),
+    ...(filters?.priority ? { priority: filters.priority } : {}),
+  };
+
+  return paginatedQuery(
+    prisma.supportTicket.count({ where }),
+    ({ skip, take }) =>
+      prisma.supportTicket.findMany({
+        where,
+        include: ticketInclude,
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+        skip,
+        take,
+      }),
+    { page: filters?.page, pageSize: filters?.pageSize },
+  );
 }
 
 export async function getAdminSupportTicket(session: SupportSession, ticketId: string) {

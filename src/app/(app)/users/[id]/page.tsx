@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ProfileCompletionCard, ProfileHeader, ProfileSection, ProfileStatCard, initialsFromName } from "@/components/profiles/profile-components";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { formatReligion } from "@/lib/religion";
+import { getPrimaryLocation } from "@/server/maps/location-service";
 import { getStorageImageUrl } from "@/server/storage/storage-images";
-import { getUserProfileCompletion } from "@/server/users/profile";
+import { getUserOAuthAvatarImageUrl, getUserProfileCompletion } from "@/server/users/profile";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +27,30 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   if (!user) notFound();
   if (!isOwnProfile && !canAdminView && !user.publicProfileEnabled) notFound();
 
-  const [avatarUrl, coverUrl] = await Promise.all([
-    getStorageImageUrl(session, user.profilePhotoFileId),
+  const [oauthAvatarUrl, coverUrl, primaryLocation] = await Promise.all([
+    getUserOAuthAvatarImageUrl(user.id),
     getStorageImageUrl(session, user.coverPhotoFileId),
+    getPrimaryLocation("user", user.id),
   ]);
-  const completion = getUserProfileCompletion(user);
+  const avatarUrl = await getStorageImageUrl(session, user.profilePhotoFileId, oauthAvatarUrl);
+  const completion = getUserProfileCompletion({ ...user, oauthAvatarUrl });
   const location = user.locationText ?? user.location;
+  const canSeePrivateContact = isOwnProfile || canAdminView;
+  const canSeeAddress =
+    canSeePrivateContact ||
+    primaryLocation?.visibility === "public_full" ||
+    primaryLocation?.visibility === "public_city_only";
+  const addressLines =
+    primaryLocation && canSeeAddress
+      ? primaryLocation.visibility === "public_city_only" && !canSeePrivateContact
+        ? [[primaryLocation.city, primaryLocation.region, primaryLocation.countryCode].filter(Boolean).join(", ")]
+        : [
+            primaryLocation.addressLine1,
+            primaryLocation.addressLine2,
+            [primaryLocation.city, primaryLocation.region, primaryLocation.postalCode].filter(Boolean).join(", "),
+            primaryLocation.countryCode,
+          ].filter(Boolean)
+      : [];
 
   return (
     <div className="space-y-8">
@@ -75,14 +95,24 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
         <div className="space-y-6">
           <ProfileCompletionCard score={completion} />
           <ProfileSection title="Contact">
-            {isOwnProfile || canAdminView ? (
+            {canSeePrivateContact ? (
               <div className="space-y-2 text-sm text-[var(--color-muted)]">
                 <p>Email: {user.email}</p>
                 <p>Phone: {user.phone || "Not provided"}</p>
+                <p>Religion: {formatReligion(user.religion)}</p>
                 <p>Preferred language: {user.preferredLanguage || "Not provided"}</p>
               </div>
             ) : (
               <p className="text-sm text-[var(--color-muted)]">Private contact details are hidden.</p>
+            )}
+          </ProfileSection>
+          <ProfileSection title="Address">
+            {addressLines.length ? (
+              <address className="not-italic text-sm leading-6 text-[var(--color-muted)]">
+                {addressLines.map((line) => <span key={line} className="block">{line}</span>)}
+              </address>
+            ) : (
+              <p className="text-sm text-[var(--color-muted)]">Address details are private.</p>
             )}
           </ProfileSection>
         </div>

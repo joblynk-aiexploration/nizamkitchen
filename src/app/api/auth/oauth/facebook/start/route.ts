@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { beginOAuthFlow } from "@/server/auth/oauth-service";
+import { getPublicRequestOrigin, publicRedirectUrl } from "@/lib/request-origin";
+import { beginOAuthFlow, getOAuthUserFacingErrorMessage } from "@/server/auth/oauth-service";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -10,13 +11,15 @@ export async function GET(request: Request) {
       provider: "facebook",
       flow,
       redirectTo: url.searchParams.get("redirectTo"),
+      selectedPlanSlug: url.searchParams.get("plan"),
+      requestOrigin: getPublicRequestOrigin(request),
     });
 
     return NextResponse.redirect(authorizationUrl, { status: 302 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to start Facebook sign-in.";
+    const message = getOAuthUserFacingErrorMessage(error, "Unable to start Facebook sign-in.");
     return NextResponse.redirect(
-      new URL(`/${flow}?message=${encodeURIComponent(message)}`, request.url),
+      publicRedirectUrl(`/${flow}?message=${encodeURIComponent(message)}`, request),
       { status: 303 },
     );
   }

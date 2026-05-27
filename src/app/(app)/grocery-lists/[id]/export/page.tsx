@@ -82,8 +82,24 @@ export default async function GroceryListExportPage({
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {partners.map((partner) => (
               <div key={partner.id} className="rounded-2xl border border-[var(--color-border)] bg-white p-4">
-                <p className="font-semibold text-[var(--color-ink)]">{partner.name}</p>
-                <p className="mt-1 text-sm text-[var(--color-muted)]">{partner.integrationType.replace(/_/g, " ")}</p>
+                <div className="flex items-start gap-4">
+                  {partner.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={partner.logoUrl}
+                      alt={`${partner.name} logo`}
+                      className="h-14 w-14 rounded-2xl border border-[var(--color-border)] bg-white object-contain p-2"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-emerald-50 text-sm font-bold text-emerald-800">
+                      {partner.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-[var(--color-ink)]">{partner.name}</p>
+                    <p className="mt-1 text-sm text-[var(--color-muted)]">{partner.integrationType.replace(/_/g, " ")}</p>
+                  </div>
+                </div>
                 {partner.websiteUrl ? (
                   <Button asChild className="mt-4" variant="secondary">
                     <a href={partner.websiteUrl} target="_blank" rel="noreferrer">Open partner website</a>

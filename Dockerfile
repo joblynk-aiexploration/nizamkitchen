@@ -12,6 +12,7 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Provide build-time env so env.ts validation passes (runtime values injected at container start)
+ENV NIZAMKITCHEN_SKIP_BUILD_DB=1
 RUN cp .env.example .env
 RUN npm run db:generate
 RUN npm run build

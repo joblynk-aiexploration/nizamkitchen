@@ -2,7 +2,10 @@ import Script from "next/script";
 import { getGooglePlatformPublicConfig } from "@/server/seo/seo-service";
 
 export async function GooglePlatformScripts() {
-  const config = await getGooglePlatformPublicConfig();
+  const config = await getGooglePlatformPublicConfig().catch(() => null);
+
+  if (!config) return null;
+
   const renderAnalytics = config.analyticsEnabled && !config.analyticsConsentRequired && config.analyticsMeasurementId;
   const renderAdsense = config.adsenseEnabled && config.adsensePublisherId;
 

@@ -49,7 +49,7 @@ export default function ForHouseholdsPage() {
                 href="/register?type=household"
                 className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[var(--button-primary-bg)] px-6 py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
               >
-                Start beta
+                Sign up
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link

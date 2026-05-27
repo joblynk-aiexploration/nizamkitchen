@@ -3,14 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMenus, listMenuItemsForOrganization } from "@/server/menus";
 
 export const dynamic = "force-dynamic";
 
-export default async function CateringMenuItemsPage() {
-  const session = await requireMembership();
+export default async function CateringMenuItemsPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
+  const [session, query] = await Promise.all([requireMembership(), searchParams]);
   if (session.activeOrganization.organizationType !== "home_catering") return <EmptyState title="Home catering only" description="Menu items are available for home catering sellers." />;
   const enabled = await canAccessMenus({ organizationId: session.activeOrganization.id, organizationType: "home_catering", platformRole: session.user.platformRole });
   if (!enabled) return <EmptyState title="Menus coming soon" description="Menu item management is not enabled for this organization yet." />;
@@ -19,6 +20,7 @@ export default async function CateringMenuItemsPage() {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Home catering" title="Menu items" description="Manage special dishes, trays, sides, desserts, and preorder dishes." actions={<Button asChild><Link href="/catering/menu-items/new">Add menu item</Link></Button>} />
+      <FormMessage message={query.message} />
       {items.length === 0 ? <EmptyState title="No menu items yet" description="Add your first dish to start building a public menu." /> : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => (

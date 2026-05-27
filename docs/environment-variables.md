@@ -28,9 +28,10 @@
 
 ## Optional provider variables
 
-- `MAPTILER_API_KEY`: server-only MapTiler key for restaurant fallback.
-- `NEXT_PUBLIC_MAPTILER_API_KEY`: browser-safe MapTiler key for map display.
-- `MAPTILER_RESTAURANT_DISCOVERY_ENABLED`: enables restaurant search when a server key is present.
+- `GOOGLE_MAPS_BROWSER_API_KEY`: browser-safe fallback key for Google Maps JavaScript API.
+- `GOOGLE_MAPS_SERVER_API_KEY`: server-side fallback key for Google Maps platform services.
+- `GOOGLE_PLACES_SERVER_API_KEY`: server-side fallback key for Google Places text search.
+- `GOOGLE_GEOCODING_API_KEY`: server-side fallback key for geocoding.
 - `YOUTUBE_DATA_API_KEY`: server-only YouTube Data API key for discovery and availability checks.
 - `YOUTUBE_DISCOVERY_ENABLED`: enables YouTube discovery when a server key is present.
 

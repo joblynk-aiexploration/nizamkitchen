@@ -26,7 +26,7 @@ export function AdminShell({
         actions={actions}
         role={session.user.platformRole ?? "viewer"}
       />
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
         <AdminSidebar session={session} />
         <div className="space-y-6">
           <div className="rounded-3xl border border-[var(--color-border)] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fc_55%,#edf4ff_100%)] p-5">

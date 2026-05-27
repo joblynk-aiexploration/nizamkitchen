@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { FoodRequestFields } from "@/components/home-chef/food-request-fields";
+import { RequestScheduleFields } from "@/components/home-chef/request-schedule-fields";
 import { LocationPicker } from "@/components/maps/LocationPicker";
 import { DocumentUploadField } from "@/components/storage/file-upload-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
@@ -12,19 +15,11 @@ import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessMealPlanner, listMealPlans } from "@/server/meal-plans";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
+import { listEnabledCountryPhoneOptions, listEnabledLanguageOptions } from "@/server/localization/localization-service";
 import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { createHomeChefRequestAction } from "../actions";
 
 export const dynamic = "force-dynamic";
-
-const requestTypeOptions = [
-  { value: "custom", label: "Custom request" },
-  { value: "recipe", label: "Recipe" },
-  { value: "meal_plan", label: "Meal plan" },
-  { value: "occasion", label: "Occasion" },
-  { value: "weekly_cooking", label: "Weekly cooking" },
-  { value: "daily_cooking", label: "Daily cooking" },
-];
 
 const genderOptions = [
   { value: "no_preference", label: "No preference" },
@@ -64,7 +59,7 @@ export default async function NewHomeChefRequestPage({
     platformRole: session.user.platformRole,
   });
 
-  const [recipes, mealPlans, mapsConfig] = await Promise.all([
+  const [recipes, mealPlans, mapsConfig, languageOptions, phoneOptions] = await Promise.all([
     listRecipes({
       organizationId: session.activeOrganization.id,
       countryCode: session.activeOrganization.countryCode,
@@ -72,9 +67,10 @@ export default async function NewHomeChefRequestPage({
     }),
     mealPlannerEnabled ? listMealPlans(session.activeOrganization.id) : Promise.resolve([]),
     getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
+    listEnabledLanguageOptions(),
+    listEnabledCountryPhoneOptions(),
   ]);
 
-  const type = requestTypeOptions.some((option) => option.value === params.type) ? params.type : "custom";
   const selectedRecipe = recipes.find((recipe) => recipe.id === params.recipeId);
   const selectedMealPlan = mealPlans.find((plan) => plan.id === params.mealPlanId);
 
@@ -96,34 +92,7 @@ export default async function NewHomeChefRequestPage({
           <Card className="space-y-5">
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Request details</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <SelectInput
-                label="Request type"
-                name="requestType"
-                defaultValue={type}
-                options={requestTypeOptions}
-              />
-              <TextInput
-                label="Title"
-                name="title"
-                defaultValue={
-                  selectedRecipe
-                    ? `Chef for ${selectedRecipe.name}`
-                    : selectedMealPlan
-                      ? `Chef for ${selectedMealPlan.name}`
-                      : ""
-                }
-                placeholder="Sunday family dinner"
-                required
-              />
-              <SelectInput
-                label="Recipe"
-                name="recipeId"
-                defaultValue={params.recipeId ?? ""}
-                options={[
-                  { value: "", label: "No linked recipe" },
-                  ...recipes.map((recipe) => ({ value: recipe.id, label: recipe.name })),
-                ]}
-              />
+              <FoodRequestFields recipes={recipes.map((recipe) => ({ id: recipe.id, name: recipe.name }))} defaultRecipeId={selectedRecipe?.id} />
               <SelectInput
                 label="Meal plan"
                 name="mealPlanId"
@@ -133,15 +102,14 @@ export default async function NewHomeChefRequestPage({
                   ...mealPlans.map((plan) => ({ value: plan.id, label: plan.name })),
                 ]}
               />
-              <TextInput label="Requested date" name="requestedDate" type="date" defaultValue={tomorrowDateInput()} required />
-              <TextInput label="Time window" name="requestedTimeWindow" placeholder="4 PM - 8 PM" />
+              <RequestScheduleFields defaultDate={tomorrowDateInput()} />
               <TextInput label="Guest count" name="guestCount" type="number" min={1} defaultValue={4} required />
               <TextInput label="Household size" name="householdSize" type="number" min={1} defaultValue={4} />
             </div>
             <TextArea
-              label="Description"
+              label="Anything else the chef should know?"
               name="description"
-              placeholder="Describe the occasion, dishes, timing, or household needs."
+              placeholder={selectedMealPlan ? `Add notes for ${selectedMealPlan.name}, timing, allergies, or household needs.` : "Describe the occasion, timing, allergies, or household needs."}
             />
           </Card>
 
@@ -166,8 +134,18 @@ export default async function NewHomeChefRequestPage({
                 defaultValue={{ countryCode: session.activeOrganization.countryCode }}
               />
               <div className="grid gap-4 md:grid-cols-2">
-              <TextInput label="Phone" name="phone" />
-              <TextInput label="Preferred language" name="preferredLanguage" placeholder="English, Urdu, Hindi" />
+              <PhoneNumberInput
+                defaultCountryCode={phoneOptions.find((option) => option.countryCode === session.activeOrganization.countryCode)?.phoneCountryCode}
+                options={phoneOptions}
+              />
+              <SelectInput
+                label="Preferred language"
+                name="preferredLanguage"
+                options={[
+                  { value: "", label: "Select a language" },
+                  ...languageOptions.map((option) => ({ value: option.value, label: option.label })),
+                ]}
+              />
               <SelectInput label="Chef gender preference" name="genderPreference" options={genderOptions} />
               <TextInput label="Budget amount" name="budgetAmount" type="number" min={0} step="0.01" />
               <TextInput
@@ -186,7 +164,7 @@ export default async function NewHomeChefRequestPage({
               purpose="order_attachment"
               visibility="organization"
               entityType="home_chef_request"
-              hint="Optional: upload a reference image, document, or planning file to S3 for support review."
+              hint="Optional: upload a reference image, document, or planning file for support review."
             />
           </Card>
         </div>

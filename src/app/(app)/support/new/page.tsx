@@ -56,7 +56,7 @@ export default function NewSupportTicketPage() {
             purpose="support_attachment"
             visibility="organization"
             entityType="support_ticket"
-            hint="Optional. Uploads to S3 and appears in the admin Dropbox for support review."
+            hint="Optional. Add a screenshot or document to help support review your ticket."
           />
           <div>
             <Button type="submit">Submit ticket</Button>

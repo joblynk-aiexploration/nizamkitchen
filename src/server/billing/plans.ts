@@ -1,4 +1,5 @@
 import { assertPlatformRole } from "@/lib/auth";
+import { shouldSkipBuildTimeDatabase } from "@/lib/build-phase";
 import { createAuditEvent } from "@/server/audit";
 import { getBillingDelegates } from "@/server/billing/safe-billing";
 import { Prisma, type BillingInterval, type BillingPlanStatus } from "@prisma/client";
@@ -7,6 +8,8 @@ import type { getCurrentSession } from "@/lib/session";
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
 export async function listBillingPlans(statusFilter?: BillingPlanStatus) {
+  if (shouldSkipBuildTimeDatabase()) return [];
+
   const { billingPlan } = getBillingDelegates();
   if (!billingPlan) {
     console.error("BillingPlan Prisma delegate is unavailable. Run prisma generate and restart.");
@@ -24,6 +27,10 @@ export async function listBillingPlans(statusFilter?: BillingPlanStatus) {
   }
 }
 
+export async function listActiveBillingPlans() {
+  return listBillingPlans("active");
+}
+
 export async function getBillingPlanBySlug(slug: string) {
   const { billingPlan } = getBillingDelegates();
   if (!billingPlan) {
@@ -33,6 +40,11 @@ export async function getBillingPlanBySlug(slug: string) {
   return billingPlan.findUnique({ where: { slug } });
 }
 
+export async function getActiveBillingPlanBySlug(slug: string) {
+  const plan = await getBillingPlanBySlug(slug);
+  return plan?.status === "active" ? plan : null;
+}
+
 export async function getBillingPlanById(id: string) {
   const { billingPlan } = getBillingDelegates();
   if (!billingPlan) {
@@ -40,6 +52,11 @@ export async function getBillingPlanById(id: string) {
   }
 
   return billingPlan.findUnique({ where: { id } });
+}
+
+export async function getActiveBillingPlanById(id: string) {
+  const plan = await getBillingPlanById(id);
+  return plan?.status === "active" ? plan : null;
 }
 
 async function requireBillingPlanDelegate() {
@@ -58,6 +75,7 @@ type PlanInput = {
   currencyCode?: string;
   billingInterval?: BillingInterval;
   status?: BillingPlanStatus;
+  stripePriceId?: string | null;
   limitsJson?: Record<string, unknown>;
   featuresJson?: unknown[];
 };
@@ -74,6 +92,7 @@ export async function createBillingPlan(session: Session, input: PlanInput) {
       currencyCode: input.currencyCode ?? "USD",
       billingInterval: input.billingInterval ?? "monthly",
       status: input.status ?? "draft",
+      stripePriceId: input.stripePriceId ?? null,
       limitsJson: (input.limitsJson ?? {}) as Prisma.InputJsonValue,
       featuresJson: (input.featuresJson ?? []) as Prisma.InputJsonValue,
     },
@@ -105,6 +124,7 @@ export async function updateBillingPlan(
       ...(input.currencyCode !== undefined && { currencyCode: input.currencyCode }),
       ...(input.billingInterval !== undefined && { billingInterval: input.billingInterval }),
       ...(input.status !== undefined && { status: input.status }),
+      ...(input.stripePriceId !== undefined && { stripePriceId: input.stripePriceId }),
       ...(input.limitsJson !== undefined && { limitsJson: input.limitsJson as Prisma.InputJsonValue }),
       ...(input.featuresJson !== undefined && { featuresJson: input.featuresJson as Prisma.InputJsonValue }),
     },

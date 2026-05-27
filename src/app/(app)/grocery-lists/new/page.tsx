@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { GroceryListRecipeServings } from "@/components/grocery/grocery-list-recipe-servings";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { requireMembership } from "@/lib/auth/session";
@@ -133,38 +134,15 @@ export default async function NewGroceryListPage() {
                 No published recipes available. Publish some recipes first.
               </p>
             ) : (
-              <div className="space-y-3">
-                {recipes.map((recipe) => (
-                  <div
-                    key={recipe.id}
-                    className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-slate-50 px-4 py-3"
-                  >
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-[var(--color-ink)]">{recipe.name}</p>
-                      <p className="text-xs text-[var(--color-muted)]">
-                        {recipe.cuisine.name} · Default: {recipe.servings} {recipe.servingUnit}s
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor={`recipe_${recipe.id}_servings`}
-                        className="text-xs text-[var(--color-muted)] whitespace-nowrap"
-                      >
-                        Target servings
-                      </label>
-                      <input
-                        id={`recipe_${recipe.id}_servings`}
-                        name={`recipe_${recipe.id}_servings`}
-                        type="number"
-                        min="1"
-                        max="200"
-                        placeholder={String(recipe.servings)}
-                        className="w-20 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 text-sm text-center"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <GroceryListRecipeServings
+                recipes={recipes.map((recipe) => ({
+                  id: recipe.id,
+                  name: recipe.name,
+                  cuisineName: recipe.cuisine.name,
+                  defaultServings: recipe.servings,
+                  servingUnit: recipe.servingUnit,
+                }))}
+              />
             )}
           </div>
 

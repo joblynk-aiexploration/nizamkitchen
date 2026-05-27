@@ -3,7 +3,8 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UserStatus, type PlatformRole } from "@prisma/client";
 
-const { mockPrisma } = vi.hoisted(() => ({
+const { mockPrisma, mockGetActiveIntegration } = vi.hoisted(() => ({
+  mockGetActiveIntegration: vi.fn(),
   mockPrisma: {
     storageConfiguration: {
       create: vi.fn(),
@@ -27,12 +28,13 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/server/audit", () => ({ createAuditEvent: vi.fn() }));
+vi.mock("@/server/config/platform-config-service", () => ({ getActiveIntegration: mockGetActiveIntegration }));
 
 import { decryptGatewayCredential } from "@/server/payments/credentials";
-import { validateFileInput } from "@/server/storage/file-validation";
+import { storageUploadSchema, validateFileInput } from "@/server/storage/file-validation";
 import { buildStorageObjectKey } from "@/server/storage/storage-keys";
 import { canAccessStorageFile } from "@/server/storage/storage-permissions";
-import { archiveDeletedStorageFiles, getStorageMaintenanceReport, listStorageConfigurations, saveStorageConfiguration } from "@/server/storage/storage-service";
+import { archiveDeletedStorageFiles, getActiveStorageConfiguration, getStorageMaintenanceReport, listStorageConfigurations, saveStorageConfiguration } from "@/server/storage/storage-service";
 
 function adminSession(role: PlatformRole | null = "platform_owner") {
   return {
@@ -48,7 +50,9 @@ describe("storage foundation", () => {
     vi.resetAllMocks();
     mockPrisma.storageConfiguration.create.mockImplementation(async ({ data }) => ({ id: "storage-1", ...data }));
     mockPrisma.storageConfiguration.findMany.mockResolvedValue([]);
+    mockPrisma.storageConfiguration.findFirst.mockResolvedValue(null);
     mockPrisma.storageFile.updateMany.mockResolvedValue({ count: 0 });
+    mockGetActiveIntegration.mockResolvedValue(null);
   });
 
   it("encrypts S3 credentials and never returns full secrets in configuration listings", async () => {
@@ -83,6 +87,39 @@ describe("storage foundation", () => {
     })).rejects.toThrow();
   });
 
+  it("uses Platform API Management S3 records when legacy storage configuration is empty", async () => {
+    mockGetActiveIntegration.mockResolvedValueOnce({
+      id: "integration-s3",
+      provider: "aws_s3",
+      displayName: "AWS S3",
+      createdById: "admin-1",
+      updatedById: "admin-1",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-02T00:00:00Z"),
+      lastTestedAt: null,
+      lastTestStatus: "success",
+      lastTestMessage: null,
+      settings: [
+        { settingKey: "bucketName", settingValueJson: "nizam-prod", isSecret: false },
+        { settingKey: "region", settingValueJson: "us-east-2", isSecret: false },
+        { settingKey: "maxUploadSizeMb", settingValueJson: "25", isSecret: false },
+      ],
+      credentials: [
+        { keyName: "access_key_id", value: "AKIASTORAGEEXAMPLE1", isPublicClientValue: false },
+        { keyName: "secret_access_key", value: "storage-secret-value", isPublicClientValue: false },
+      ],
+    });
+
+    const config = await getActiveStorageConfiguration();
+
+    expect(config.id).toBe("integration-s3");
+    expect(config.bucketName).toBe("nizam-prod");
+    expect(config.region).toBe("us-east-2");
+    expect(config.accessKeyId).toBe("AKIASTORAGEEXAMPLE1");
+    expect(config.secretAccessKey).toBe("storage-secret-value");
+    expect(config.maxUploadSizeBytes).toBe(25 * 1024 * 1024);
+  });
+
   it("generates safe object keys and strips traversal input", () => {
     const key = buildStorageObjectKey({
       countryCode: "US",
@@ -102,6 +139,22 @@ describe("storage foundation", () => {
     expect(() => validateFileInput({ filename: "script.js", mimeType: "application/javascript", sizeBytes: 10, maxUploadSizeBytes: 1000, allowedMimeTypes: ["image/jpeg"] })).toThrow();
     expect(() => validateFileInput({ filename: "../photo.jpg", mimeType: "image/jpeg", sizeBytes: 10, maxUploadSizeBytes: 1000, allowedMimeTypes: ["image/jpeg"] })).toThrow();
     expect(() => validateFileInput({ filename: "photo.jpg", mimeType: "image/jpeg", sizeBytes: 2000, maxUploadSizeBytes: 1000, allowedMimeTypes: ["image/jpeg"] })).toThrow();
+  });
+
+  it("accepts empty optional upload metadata from browser forms", () => {
+    const parsed = storageUploadSchema.parse({
+      module: "home_chefs",
+      purpose: "order_attachment",
+      visibility: "private",
+      entityType: "home_chef_request",
+      entityId: null,
+      altText: null,
+      caption: null,
+    });
+
+    expect(parsed.entityId).toBe("");
+    expect(parsed.altText).toBe("");
+    expect(parsed.caption).toBe("");
   });
 
   it("enforces tenant access for private files", () => {
@@ -181,8 +234,11 @@ describe("storage foundation", () => {
     const testsPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/storage/tests/page.tsx"), "utf8");
     const maintenancePage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/storage/maintenance/page.tsx"), "utf8");
     const testRoute = fs.readFileSync(path.join(process.cwd(), "src/app/api/admin/storage/test-connection/route.ts"), "utf8");
+    const healthRoute = fs.readFileSync(path.join(process.cwd(), "src/app/api/health/storage/route.ts"), "utf8");
     expect(testsPage).toContain("test-${kind}");
     expect(testRoute).toContain("runStorageTest");
+    expect(healthRoute).toContain("getStorageProvider");
+    expect(healthRoute).not.toContain("OBJECT_STORAGE_ENDPOINT");
     expect(maintenancePage).toContain("Storage maintenance");
     expect(maintenancePage).not.toContain("secretAccessKey");
   });

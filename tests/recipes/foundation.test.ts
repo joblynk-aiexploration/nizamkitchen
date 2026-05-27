@@ -510,16 +510,24 @@ describe("tenant isolation for organization recipes", () => {
 
     await listRecipes({ organizationId: orgA, publishedOnly: true });
 
-    expect(mockPrisma.recipe.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          isPublished: true,
-          OR: [
-            { visibility: "global", isPublished: true },
-            { visibility: "organization", organizationId: orgA, isPublished: true },
-          ],
-        }),
+    const query = mockPrisma.recipe.findMany.mock.calls[0]?.[0];
+    expect(query).toEqual(expect.objectContaining({
+      where: expect.objectContaining({
+        isPublished: true,
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            OR: [
+              { visibility: "global", isPublished: true },
+              { visibility: "organization", organizationId: orgA, isPublished: true },
+            ],
+          }),
+        ]),
+        NOT: expect.arrayContaining([
+          { slug: { startsWith: "qa-" } },
+          { slug: { startsWith: "test-" } },
+          { slug: { startsWith: "admin-qa-" } },
+        ]),
       }),
-    );
+    }));
   });
 });

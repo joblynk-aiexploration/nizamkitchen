@@ -34,6 +34,8 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
     listPublicSellerReviews(profile.organizationId),
   ]);
   const menuImageUrls = await resolveStorageImageUrls(session, menuItems, (item) => item.photoFileId, (item) => item.photoUrl);
+  const firstAvailableMenuItem = menuItems.find((item) => item.status === "active");
+  const placeOrderHref = firstAvailableMenuItem ? `/orders/new?menuItemId=${firstAvailableMenuItem.id}` : null;
 
   return (
     <div className="space-y-8">
@@ -56,7 +58,16 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           profile.acceptsDelivery ? <Badge key="delivery" tone="info">Delivery</Badge> : null,
           profile.acceptsPreorders ? <Badge key="preorder" tone="info">Preorders</Badge> : null,
         ].filter(Boolean)}
-        actions={<ContactActions href="/orders" label="View my orders" />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {placeOrderHref ? (
+              <ContactActions href={placeOrderHref} label="Place my order" />
+            ) : null}
+            <Button variant={placeOrderHref ? "secondary" : "primary"} asChild>
+              <Link href="/orders">View my orders</Link>
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -74,7 +85,16 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
           <p className="mt-3 text-sm text-[var(--color-muted)]">
             Request dishes from this seller as a manual inquiry. Payment is handled directly with the seller for now.
           </p>
-          <Button className="mt-5 w-full justify-center" variant="secondary" asChild>
+          {placeOrderHref ? (
+            <Button className="mt-5 w-full justify-center" asChild>
+              <Link href={placeOrderHref}>Place my order</Link>
+            </Button>
+          ) : (
+            <p className="mt-5 rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+              This caterer does not have an available item to order yet.
+            </p>
+          )}
+          <Button className="mt-3 w-full justify-center" variant="secondary" asChild>
             <Link href="/orders">View my orders</Link>
           </Button>
         </Card>
@@ -108,7 +128,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
               <div className="mt-4 flex items-center justify-between">
                 <p className="font-semibold">{item.priceAmount ? `${item.currencyCode} ${item.priceAmount}` : "Price TBD"}</p>
                 {item.status === "active" ? (
-                  <Button variant="secondary" asChild><Link href={`/orders/new?menuItemId=${item.id}`}>Request order</Link></Button>
+                  <Button variant="secondary" asChild><Link href={`/orders/new?menuItemId=${item.id}`}>Place order</Link></Button>
                 ) : (
                   <Button variant="secondary" disabled>Sold out</Button>
                 )}

@@ -1,7 +1,9 @@
 import { requireMembership } from "@/lib/auth/session";
 import { Card } from "@/components/ui/card";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
-import { TextInput } from "@/components/ui/text-input";
+import { SelectInput } from "@/components/ui/select-input";
+import { DATE_FORMAT_OPTIONS, DEFAULT_TIME_FORMAT, TIME_FORMAT_OPTIONS, normalizeDateFormat } from "@/lib/date-time-formats";
 import { getUserLocalizationPreferences } from "@/server/localization/localization-service";
 import { saveUserPreferencesAction } from "./actions";
 
@@ -14,8 +16,10 @@ export default async function UserPreferencesPage({
 }) {
   const session = await requireMembership();
   const params = await searchParams;
-  const { preference, locales, currencies } = await getUserLocalizationPreferences(session);
+  const { preference, locales, currencies, timeZones } = await getUserLocalizationPreferences(session);
   const org = session.activeOrganization;
+  const selectedDateFormat = normalizeDateFormat(preference?.dateFormat);
+  const selectedTimeFormat = preference?.timeFormat === DEFAULT_TIME_FORMAT ? preference.timeFormat : DEFAULT_TIME_FORMAT;
 
   return (
     <div className="space-y-8">
@@ -25,7 +29,7 @@ export default async function UserPreferencesPage({
         description="Choose your language, timezone, currency, measurement, and date/time display preferences."
       />
 
-      {params.message ? <Card className="border-emerald-200 bg-emerald-50 text-sm text-emerald-800">{params.message}</Card> : null}
+      <FormMessage message={params.message} />
 
       <Card>
         <form action={saveUserPreferencesAction} className="grid gap-4 md:grid-cols-2">
@@ -44,13 +48,24 @@ export default async function UserPreferencesPage({
             </select>
           </label>
 
-          <TextInput
-            label="Timezone"
-            name="timezone"
-            defaultValue={preference?.timezone ?? session.user.preferredTimezone ?? org.defaultTimezone}
-            placeholder="America/Chicago"
-            required
-          />
+          <label className="flex flex-col gap-2 text-sm font-medium text-[var(--text-primary)]">
+            Timezone
+            <select
+              name="timezone"
+              defaultValue={preference?.timezone ?? session.user.preferredTimezone ?? org.defaultTimezone}
+              className="rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm"
+              required
+            >
+              {timeZones.length ? timeZones.map((timeZone) => (
+                <option key={timeZone.value} value={timeZone.value}>
+                  {timeZone.label}
+                </option>
+              )) : <option value={org.defaultTimezone}>{org.defaultTimezone}</option>}
+            </select>
+            <span className="text-xs font-normal text-[var(--color-muted)]">
+              Options are limited to timezones for countries enabled by the Platform Owner.
+            </span>
+          </label>
 
           <label className="flex flex-col gap-2 text-sm font-medium text-[var(--text-primary)]">
             Measurement system
@@ -80,10 +95,25 @@ export default async function UserPreferencesPage({
                 </option>
               )) : <option value={org.currencyCode}>{org.currencyCode}</option>}
             </select>
+            <span className="text-xs font-normal text-[var(--color-muted)]">
+              Options are limited to currencies attached to countries enabled by the Platform Owner.
+            </span>
           </label>
 
-          <TextInput label="Date format" name="dateFormat" defaultValue={preference?.dateFormat ?? ""} placeholder="MM/dd/yyyy" />
-          <TextInput label="Time format" name="timeFormat" defaultValue={preference?.timeFormat ?? ""} placeholder="h:mm a" />
+          <SelectInput
+            label="Date format"
+            name="dateFormat"
+            defaultValue={selectedDateFormat}
+            options={[...DATE_FORMAT_OPTIONS]}
+            hint="Default is MM/DD/YYYY."
+          />
+          <SelectInput
+            label="Time format"
+            name="timeFormat"
+            defaultValue={selectedTimeFormat}
+            options={[...TIME_FORMAT_OPTIONS]}
+            hint="NizamKitchen uses 12-hour time across the app."
+          />
 
           <button className="rounded-2xl bg-[var(--button-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--button-primary-text)] md:col-span-2">
             Save preferences

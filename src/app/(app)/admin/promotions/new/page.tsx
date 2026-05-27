@@ -1,6 +1,7 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FormMessage } from "@/components/ui/form-message";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
@@ -9,13 +10,15 @@ import { createAdminPromotionAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewAdminPromotionPage() {
+export default async function NewAdminPromotionPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
+  const query = await searchParams;
   return (
     <AdminShell session={session} title="New promotion" description="Create a server-validated promo code with optional seller, country, city, date, and usage limits.">
+      <FormMessage message={query.message} />
       <Card>
         <form action={createAdminPromotionAction} className="grid gap-5 md:grid-cols-2">
-          <TextInput label="Code" name="code" placeholder="HYD10" required />
+          <TextInput label="Code" name="code" placeholder="HYD10" minLength={3} maxLength={40} pattern="[A-Za-z0-9_-]+" hint="Use at least 3 characters: letters, numbers, dashes, or underscores." required />
           <TextInput label="Name" name="name" placeholder="Hyderabadi launch offer" required />
           <SelectInput label="Status" name="status" options={[{ value: "draft", label: "Draft" }, { value: "active", label: "Active" }, { value: "disabled", label: "Disabled" }]} />
           <SelectInput label="Scope" name="scope" options={[{ value: "platform", label: "Platform" }, { value: "seller", label: "Seller specific" }]} />

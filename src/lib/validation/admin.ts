@@ -96,6 +96,41 @@ export const platformRoleUpdateSchema = z.object({
   ),
 });
 
+export const adminUserCreateSchema = z.object({
+  fullName: z.string().trim().min(2).max(160),
+  email: z.email().trim().toLowerCase().max(255),
+  password: z
+    .string()
+    .min(8)
+    .max(128)
+    .regex(/[A-Z]/, "Password must include an uppercase letter.")
+    .regex(/[a-z]/, "Password must include a lowercase letter.")
+    .regex(/[0-9]/, "Password must include a number."),
+  status: z.enum(userStatusValues).default("active"),
+  platformRole: z.preprocess(
+    (value) => (value === "" || value === null || value === undefined ? null : value),
+    z.enum(platformRoleValues).nullable(),
+  ),
+  organizationId: z.preprocess(
+    (value) => (value === "" || value === null || value === undefined ? null : value),
+    z.string().min(1).nullable(),
+  ).optional(),
+  organizationRole: z.enum([
+    "org_owner",
+    "org_admin",
+    "member",
+    "household_member",
+    "chef_owner",
+    "chef_staff",
+    "home_catering_owner",
+    "home_catering_staff",
+    "restaurant_owner",
+    "restaurant_staff",
+    "grocery_partner_admin",
+  ]).default("member"),
+  countryCodes: z.array(z.string().trim().toUpperCase().length(2)).default([]),
+});
+
 export const featureFlagCreateSchema = z.object({
   key: z.string().trim().min(2).max(120),
   name: z.string().trim().min(2).max(120),
@@ -138,6 +173,7 @@ export const adminAuditLogFilterSchema = z.object({
   dateFrom: z.string().trim().optional(),
   dateTo: z.string().trim().optional(),
   logId: z.string().trim().optional(),
+  page: z.coerce.number().int().min(1).catch(1).default(1),
 });
 
 export type SupportedModuleValue = (typeof supportedModuleValues)[number];

@@ -30,8 +30,13 @@ const optionalDate = z.preprocess(
 );
 
 const basePromotionSchema = z.object({
-  code: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9_-]+$/),
-  name: z.string().trim().min(2).max(140),
+  code: z
+    .string()
+    .trim()
+    .min(3, "Promotion code must be at least 3 characters.")
+    .max(40, "Promotion code must be 40 characters or fewer.")
+    .regex(/^[a-zA-Z0-9_-]+$/, "Promotion code can only use letters, numbers, dashes, and underscores."),
+  name: z.string().trim().min(2, "Promotion name must be at least 2 characters.").max(140, "Promotion name must be 140 characters or fewer."),
   description: z.string().trim().max(800).optional().or(z.literal("")),
   promotionType: z.enum(["promo_code", "seller_discount", "referral_reward", "loyalty_credit", "manual_credit"]).default("promo_code"),
   discountType: z.enum(["percent", "fixed_amount", "free_delivery", "credit_amount"]),
@@ -125,6 +130,32 @@ export async function createAdminPromotion(session: AdminSession, input: unknown
     targetId: promotion.id,
     details: { code: promotion.code, scope: promotion.scope, discountType: promotion.discountType },
   });
+  return promotion;
+}
+
+export async function updateAdminPromotion(session: AdminSession, id: string, input: unknown) {
+  assertPromotionManager(session);
+  const existing = await getAdminPromotion(session, id);
+  if (!existing) throw new Error("Promotion not found.");
+
+  const parsed = basePromotionSchema.parse(input);
+  if (parsed.countryCode) assertCountryAccess(session as never, parsed.countryCode);
+
+  const promotion = await prisma.promotion.update({
+    where: { id },
+    data: promotionUpdateDataFromInput(parsed, session.user.id),
+  });
+
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    organizationId: promotion.sellerOrganizationId,
+    countryCode: promotion.countryCode,
+    action: "promotion.updated",
+    targetType: "promotion",
+    targetId: promotion.id,
+    details: { code: promotion.code, status: promotion.status, scope: promotion.scope },
+  });
+
   return promotion;
 }
 
@@ -375,6 +406,36 @@ function promotionDataFromInput(parsed: z.infer<typeof basePromotionSchema>, use
     appliesToHomeChefRequests: parsed.appliesToHomeChefRequests,
     appliesToSubscriptions: parsed.appliesToSubscriptions,
     createdBy: { connect: { id: userId } },
+  };
+}
+
+function promotionUpdateDataFromInput(parsed: z.infer<typeof basePromotionSchema>, userId: string): Prisma.PromotionUncheckedUpdateInput {
+  validateDiscountShape(parsed);
+  return {
+    code: normalizePromotionCode(parsed.code),
+    name: parsed.name,
+    description: parsed.description || null,
+    promotionType: parsed.promotionType,
+    discountType: parsed.discountType,
+    status: parsed.status,
+    scope: parsed.scope,
+    sellerOrganizationId: parsed.sellerOrganizationId || null,
+    countryCode: parsed.countryCode || null,
+    region: parsed.region || null,
+    city: parsed.city || null,
+    currencyCode: parsed.currencyCode || null,
+    percentOff: parsed.percentOff == null ? null : new Prisma.Decimal(parsed.percentOff),
+    amountOff: parsed.amountOff == null ? null : new Prisma.Decimal(parsed.amountOff),
+    minOrderAmount: parsed.minOrderAmount == null ? null : new Prisma.Decimal(parsed.minOrderAmount),
+    maxDiscountAmount: parsed.maxDiscountAmount == null ? null : new Prisma.Decimal(parsed.maxDiscountAmount),
+    startsAt: parsed.startsAt ?? null,
+    endsAt: parsed.endsAt ?? null,
+    usageLimit: parsed.usageLimit === "" ? null : parsed.usageLimit ?? null,
+    perUserLimit: parsed.perUserLimit === "" ? null : parsed.perUserLimit ?? null,
+    appliesToFoodOrders: parsed.appliesToFoodOrders,
+    appliesToHomeChefRequests: parsed.appliesToHomeChefRequests,
+    appliesToSubscriptions: parsed.appliesToSubscriptions,
+    updatedById: userId,
   };
 }
 

@@ -78,7 +78,7 @@ export default function AboutPage() {
               href="/register"
               className="rounded-2xl bg-[var(--button-primary-bg)] px-8 py-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition hover:bg-[var(--button-primary-hover-bg)]"
             >
-              Start beta
+              Sign up
             </Link>
             <Link
               href="/contact"

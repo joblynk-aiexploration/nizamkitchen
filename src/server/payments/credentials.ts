@@ -3,16 +3,24 @@ import { env } from "@/lib/env";
 import { PaymentConfigurationError } from "@/server/payments/payment-errors";
 
 const ENCRYPTION_VERSION = "v1";
+const LOCAL_DEV_ENCRYPTION_KEY = "nizamkitchen-local-development-secret-storage-key";
+
+function resolvedEncryptionSecret() {
+  if (env.ENCRYPTION_KEY) return env.ENCRYPTION_KEY;
+  if (env.NODE_ENV !== "production") return LOCAL_DEV_ENCRYPTION_KEY;
+  return null;
+}
 
 function encryptionKey() {
-  if (!env.ENCRYPTION_KEY) {
+  const secret = resolvedEncryptionSecret();
+  if (!secret) {
     throw new PaymentConfigurationError("ENCRYPTION_KEY is required before saving payment gateway credentials.");
   }
-  return crypto.createHash("sha256").update(env.ENCRYPTION_KEY).digest();
+  return crypto.createHash("sha256").update(secret).digest();
 }
 
 export function isPaymentEncryptionConfigured() {
-  return Boolean(env.ENCRYPTION_KEY);
+  return Boolean(resolvedEncryptionSecret());
 }
 
 export function encryptGatewayCredential(secret: string) {

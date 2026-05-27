@@ -95,7 +95,7 @@ export default function HomePage() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Button asChild className="rounded-2xl px-6 py-3 shadow-lg">
               <Link href="/register">
-                Start beta
+                Sign up
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
@@ -199,11 +199,11 @@ export default function HomePage() {
             Ready to transform your kitchen?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-200">
-            Join the beta and help shape the kitchen operating system for Hyderabadi households.
+            Join NizamKitchen and start planning, cooking, and ordering around authentic Hyderabadi food.
           </p>
           <Button asChild className="mt-8 rounded-2xl px-8 py-3 shadow-lg">
             <Link href="/register">
-              Start beta
+              Sign up
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>

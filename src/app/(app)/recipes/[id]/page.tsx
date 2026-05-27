@@ -19,6 +19,7 @@ import {
   isFavoriteRecipe,
   listAvoidedIngredients,
 } from "@/server/household";
+import { canAccessHomeCatering } from "@/server/home-catering";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
 import { buildSeoMetadata, recipeJsonLd } from "@/server/seo/seo-service";
 
@@ -80,10 +81,16 @@ export default async function RecipeDetailPage({
     organizationId: orgId,
     platformRole: session.user.platformRole,
   });
-  const homeChefsEnabled = await canAccessHomeChefs({
-    organizationId: orgId,
-    platformRole: session.user.platformRole,
-  });
+  const [homeChefsEnabled, homeCateringEnabled] = await Promise.all([
+    canAccessHomeChefs({
+      organizationId: orgId,
+      platformRole: session.user.platformRole,
+    }),
+    canAccessHomeCatering({
+      organizationId: orgId,
+      platformRole: session.user.platformRole,
+    }),
+  ]);
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
@@ -102,8 +109,9 @@ export default async function RecipeDetailPage({
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
 
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
-  const showHomeChefRequest =
-    homeChefsEnabled && isHouseholdRequestOrganization(session.activeOrganization.organizationType);
+  const showRecipeProviderRequest =
+    isHouseholdRequestOrganization(session.activeOrganization.organizationType) &&
+    (homeChefsEnabled || homeCateringEnabled);
   const [favorite, avoidedIngredients] = showHouseholdTools
     ? await Promise.all([
         isFavoriteRecipe(orgId, recipe.id),
@@ -156,9 +164,9 @@ export default async function RecipeDetailPage({
             </Button>
           </form>
         )}
-        {showHomeChefRequest && (
+        {showRecipeProviderRequest && (
           <Button asChild variant="secondary">
-            <Link href={`/home-chef/request?type=recipe&recipeId=${recipe.id}`}>Request a chef for this recipe</Link>
+            <Link href={`/recipes/${recipe.id}/request`}>Request chef/caterer</Link>
           </Button>
         )}
         {restaurantFallbackEnabled && (

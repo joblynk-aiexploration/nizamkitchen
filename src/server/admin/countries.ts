@@ -1,5 +1,7 @@
+import { Prisma } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import {
   countryCreateSchema,
@@ -12,7 +14,7 @@ type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
 export async function listAdminCountries(
   session: Session,
-  filters?: { query?: string; onlyActive?: string },
+  filters?: { query?: string; onlyActive?: string; countryCode?: string; page?: string | string[] | number; pageSize?: string | string[] | number },
 ) {
   assertPlatformRole(session.user.platformRole, [
     "platform_owner",
@@ -24,9 +26,13 @@ export async function listAdminCountries(
   const isCountryManager = session.user.platformRole === "country_manager";
   const countryCodes = session.countryAssignments.map((assignment) => assignment.countryCode);
 
-  return prisma.country.findMany({
-    where: {
-      countryCode: isCountryManager ? { in: countryCodes } : undefined,
+  const where: Prisma.CountryWhereInput = {
+      countryCode:
+        filters?.countryCode && !isCountryManager
+          ? filters.countryCode.toUpperCase()
+          : isCountryManager
+            ? { in: countryCodes }
+            : undefined,
       isActive:
         filters?.onlyActive === "active"
           ? true
@@ -35,25 +41,35 @@ export async function listAdminCountries(
             : undefined,
       OR: filters?.query
         ? [
-            { countryName: { contains: filters.query, mode: "insensitive" } },
-            { countryCode: { contains: filters.query.toUpperCase(), mode: "insensitive" } },
+            { countryName: { contains: filters.query, mode: "insensitive" as const } },
+            { countryCode: { contains: filters.query.toUpperCase(), mode: "insensitive" as const } },
           ]
         : undefined,
-    },
-    include: {
-      countryAssignments: {
+  };
+
+  return paginatedQuery(
+    prisma.country.count({ where }),
+    ({ skip, take }) =>
+      prisma.country.findMany({
+        where,
         include: {
-          user: true,
+          countryAssignments: {
+            include: {
+              user: true,
+            },
+          },
+          _count: {
+            select: {
+              organizations: true,
+            },
+          },
         },
-      },
-      _count: {
-        select: {
-          organizations: true,
-        },
-      },
-    },
-    orderBy: { countryName: "asc" },
-  });
+        orderBy: { countryName: "asc" },
+        skip,
+        take,
+      }),
+    { page: filters?.page, pageSize: filters?.pageSize },
+  );
 }
 
 export async function getAdminCountryDetail(session: Session, countryCode: string) {

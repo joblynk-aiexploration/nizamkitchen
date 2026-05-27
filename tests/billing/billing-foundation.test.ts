@@ -42,7 +42,15 @@ import {
   getUpgradeReasonForLimit,
   BUILT_IN_PLAN_LIMITS,
 } from "../../src/server/billing/plan-limits";
-import { listBillingPlans, getBillingPlanBySlug } from "../../src/server/billing/plans";
+import {
+  createBillingPlan,
+  getActiveBillingPlanById,
+  getActiveBillingPlanBySlug,
+  getBillingPlanBySlug,
+  listActiveBillingPlans,
+  listBillingPlans,
+  updateBillingPlan,
+} from "../../src/server/billing/plans";
 import { getBillingAdminSummary } from "../../src/server/billing/safe-billing";
 import { getActiveSubscription, getSubscriptionForOrg } from "../../src/server/billing/subscriptions";
 import { recordUsage, currentBillingPeriod } from "../../src/server/billing/usage";
@@ -193,6 +201,14 @@ describe("billing plans service", () => {
     expect(result).toHaveLength(2);
   });
 
+  it("listActiveBillingPlans only queries active plans", async () => {
+    mockPrisma.billingPlan.findMany.mockResolvedValue([freePlan]);
+    await listActiveBillingPlans();
+    expect(mockPrisma.billingPlan.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: "active" } }),
+    );
+  });
+
   it("listBillingPlans without filter queries all plans", async () => {
     mockPrisma.billingPlan.findMany.mockResolvedValue([freePlan]);
     await listBillingPlans();
@@ -206,6 +222,54 @@ describe("billing plans service", () => {
     const result = await getBillingPlanBySlug("free");
     expect(mockPrisma.billingPlan.findUnique).toHaveBeenCalledWith({ where: { slug: "free" } });
     expect(result?.slug).toBe("free");
+  });
+
+  it("active plan helpers hide draft plans from purchase flows", async () => {
+    mockPrisma.billingPlan.findUnique
+      .mockResolvedValueOnce({ ...familyPlusPlan, status: "draft" })
+      .mockResolvedValueOnce({ ...familyPlusPlan, status: "archived" })
+      .mockResolvedValueOnce(familyPlusPlan);
+
+    await expect(getActiveBillingPlanBySlug("family-plus")).resolves.toBeNull();
+    await expect(getActiveBillingPlanById("plan-family-plus")).resolves.toBeNull();
+    await expect(getActiveBillingPlanBySlug("family-plus")).resolves.toMatchObject({ status: "active" });
+  });
+
+  it("platform admin can create and update pricing plans including Stripe Price IDs", async () => {
+    mockPrisma.billingPlan.create.mockResolvedValue({ ...familyPlusPlan, stripePriceId: "price_family_plus" });
+    mockPrisma.billingPlan.update.mockResolvedValue({ ...familyPlusPlan, priceAmount: 12.99, stripePriceId: "price_updated" });
+
+    await createBillingPlan(platformAdminSession as never, {
+      name: "Family Plus",
+      slug: "family-plus",
+      priceAmount: 4.99,
+      currencyCode: "USD",
+      billingInterval: "monthly",
+      status: "active",
+      stripePriceId: "price_family_plus",
+      limitsJson: { maxMealPlans: 10 },
+      featuresJson: ["Advanced grocery exports"],
+    });
+
+    expect(mockPrisma.billingPlan.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        priceAmount: 4.99,
+        stripePriceId: "price_family_plus",
+      }),
+    }));
+
+    await updateBillingPlan(platformAdminSession as never, "plan-family-plus", {
+      priceAmount: 12.99,
+      stripePriceId: "price_updated",
+    });
+
+    expect(mockPrisma.billingPlan.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "plan-family-plus" },
+      data: expect.objectContaining({
+        priceAmount: 12.99,
+        stripePriceId: "price_updated",
+      }),
+    }));
   });
 
   it("billing admin summary returns setup state instead of crashing when billing delegate is missing", async () => {
@@ -310,6 +374,23 @@ describe("billing navigation", () => {
     expect(links).toContain("/billing");
   });
 
+  it("seller workspaces include /billing so chefs, caterers, and restaurants can manage plans", () => {
+    const sellerSessions = [
+      { activeOrganization: { organizationType: "chef_business" }, activeMembership: { role: "chef_staff" } },
+      { activeOrganization: { organizationType: "home_catering" }, activeMembership: { role: "home_catering_staff" } },
+      { activeOrganization: { organizationType: "restaurant" }, activeMembership: { role: "restaurant_owner" } },
+    ] as const;
+
+    for (const session of sellerSessions) {
+      const links = getWorkspaceNavItems({
+        user: { platformRole: null },
+        ...session,
+      }).map((l) => l.href);
+      expect(links).toContain("/billing");
+      expect(links).not.toContain("/admin/billing");
+    }
+  });
+
   it("platform admin nav includes the billing module overview", () => {
     const links = getPlatformNavItems({
       user: { platformRole: "platform_owner" },
@@ -340,6 +421,7 @@ describe("billing plan seeds", () => {
       "family-plus",
       "premium-household",
       "chef-business",
+      "home-catering-seller",
       "restaurant-partner",
       "enterprise",
     ];

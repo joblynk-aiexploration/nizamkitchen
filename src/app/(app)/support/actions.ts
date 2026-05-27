@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireMembership } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { addUserSupportTicketComment, createSupportTicket } from "@/server/support";
 
 export async function createSupportTicketAction(formData: FormData) {
-  const session = await requireMembership();
+  const session = await requireUser();
   const ticket = await createSupportTicket(session, {
     type: formData.get("type"),
     priority: formData.get("priority"),
@@ -21,7 +21,7 @@ export async function createSupportTicketAction(formData: FormData) {
 }
 
 export async function addUserSupportTicketCommentAction(ticketId: string, formData: FormData) {
-  const session = await requireMembership();
+  const session = await requireUser();
   await addUserSupportTicketComment(session, ticketId, {
     body: formData.get("body"),
     isInternal: false,
