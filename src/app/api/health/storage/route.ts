@@ -1,39 +1,26 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
-
-function buildStorageHealthUrl(endpoint: string) {
-  const url = new URL(endpoint);
-  url.pathname = "/minio/health/live";
-  return url.toString();
-}
+import { getStorageProvider } from "@/server/storage/storage-service";
 
 export async function GET() {
-  const healthUrl = buildStorageHealthUrl(env.OBJECT_STORAGE_ENDPOINT);
-
   try {
-    const response = await fetch(healthUrl, {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      throw new Error(`Storage probe returned ${response.status}.`);
-    }
+    const { configuration, provider } = await getStorageProvider();
+    const result = await provider.testConnection();
 
     return NextResponse.json({
-      ok: true,
-      storage: "reachable",
-      endpoint: env.OBJECT_STORAGE_ENDPOINT,
-      bucket: env.OBJECT_STORAGE_BUCKET,
+      ok: result.ok,
+      storage: result.ok ? "reachable" : "unreachable",
+      configured: true,
+      provider: configuration.provider,
+      bucketName: configuration.bucketName,
+      message: result.message,
       timestamp: new Date().toISOString(),
-    });
+    }, { status: result.ok ? 200 : 503 });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         storage: "unreachable",
-        endpoint: env.OBJECT_STORAGE_ENDPOINT,
-        bucket: env.OBJECT_STORAGE_BUCKET,
+        configured: false,
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 503 },

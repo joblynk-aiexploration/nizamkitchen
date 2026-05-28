@@ -23,7 +23,7 @@ export async function runDiscoveryForRecipe(params: {
 }): Promise<DiscoveryRunResult> {
   const { recipeId, requestedByUserId, organizationId, countryCode, forceRefresh = false } = params;
 
-  const cfg = getYouTubeDiscoveryConfig();
+  const cfg = await getYouTubeDiscoveryConfig();
   if (!cfg.enabled) {
     return { success: false, error: cfg.reason };
   }
@@ -229,7 +229,7 @@ export async function runDiscoveryForAllRecipes(params: {
 }): Promise<{ started: number; skipped: number; failed: string[] }> {
   const { requestedByUserId, organizationId, countryCode, missingOnly = false } = params;
 
-  const cfg = getYouTubeDiscoveryConfig();
+  const cfg = await getYouTubeDiscoveryConfig();
   if (!cfg.enabled) {
     return { started: 0, skipped: 0, failed: [cfg.reason] };
   }

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { canAccessFamilyProfiles, getHouseholdProfile } from "@/server/household";
+import { listEnabledCountryCurrencyOptions } from "@/server/localization/localization-service";
 import { updateHouseholdProfileAction } from "../actions";
 import { ComingSoonFamilyProfiles, cookingDays, HouseholdNav, NonHouseholdState } from "../_components";
 
@@ -19,15 +20,16 @@ export default async function HouseholdPreferencesPage({ searchParams }: { searc
   if (!enabled) return <ComingSoonFamilyProfiles />;
   if (org.organizationType !== "household") return <NonHouseholdState organizationType={org.organizationType} />;
 
-  const [profile, countries, cuisines] = await Promise.all([
+  const [profile, countries, cuisines, currencies] = await Promise.all([
     getHouseholdProfile(org.id),
     prisma.country.findMany({ where: { isActive: true }, orderBy: { countryName: "asc" } }),
     prisma.cuisine.findMany({ orderBy: { name: "asc" } }),
+    listEnabledCountryCurrencyOptions(),
   ]);
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Household" title="Household preferences" description="Save serving sizes, spice comfort, cooking rhythm, cuisines, and regional defaults for this organization." />
+      <PageHeader eyebrow="Household" title="Household preferences" description="Save serving sizes, spice comfort, cooking rhythm, cuisines, and regional defaults for your household." />
       <HouseholdNav />
       <FormMessage message={message} />
 
@@ -70,7 +72,13 @@ export default async function HouseholdPreferencesPage({ searchParams }: { searc
               </select>
             </Field>
             <Field label="Grocery budget currency" id="groceryBudgetCurrency">
-              <input id="groceryBudgetCurrency" name="groceryBudgetCurrency" maxLength={3} defaultValue={profile?.groceryBudgetCurrency ?? org.currencyCode} className={fieldClass} />
+              <select id="groceryBudgetCurrency" name="groceryBudgetCurrency" defaultValue={profile?.groceryBudgetCurrency ?? org.currencyCode} className={fieldClass}>
+                {currencies.length ? currencies.map((currency) => (
+                  <option key={currency.currencyCode} value={currency.currencyCode}>
+                    {currency.currencyCode} · {currency.displayName}
+                  </option>
+                )) : <option value={org.currencyCode}>{org.currencyCode}</option>}
+              </select>
             </Field>
             <Field label="Grocery budget placeholder" id="groceryBudgetAmount">
               <input id="groceryBudgetAmount" name="groceryBudgetAmount" type="number" min="0" step="0.01" defaultValue={profile?.groceryBudgetAmount ?? ""} className={fieldClass} />

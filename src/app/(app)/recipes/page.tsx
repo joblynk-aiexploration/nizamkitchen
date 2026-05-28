@@ -3,11 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { formatTotalTime } from "@/lib/recipe-utils";
 import { listCuisines } from "@/server/cuisines";
-import { listRecipes } from "@/server/recipes";
+import { listRecipesPage } from "@/server/recipes";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +33,17 @@ export default async function RecipesPage({
 }) {
   const session = await requireMembership();
   const params = await searchParams;
+  const isHousehold = session.activeOrganization.organizationType === "household";
 
   const [recipes, cuisines] = await Promise.all([
-    listRecipes({
+    listRecipesPage({
       organizationId: session.activeOrganization.id,
       cuisineId: params.cuisineId,
       difficulty: params.difficulty as never,
       spiceLevel: params.spiceLevel as never,
       countryCode: params.countryCode,
       publishedOnly: true,
+      page: params.page,
     }),
     listCuisines(),
   ]);
@@ -50,7 +53,11 @@ export default async function RecipesPage({
       <PageHeader
         eyebrow="Recipe library"
         title="Recipes"
-        description="Browse global and organization recipes. All ingredients carry unit-safe quantities for grocery planning."
+        description={
+          isHousehold
+            ? "Browse public recipes and recipes saved for your household. Ingredients use safe units for grocery planning."
+            : "Browse public recipes and recipes saved for your workspace. Ingredients use safe units for grocery planning."
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -97,44 +104,52 @@ export default async function RecipesPage({
         </Button>
       </div>
 
-      {recipes.length === 0 ? (
+      {recipes.items.length === 0 ? (
         <EmptyState
           title="No recipes found"
           description="No published recipes match the current filters."
         />
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {recipes.map((recipe) => (
-            <Card key={recipe.id} className="flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Link
-                    href={`/recipes/${recipe.id}`}
-                    className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-primary)]"
-                  >
-                    {recipe.name}
-                  </Link>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">{recipe.cuisine.name}</p>
+        <>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {recipes.items.map((recipe) => (
+              <Card key={recipe.id} className="flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Link
+                      href={`/recipes/${recipe.id}`}
+                      className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-primary)]"
+                    >
+                      {recipe.name}
+                    </Link>
+                    <p className="mt-1 text-xs text-[var(--color-muted)]">{recipe.cuisine.name}</p>
+                  </div>
+                  <Badge tone={recipe.isGlobal ? "info" : "neutral"}>
+                    {recipe.isGlobal ? "global" : "org"}
+                  </Badge>
                 </div>
-                <Badge tone={recipe.isGlobal ? "info" : "neutral"}>
-                  {recipe.isGlobal ? "global" : "org"}
-                </Badge>
-              </div>
 
-              {recipe.description && (
-                <p className="text-sm text-[var(--color-muted)] line-clamp-2">{recipe.description}</p>
-              )}
+                {recipe.description && (
+                  <p className="text-sm text-[var(--color-muted)] line-clamp-2">{recipe.description}</p>
+                )}
 
-              <div className="flex flex-wrap gap-2 text-xs">
-                <Badge tone="neutral">{DIFFICULTY_LABELS[recipe.difficulty]}</Badge>
-                <Badge tone="warning">{SPICE_LABELS[recipe.spiceLevel]}</Badge>
-                <Badge tone="neutral">{formatTotalTime(recipe)}</Badge>
-                <Badge tone="neutral">{recipe.servings} {recipe.servingUnit}s</Badge>
-                {recipe.countryCode && <Badge tone="info">{recipe.countryCode}</Badge>}
-              </div>
-            </Card>
-          ))}
-        </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge tone="neutral">{DIFFICULTY_LABELS[recipe.difficulty]}</Badge>
+                  <Badge tone="warning">{SPICE_LABELS[recipe.spiceLevel]}</Badge>
+                  <Badge tone="neutral">{formatTotalTime(recipe)}</Badge>
+                  <Badge tone="neutral">{recipe.servings} {recipe.servingUnit}s</Badge>
+                  {recipe.countryCode && <Badge tone="info">{recipe.countryCode}</Badge>}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <PaginationControls
+            pagination={recipes.pagination}
+            basePath="/recipes"
+            searchParams={params}
+            itemLabel="recipes"
+          />
+        </>
       )}
     </div>
   );

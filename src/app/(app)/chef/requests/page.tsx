@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
-import { isChefOrganization, listAssignedChefRequests } from "@/server/home-chef";
+import { isChefOrganization, listChefRequestInbox } from "@/server/home-chef";
 
 export const dynamic = "force-dynamic";
 
@@ -20,21 +20,57 @@ export default async function ChefRequestsPage() {
     );
   }
 
-  const requests = await listAssignedChefRequests(session.activeOrganization.id);
+  const requests = await listChefRequestInbox({
+    organizationId: session.activeOrganization.id,
+    countryCode: session.activeOrganization.countryCode,
+  });
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Chef workspace"
-        title="Assigned requests"
-        description="Placeholder view for requests assigned by platform admins. Chef self-claiming is intentionally not built yet."
+        title="Orders"
+        description="Review household orders assigned to your chef profile. Open an order to see details, chat, accept, or decline."
       />
 
       {requests.length === 0 ? (
         <EmptyState
-          title="No assigned requests"
-          description="Platform support has not assigned any home-chef requests to this chef organization yet."
+          title="No orders yet"
+          description="When a household places an order for your chef profile, it will appear here."
         />
+      ) : (
+        <div className="space-y-8">
+          <RequestSection
+            title="Assigned to you"
+            description="Orders that belong to your chef profile."
+            emptyMessage="No orders are assigned to your chef profile yet."
+            requests={requests}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestSection({
+  title,
+  description,
+  emptyMessage,
+  requests,
+}: {
+  title: string;
+  description: string;
+  emptyMessage: string;
+  requests: Awaited<ReturnType<typeof listChefRequestInbox>>;
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-[var(--color-ink)]">{title}</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">{description}</p>
+      </div>
+      {requests.length === 0 ? (
+        <Card className="text-sm text-[var(--color-muted)]">{emptyMessage}</Card>
       ) : (
         <div className="grid gap-4">
           {requests.map((request) => (
@@ -42,24 +78,39 @@ export default async function ChefRequestsPage() {
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex flex-wrap gap-2">
+                    <Badge tone="success">Assigned to you</Badge>
                     <Badge tone="info">{request.requestType.replace(/_/g, " ")}</Badge>
                     <Badge tone="neutral">{request.status}</Badge>
                   </div>
-                  <h2 className="mt-4 text-xl font-semibold text-[var(--color-ink)]">{request.title}</h2>
+                  <h3 className="mt-4 text-xl font-semibold text-[var(--color-ink)]">{request.title}</h3>
                   <p className="mt-2 text-sm text-[var(--color-muted)]">
                     {request.requestedDate.toLocaleDateString()} · {request.guestCount} guests · {request.countryCode}
                   </p>
+                  {request.organization?.name ? (
+                    <p className="mt-1 text-xs text-[var(--color-muted)]">
+                      Household: {request.organization.name}
+                    </p>
+                  ) : null}
                 </div>
                 {request.recipe ? (
-                  <Link href={`/recipes/${request.recipe.id}`} className="text-sm font-semibold text-[var(--color-primary)]">
-                    View recipe
+                  <div className="flex flex-col gap-2 text-sm font-semibold md:items-end">
+                    <Link href={`/chef/requests/${request.id}`} className="text-[var(--color-primary)]">
+                      View order
+                    </Link>
+                    <Link href={`/recipes/${request.recipe.id}`} className="text-[var(--color-muted)]">
+                      View recipe
+                    </Link>
+                  </div>
+                ) : (
+                  <Link href={`/chef/requests/${request.id}`} className="text-sm font-semibold text-[var(--color-primary)]">
+                    View order
                   </Link>
-                ) : null}
+                )}
               </div>
             </Card>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

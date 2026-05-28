@@ -9,6 +9,7 @@ import {
   addFavoriteRecipe,
   addPantryItem,
   canAccessFamilyProfiles,
+  createHouseholdMemberAccount,
   deleteAvoidedIngredient,
   deletePantryItem,
   removeFavoriteRecipe,
@@ -23,9 +24,9 @@ async function requireHouseholdAccess() {
     organizationId: session.activeOrganization.id,
     platformRole: session.user.platformRole,
   });
-  if (!enabled) redirect("/household?message=Family profiles are not enabled for this organization.");
+  if (!enabled) redirect("/household?message=Household preferences are not enabled for this account yet.");
   if (session.activeOrganization.organizationType !== "household") {
-    redirect("/settings?message=Household profiles are available only for household organizations.");
+    redirect("/settings?message=Household profiles are available only for household accounts.");
   }
   return session;
 }
@@ -59,6 +60,28 @@ export async function updateHouseholdProfileAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/household/preferences?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save household profile."))}`);
+  }
+}
+
+export async function createHouseholdMemberAction(formData: FormData) {
+  try {
+    const session = await requireHouseholdAccess();
+    await createHouseholdMemberAccount({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      actorRole: session.activeMembership.role,
+      countryCode: session.activeOrganization.countryCode,
+      input: {
+        fullName: formData.get("fullName"),
+        email: formData.get("email"),
+        password: formData.get("password"),
+      },
+    });
+    revalidateHouseholdPaths();
+    redirect("/household/members?message=Family member account created. They can now sign in and see household recipes.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/household/members?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create family member account."))}`);
   }
 }
 
@@ -129,6 +152,26 @@ export async function favoriteRecipeAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/recipes/${recipeId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to update favorite."))}`);
+  }
+}
+
+export async function shareHouseholdRecipeAction(formData: FormData) {
+  try {
+    const session = await requireHouseholdAccess();
+    await addFavoriteRecipe({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      countryCode: session.activeOrganization.countryCode,
+      input: {
+        recipeId: formData.get("recipeId"),
+        targetServings: formData.get("targetServings"),
+      },
+    });
+    revalidateHouseholdPaths();
+    redirect("/household/members?message=Recipe shared with your household.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/household/members?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to share recipe with your household."))}`);
   }
 }
 
@@ -238,6 +281,7 @@ export async function updateShoppingPreferenceAction(formData: FormData) {
 
 function revalidateHouseholdPaths() {
   revalidatePath("/household");
+  revalidatePath("/household/members");
   revalidatePath("/household/preferences");
   revalidatePath("/household/avoided-ingredients");
   revalidatePath("/household/favorites");

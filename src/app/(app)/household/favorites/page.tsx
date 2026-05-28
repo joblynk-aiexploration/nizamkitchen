@@ -22,7 +22,7 @@ export default async function HouseholdFavoritesPage({ searchParams }: { searchP
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Household" title="Favorite recipes" description="Organization-scoped recipes your household wants to find quickly while planning." />
+      <PageHeader eyebrow="Household" title="Favorite recipes" description="Recipes your household wants to find quickly while planning." />
       <HouseholdNav />
       <FormMessage message={message} />
       {favorites.length === 0 ? (

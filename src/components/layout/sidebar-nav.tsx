@@ -2,66 +2,115 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, CalendarDays, ChefHat, Cog, CreditCard, Flag, Heart, KeyRound, LayoutDashboard, Logs, MapPinned, Settings2, Shield, ShoppingCart, Users, UtensilsCrossed } from "lucide-react";
-import { hasPermission } from "@/lib/permissions";
+import { BarChart3, BookOpen, Building2, CalendarDays, ChefHat, CircleDollarSign, Cog, Flag, Heart, Inbox, LayoutDashboard, Logs, Mail, MapPinned, Search, Settings2, Shield, ShoppingCart, Store, User, Users, UtensilsCrossed } from "lucide-react";
+import { getPlatformNavItems, getWorkspaceNavItems, type NavSessionLike } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-const appLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/recipes", label: "Recipes", icon: BookOpen },
-  { href: "/ingredients", label: "Ingredients", icon: ChefHat },
-  { href: "/meal-plans", label: "Meal Plans", icon: CalendarDays },
-  { href: "/grocery-lists", label: "Grocery Lists", icon: ShoppingCart },
-  { href: "/household", label: "Household", icon: Heart },
-  { href: "/home-chef", label: "Home Chef", icon: UtensilsCrossed },
-  { href: "/chefs", label: "Browse Chefs", icon: Users },
-  { href: "/chef/requests", label: "Chef Requests", icon: ChefHat },
-  { href: "/organizations", label: "Organizations", icon: Building2 },
-  { href: "/team", label: "Team", icon: Users },
-  { href: "/settings", label: "Settings", icon: Settings2 },
-  { href: "/audit-logs", label: "Audit Logs", icon: Logs, permission: "audit:view" as const },
-  { href: "/billing", label: "Billing", icon: CreditCard, permission: "billing:view" as const },
-  { href: "/developer", label: "Developer", icon: KeyRound, permission: "developer:view" as const },
-];
-
-const adminLinks = [
-  { href: "/admin", label: "Admin Overview", icon: Shield },
-  { href: "/admin/countries", label: "Countries", icon: MapPinned },
-  { href: "/admin/organizations", label: "Organizations", icon: Building2 },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/audit-logs", label: "Audit Trail", icon: Logs },
-  { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
-  { href: "/admin/meal-planner", label: "Meal Planner", icon: CalendarDays },
-  { href: "/admin/home-chef-requests", label: "Home Chef Requests", icon: UtensilsCrossed },
-  { href: "/admin/chefs", label: "Chef Marketplace", icon: ChefHat },
-  { href: "/admin/system-settings", label: "System Settings", icon: Cog },
-];
+const iconByHref = {
+  "/profile": User,
+  "/dashboard": LayoutDashboard,
+  "/recipes": BookOpen,
+  "/meal-plans": CalendarDays,
+  "/grocery-lists": ShoppingCart,
+  "/household": Heart,
+  "/home-chef": UtensilsCrossed,
+  "/chefs": Users,
+  "/caterers": Store,
+  "/restaurants": Store,
+  "/order-instead": Search,
+  "/saved-restaurants": Store,
+  "/billing": CircleDollarSign,
+  "/support": Inbox,
+  "/privacy-center": Shield,
+  "/admin/billing": CircleDollarSign,
+  "/admin/billing/plans": CircleDollarSign,
+  "/admin/billing/subscriptions": CircleDollarSign,
+  "/settings": Settings2,
+  "/audit-logs": Logs,
+  "/chef": ChefHat,
+  "/chef/profile": ChefHat,
+  "/chef/verification": Shield,
+  "/chef/services": ShoppingCart,
+  "/chef/availability": CalendarDays,
+  "/chef/requests": UtensilsCrossed,
+  "/chef/reviews": Heart,
+  "/catering": Store,
+  "/catering/profile": Store,
+  "/catering/menu": ShoppingCart,
+  "/catering/menu-items": ShoppingCart,
+  "/catering/orders": Inbox,
+  "/catering/fulfillment": ShoppingCart,
+  "/catering/promotions": Store,
+  "/catering/verification": Shield,
+  "/catering/settings": Settings2,
+  "/restaurant": Store,
+  "/restaurant/profile": Store,
+  "/restaurant/menu": ShoppingCart,
+  "/restaurant/menu-items": ShoppingCart,
+  "/restaurant/orders": Inbox,
+  "/restaurant/fulfillment": ShoppingCart,
+  "/restaurant/promotions": Store,
+  "/restaurant/verification": Shield,
+  "/restaurant/settings": Settings2,
+  "/orders": ShoppingCart,
+  "/admin": Shield,
+  "/admin/settings": Settings2,
+  "/admin/countries": MapPinned,
+  "/admin/my-countries": Shield,
+  "/admin/organizations": Building2,
+  "/admin/users": Users,
+  "/admin/feature-flags": Flag,
+  "/admin/apis": Cog,
+  "/admin/seo": Search,
+  "/admin/localization": MapPinned,
+  "/admin/accounting": CircleDollarSign,
+  "/admin/content": BookOpen,
+  "/admin/audit-logs": Logs,
+  "/admin/recipe-library": BookOpen,
+  "/admin/ingredients": ChefHat,
+  "/admin/units": Cog,
+  "/admin/cuisines": UtensilsCrossed,
+  "/admin/youtube-discovery": BookOpen,
+  "/admin/home-chef-requests": UtensilsCrossed,
+  "/admin/chefs": ChefHat,
+  "/admin/verifications": Shield,
+  "/admin/verifications/requirements": Settings2,
+  "/admin/home-catering": Store,
+  "/admin/menu-items": ShoppingCart,
+  "/admin/food-orders": Inbox,
+  "/admin/fulfillment": ShoppingCart,
+  "/admin/reviews": Heart,
+  "/admin/restaurant-fallback": Store,
+  "/admin/grocery-partners": ShoppingCart,
+  "/admin/system-settings": Cog,
+  "/admin/support": Users,
+  "/admin/emails": Mail,
+  "/admin/reports": BarChart3,
+  "/admin/templates": BookOpen,
+  "/admin/templates/dishes": BookOpen,
+  "/admin/templates/menus": ShoppingCart,
+  "/admin/leads": Inbox,
+  "/reports": BarChart3,
+} as const;
 
 export function SidebarNav({
   session,
 }: {
-  session: NonNullable<Awaited<ReturnType<typeof import("@/lib/auth/session").getCurrentSession>>>;
+  session: NavSessionLike;
 }) {
   const pathname = usePathname();
+  const workspaceLinks = getWorkspaceNavItems(session);
+  const platformLinks = getPlatformNavItems(session);
 
   return (
     <div className="flex h-full flex-col">
       <nav className="mt-8 space-y-8">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</p>
-          {appLinks
-            .filter((link) =>
-              link.permission
-                ? hasPermission({
-                    platformRole: session.user.platformRole,
-                    membershipRole: session.activeMembership?.role,
-                    permission: link.permission,
-                  })
-                : true,
-            )
-            .map((link) => {
-              const Icon = link.icon;
-              const active = pathname === link.href;
+        {workspaceLinks.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</p>
+            {workspaceLinks.map((link) => {
+              const Icon = iconByHref[link.href as keyof typeof iconByHref] ?? LayoutDashboard;
+              const active = pathname === link.href || (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));
 
               return (
                 <Link
@@ -70,8 +119,8 @@ export function SidebarNav({
                   className={cn(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                     active
-                      ? "bg-white/12 text-white"
-                      : "text-slate-300 hover:bg-white/8 hover:text-white",
+                      ? "bg-white/15 font-semibold text-white"
+                      : "text-slate-200 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -79,18 +128,15 @@ export function SidebarNav({
                 </Link>
               );
             })}
-        </div>
+          </div>
+        ) : null}
 
-        {hasPermission({
-          platformRole: session.user.platformRole,
-          membershipRole: session.activeMembership?.role,
-          permission: "admin:access",
-        }) ? (
+        {platformLinks.length > 0 ? (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Platform</p>
-            {adminLinks.map((link) => {
-              const Icon = link.icon;
-              const active = pathname === link.href;
+            {platformLinks.map((link) => {
+              const Icon = iconByHref[link.href as keyof typeof iconByHref] ?? Shield;
+              const active = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
 
               return (
                 <Link
@@ -99,8 +145,8 @@ export function SidebarNav({
                   className={cn(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                     active
-                      ? "bg-white/12 text-white"
-                      : "text-slate-300 hover:bg-white/8 hover:text-white",
+                      ? "bg-white/15 font-semibold text-white"
+                      : "text-slate-200 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4" />

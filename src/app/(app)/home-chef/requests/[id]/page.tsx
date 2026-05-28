@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { ReviewCreateForm } from "@/components/reviews/review-components";
 import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessHomeChefs, getHomeChefRequest, isHouseholdRequestOrganization } from "@/server/home-chef";
-import { cancelHomeChefRequestAction, createHomeChefMessageAction } from "../../actions";
+import { getCustomerHomeChefRequestReview } from "@/server/trust/review-service";
+import { cancelHomeChefRequestAction, createHomeChefCheckoutAction, createHomeChefMessageAction, createHomeChefReviewAction, createPayPalHomeChefCheckoutAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +50,7 @@ export default async function HomeChefRequestDetailPage({
 
   const request = await getHomeChefRequest(id, session.activeOrganization.id).catch(() => null);
   if (!request) notFound();
+  const review = await getCustomerHomeChefRequestReview(request.id, session.activeOrganization.id, session.user.id);
 
   const canCancel = !["cancelled", "completed"].includes(request.status);
 
@@ -75,6 +79,47 @@ export default async function HomeChefRequestDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          {(request.quotedAmount || request.depositAmount) && request.paymentStatus !== "paid" ? (
+            <Card className="border-emerald-200 bg-emerald-50">
+              <h2 className="font-semibold text-emerald-950">Secure payment</h2>
+              <p className="mt-2 text-sm text-emerald-800">Pay through Stripe hosted checkout. NizamKitchen never stores card numbers or CVV.</p>
+              <div className="mt-4 flex flex-col gap-3">
+                {request.depositAmount ? (
+                  <form action={createHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="deposit" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
+                    <Button type="submit" className="w-full">Pay deposit {request.currencyCode} {request.depositAmount}</Button>
+                  </form>
+                ) : null}
+                {request.depositAmount ? (
+                  <form action={createPayPalHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="deposit" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay deposit with PayPal</Button>
+                  </form>
+                ) : null}
+                {request.quotedAmount ? (
+                  <form action={createHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="full" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay full quote {request.currencyCode} {request.quotedAmount}</Button>
+                  </form>
+                ) : null}
+                {request.quotedAmount ? (
+                  <form action={createPayPalHomeChefCheckoutAction}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <input type="hidden" name="paymentType" value="full" />
+                    <TextInput label="Promo code" name="promoCode" placeholder="Optional" />
+                    <Button type="submit" variant="secondary" className="w-full">Pay full quote with PayPal</Button>
+                  </form>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+
           <Card className="space-y-4">
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Request brief</h2>
             {request.description ? (
@@ -83,6 +128,7 @@ export default async function HomeChefRequestDetailPage({
               <p className="text-sm text-[var(--color-muted)]">No description was added.</p>
             )}
             <div className="grid gap-3 md:grid-cols-2">
+              <Info label="Food requested" value={request.recipe?.name ?? request.title} />
               <Info label="Time window" value={request.requestedTimeWindow} />
               <Info label="Household size" value={request.householdSize?.toString()} />
               <Info label="Phone" value={request.phone} />
@@ -177,6 +223,15 @@ export default async function HomeChefRequestDetailPage({
           ) : null}
         </div>
       </div>
+      {request.status === "completed" && !review ? (
+        <ReviewCreateForm action={createHomeChefReviewAction} homeChefRequestId={request.id} />
+      ) : null}
+      {review ? (
+        <Card>
+          <h2 className="font-semibold text-[var(--color-ink)]">Your chef review</h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Status: {review.status}. Reviews are published only after moderation.</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

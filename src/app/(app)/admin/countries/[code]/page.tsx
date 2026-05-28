@@ -7,7 +7,9 @@ import { AuditLogTable } from "@/components/admin/audit-log-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountryBadge } from "@/components/ui/country-badge";
+import { FormMessage } from "@/components/ui/form-message";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { getKnownTimeZonesForCountry } from "@/lib/timezones";
 import { getAdminCountryDetail } from "@/server/admin/countries";
 
 const moduleOptions = [
@@ -16,8 +18,11 @@ const moduleOptions = [
   "grocery_engine",
   "youtube_references",
   "home_chefs",
+  "home_catering",
   "restaurant_fallback",
   "grocery_partners",
+  "menus",
+  "restaurant_profiles",
   "payments",
   "subscriptions",
   "ai_suggestions",
@@ -50,8 +55,11 @@ export default async function CountryDetailPage({
     where: { platformRole: "country_manager", status: "active" },
     orderBy: { fullName: "asc" },
   });
+  const countryTimeZones = getKnownTimeZonesForCountry(country.countryCode, country.defaultTimezone);
   const selectedManagers = new Set(country.countryAssignments.map((assignment) => assignment.userId));
   const canEdit = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin" || session.user.platformRole === "country_manager";
+  const canManageCountryActivation =
+    session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
 
   return (
     <AdminShell
@@ -64,6 +72,8 @@ export default async function CountryDetailPage({
         </Button>
       }
     >
+      <FormMessage message={query.message} />
+
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
         <Card>
           <div className="flex flex-wrap items-center gap-3">
@@ -82,7 +92,11 @@ export default async function CountryDetailPage({
               </label>
               <label className="text-sm font-medium">
                 Default timezone
-                <input name="defaultTimezone" defaultValue={country.defaultTimezone} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3" />
+                <select name="defaultTimezone" defaultValue={country.defaultTimezone} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3">
+                  {countryTimeZones.map((timeZone) => (
+                    <option key={timeZone} value={timeZone}>{timeZone}</option>
+                  ))}
+                </select>
               </label>
               <label className="text-sm font-medium">
                 Default locale
@@ -90,7 +104,11 @@ export default async function CountryDetailPage({
               </label>
               <label className="text-sm font-medium">
                 Measurement system
-                <input name="measurementSystem" defaultValue={country.measurementSystem} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3" />
+                <select name="measurementSystem" defaultValue={country.measurementSystem} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3">
+                  <option value="imperial">Imperial</option>
+                  <option value="metric">Metric</option>
+                  <option value="mixed">Mixed</option>
+                </select>
               </label>
               <label className="text-sm font-medium">
                 Phone country code
@@ -134,10 +152,20 @@ export default async function CountryDetailPage({
               </div>
             ) : null}
 
-            <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] p-4 text-sm">
-              <input type="checkbox" name="isActive" defaultChecked={country.isActive} />
-              <span>Country is active</span>
-            </label>
+            {canManageCountryActivation ? (
+              <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] p-4 text-sm">
+                <input type="checkbox" name="isActive" defaultChecked={country.isActive} />
+                <span>Country is active</span>
+              </label>
+            ) : (
+              <div className="rounded-2xl border border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+                <p className="font-semibold text-[var(--color-ink)]">Activation status</p>
+                <p className="mt-1">
+                  This country is currently {country.isActive ? "active" : "disabled"}. Platform Owner or
+                  Platform Admin can enable or disable country availability.
+                </p>
+              </div>
+            )}
             {canEdit ? <Button type="submit">Save country settings</Button> : null}
           </form>
         </Card>

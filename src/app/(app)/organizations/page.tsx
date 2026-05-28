@@ -90,6 +90,7 @@ export default async function OrganizationsPage() {
               options={[
                 { value: "household", label: "Household" },
                 { value: "chef_business", label: "Chef business" },
+                { value: "home_catering", label: "Home catering" },
                 { value: "restaurant", label: "Restaurant" },
                 { value: "grocery_partner", label: "Grocery partner" },
                 { value: "internal_admin", label: "Internal admin" },

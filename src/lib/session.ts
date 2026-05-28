@@ -96,14 +96,16 @@ export async function getCurrentSession() {
   });
 
   if (!session || session.expiresAt <= new Date()) {
-    await destroySession(token);
+    // Keep this non-mutating in read-paths to avoid header/cookie write
+    // restrictions in server component render contexts.
     return null;
   }
 
   try {
     assertUserCanAuthenticate(session.user);
   } catch {
-    await destroySession(token);
+    // Keep this non-mutating in read-paths to avoid runtime errors from cookie
+    // writes in non-action contexts.
     return null;
   }
 

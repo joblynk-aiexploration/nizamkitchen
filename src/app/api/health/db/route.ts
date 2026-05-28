@@ -10,12 +10,12 @@ export async function GET() {
       database: "reachable",
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
         database: "unreachable",
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: "Database health check failed.",
       },
       { status: 503 },
     );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { enforceRateLimit, rateLimitKey, rateLimitPolicies } from "@/lib/security";
 import { runDiscoveryForRecipe, runDiscoveryForAllRecipes } from "@/server/youtube-discovery/discovery-service";
 import { isYouTubeDiscoveryAvailable, getYouTubeDiscoveryConfig } from "@/lib/youtube-discovery-config";
 import { youtubeDiscoveryRunSchema } from "@/lib/validation/video";
@@ -13,8 +14,17 @@ export async function POST(request: Request) {
     const organizationId = session.activeOrganization?.id ?? null;
     const countryCode = session.activeOrganization?.countryCode ?? null;
 
-    if (!isYouTubeDiscoveryAvailable()) {
-      const cfg = getYouTubeDiscoveryConfig();
+    try {
+      enforceRateLimit({
+        key: rateLimitKey("youtube-discovery", request, userId),
+        ...rateLimitPolicies.youtubeDiscovery,
+      });
+    } catch {
+      return respond(request, { error: "Too many YouTube discovery requests. Please wait and try again." }, 429, "Too many YouTube discovery requests. Please wait and try again.");
+    }
+
+    if (!(await isYouTubeDiscoveryAvailable())) {
+      const cfg = await getYouTubeDiscoveryConfig();
       const message = cfg.enabled ? "YouTube discovery configuration is invalid." : (cfg as { enabled: false; reason: string }).reason;
       return respond(request, { error: message }, 422, message);
     }

@@ -6,13 +6,18 @@ import { CountryBadge } from "@/components/ui/country-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listAdminCountries } from "@/server/admin/countries";
 
-export default async function MyCountriesPage() {
+export default async function MyCountriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requirePlatformRole([
     "platform_owner",
     "platform_admin",
     "country_manager",
   ]);
-  const countries = await listAdminCountries(session);
+  const params = await searchParams;
+  const countries = await listAdminCountries(session, { page: params.page });
 
   return (
     <AdminShell
@@ -21,8 +26,12 @@ export default async function MyCountriesPage() {
       description="Country managers and global admins can review assigned-country controls without leaking into unassigned markets."
     >
       <AdminDataTable
-        data={countries}
+        data={countries.items}
         emptyMessage="No country assignments were found."
+        pagination={countries.pagination}
+        paginationBasePath="/admin/my-countries"
+        paginationSearchParams={params}
+        paginationItemLabel="countries"
         columns={[
           {
             key: "country",

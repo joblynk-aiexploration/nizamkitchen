@@ -12,8 +12,9 @@ export function SelectInput({ label, hint, className, options, ...props }: Props
       <span>{label}</span>
       <select
         className={cn(
-          "rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm outline-none transition",
-          "focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10",
+          "rounded-2xl border border-[var(--color-border)] bg-[var(--background-input)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition",
+          "disabled:bg-slate-100 disabled:text-[var(--text-disabled)]",
+          "focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--focus-ring)]/25",
           className,
         )}
         {...props}

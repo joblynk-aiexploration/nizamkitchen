@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Unit, Ingredient, UnitConversion } from "@prisma/client";
 import { calculateGroceryItems } from "../../src/server/grocery/grocery-calculator";
@@ -135,6 +137,29 @@ describe("recipe scaling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].totalQuantity).toBe(250);
+  });
+});
+
+describe("grocery list creation UI", () => {
+  it("lets households apply an average people count to every recipe serving input", () => {
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/grocery-lists/new/page.tsx"), "utf8");
+    const component = fs.readFileSync(path.join(process.cwd(), "src/components/grocery/grocery-list-recipe-servings.tsx"), "utf8");
+
+    expect(page).toContain("GroceryListRecipeServings");
+    expect(component).toContain("Average people");
+    expect(component).toContain("Apply to all recipes");
+    expect(component).toContain("Object.fromEntries(recipes.map");
+    expect(component).toContain("name={`recipe_${recipe.id}_servings`}");
+  });
+
+  it("aligns the new-list action in the header and makes grocery list cards clickable", () => {
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/grocery-lists/page.tsx"), "utf8");
+
+    expect(page).toContain("actions={");
+    expect(page).toContain('<Link href="/grocery-lists/new">New grocery list</Link>');
+    expect(page).toContain("href={`/grocery-lists/${list.id}`}");
+    expect(page).toContain("group-hover:text-[var(--color-primary)]");
+    expect(page).not.toContain('className="flex justify-end"');
   });
 });
 

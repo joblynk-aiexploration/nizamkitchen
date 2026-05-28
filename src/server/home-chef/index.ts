@@ -3,6 +3,7 @@ import {
   HomeChefRequestStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type PlatformRole,
   type UserStatus,
 } from "@prisma/client";
@@ -17,6 +18,8 @@ import {
   homeChefRequestUpdateSchema,
 } from "@/lib/validation/home-chef";
 import { createAuditEvent } from "@/server/audit";
+import { createNotification } from "@/server/notifications/notification-service";
+import { assertSellerGate } from "@/server/seller-verification-gates";
 
 const ADMIN_HOME_CHEF_ROLES: PlatformRole[] = [
   "platform_owner",
@@ -168,6 +171,27 @@ export async function getHomeChefRequest(requestId: string, organizationId: stri
   return getRequestScoped(requestId, organizationId);
 }
 
+export async function getChefHomeChefRequest(params: {
+  requestId: string;
+  chefOrganizationId: string;
+  countryCode: string;
+}) {
+  const request = await prisma.homeChefRequest.findFirst({
+    where: {
+      id: params.requestId,
+      assignedChefOrganizationId: params.chefOrganizationId,
+      countryCode: params.countryCode,
+    },
+    ...requestDetailArgs,
+  });
+
+  if (!request) {
+    throw new Error("Home chef order not found.");
+  }
+
+  return request;
+}
+
 export async function createHomeChefRequest(params: {
   organizationId: string;
   countryCode: string;
@@ -235,6 +259,18 @@ export async function createHomeChefRequest(params: {
       targetType: "home_chef_request",
       targetId: request.id,
       details: { requestType: request.requestType, title: request.title },
+    });
+    await createNotification({
+      organizationId: params.organizationId,
+      userId: params.createdById,
+      countryCode: params.countryCode,
+      type: "home_chef_request_submitted",
+      title: "Home chef request submitted",
+      body: `Your request "${request.title}" was submitted for support review.`,
+      actionUrl: `/home-chef/requests/${request.id}`,
+      priority: "normal",
+      emailTemplateKey: "home_chef_request_submitted",
+      preferenceKey: "homeChefUpdates",
     });
   }
 
@@ -316,6 +352,20 @@ export async function updateHomeChefRequestDraft(params: {
     targetId: request.id,
     details: { status: request.status, title: request.title },
   });
+  if (nextStatus !== existing.status) {
+    await createNotification({
+      organizationId: existing.organizationId,
+      userId: existing.createdById,
+      countryCode: existing.countryCode,
+      type: "home_chef_request_status_changed",
+      title: "Home chef request submitted",
+      body: `Your request "${existing.title}" changed from ${existing.status} to ${nextStatus}.`,
+      actionUrl: `/home-chef/requests/${existing.id}`,
+      priority: "high",
+      emailTemplateKey: "home_chef_request_status_updated",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
 
   return request;
 }
@@ -357,7 +407,6 @@ export async function cancelHomeChefRequest(params: {
     targetId: request.id,
     details: { previousStatus: existing.status },
   });
-
   return request;
 }
 
@@ -393,8 +442,136 @@ export async function createHomeChefRequestMessage(params: {
     targetId: request.id,
     details: { senderRole: params.senderRole, isInternal: parsed.isInternal },
   });
+  if (!parsed.isInternal) {
+    await createNotification({
+      organizationId: request.organizationId,
+      userId: request.createdById === params.actorUserId ? null : request.createdById,
+      countryCode: request.countryCode,
+      type: "home_chef_request_message",
+      title: "New home chef request message",
+      body: `A new ${params.senderRole} message was added to "${request.title}".`,
+      actionUrl: `/home-chef/requests/${request.id}`,
+      priority: "normal",
+      emailTemplateKey: "home_chef_new_message",
+      preferenceKey: "chefRequestMessages",
+    });
+  }
 
   return message;
+}
+
+export async function createChefHomeChefOrderMessage(params: {
+  requestId: string;
+  chefOrganizationId: string;
+  countryCode: string;
+  actorUserId: string;
+  input: unknown;
+}) {
+  const request = await getChefHomeChefRequest({
+    requestId: params.requestId,
+    chefOrganizationId: params.chefOrganizationId,
+    countryCode: params.countryCode,
+  });
+  const parsed = homeChefRequestMessageSchema.parse(params.input);
+
+  const message = await prisma.homeChefRequestMessage.create({
+    data: {
+      requestId: request.id,
+      senderUserId: params.actorUserId,
+      senderRole: "chef",
+      message: parsed.message,
+      isInternal: false,
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: request.organizationId,
+    countryCode: request.countryCode,
+    action: "home_chef_order.message_created",
+    targetType: "home_chef_request",
+    targetId: request.id,
+    details: { senderRole: "chef" },
+  });
+
+  await createNotification({
+    organizationId: request.organizationId,
+    userId: request.createdById,
+    countryCode: request.countryCode,
+    type: "home_chef_request_message",
+    title: "New message from your chef",
+    body: `Your chef added a message to "${request.title}".`,
+    actionUrl: `/home-chef/requests/${request.id}`,
+    priority: "normal",
+    emailTemplateKey: "home_chef_new_message",
+    preferenceKey: "chefRequestMessages",
+  });
+
+  return message;
+}
+
+export async function updateChefHomeChefOrderStatus(params: {
+  requestId: string;
+  chefOrganizationId: string;
+  countryCode: string;
+  actorUserId: string;
+  status: "accepted" | "declined";
+  note?: string | null;
+}) {
+  const existing = await getChefHomeChefRequest({
+    requestId: params.requestId,
+    chefOrganizationId: params.chefOrganizationId,
+    countryCode: params.countryCode,
+  });
+
+  if (["cancelled", "completed"].includes(existing.status)) {
+    throw new Error("This order can no longer be updated.");
+  }
+  if (existing.status === params.status) {
+    return existing;
+  }
+
+  const request = await prisma.$transaction(async (tx) => {
+    const updated = await tx.homeChefRequest.update({
+      where: { id: existing.id },
+      data: { status: params.status },
+    });
+    await tx.homeChefRequestStatusHistory.create({
+      data: {
+        requestId: existing.id,
+        oldStatus: existing.status,
+        newStatus: params.status,
+        changedById: params.actorUserId,
+        note: params.note ?? (params.status === "accepted" ? "Accepted by chef." : "Declined by chef."),
+      },
+    });
+    return updated;
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: existing.organizationId,
+    countryCode: existing.countryCode,
+    action: params.status === "accepted" ? "home_chef_order.accepted" : "home_chef_order.declined",
+    targetType: "home_chef_request",
+    targetId: existing.id,
+    details: { oldStatus: existing.status, newStatus: params.status },
+  });
+
+  await createNotification({
+    organizationId: existing.organizationId,
+    userId: existing.createdById,
+    countryCode: existing.countryCode,
+    type: "home_chef_request_status_changed",
+    title: params.status === "accepted" ? "Chef accepted your order" : "Chef declined your order",
+    body: `Your order "${existing.title}" was ${params.status} by the chef.`,
+    actionUrl: `/home-chef/requests/${existing.id}`,
+    priority: "high",
+    emailTemplateKey: "home_chef_request_status_updated",
+    preferenceKey: "homeChefUpdates",
+  });
+
+  return request;
 }
 
 export async function listAdminHomeChefRequests(
@@ -480,6 +657,19 @@ export async function updateAdminHomeChefRequestStatus(params: {
     details: { oldStatus: existing.status, newStatus: parsed.status },
   });
 
+  await createNotification({
+    organizationId: existing.organizationId,
+    userId: existing.createdById,
+    countryCode: existing.countryCode,
+    type: "home_chef_request_status_changed",
+    title: "Home chef request status updated",
+    body: `Your request "${existing.title}" changed from ${existing.status} to ${parsed.status}.`,
+    actionUrl: `/home-chef/requests/${existing.id}`,
+    priority: parsed.status === "completed" ? "normal" : "high",
+    emailTemplateKey: "home_chef_request_status_updated",
+    preferenceKey: "homeChefUpdates",
+  });
+
   return request;
 }
 
@@ -505,6 +695,13 @@ export async function assignHomeChefRequest(params: {
     if (!chefOrg) {
       throw new Error("Assigned chef organization must be a chef business in the request country.");
     }
+    await assertSellerGate({
+      organizationId: chefOrg.id,
+      sellerType: SellerType.chef_business,
+      countryCode: existing.countryCode,
+      capability: "home_chef_assignment",
+      message: "Chef verification is incomplete. This chef cannot be assigned yet.",
+    });
   }
 
   const nextStatus = parsed.assignedChefOrganizationId ? HomeChefRequestStatus.matched : existing.status;
@@ -543,6 +740,21 @@ export async function assignHomeChefRequest(params: {
     details: { assignedChefOrganizationId: parsed.assignedChefOrganizationId },
   });
 
+  if (parsed.assignedChefOrganizationId) {
+    await createNotification({
+      organizationId: existing.organizationId,
+      userId: existing.createdById,
+      countryCode: existing.countryCode,
+      type: "home_chef_request_assigned",
+      title: "Chef assigned to your request",
+      body: `A chef organization was assigned to "${existing.title}".`,
+      actionUrl: `/home-chef/requests/${existing.id}`,
+      priority: "high",
+      emailTemplateKey: "home_chef_request_status_updated",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
+
   return request;
 }
 
@@ -564,6 +776,14 @@ export async function createAdminHomeChefRequestMessage(params: {
 export async function listAssignedChefRequests(organizationId: string) {
   return prisma.homeChefRequest.findMany({
     where: { assignedChefOrganizationId: organizationId },
+    ...requestListArgs,
+    orderBy: [{ requestedDate: "asc" }, { createdAt: "desc" }],
+  });
+}
+
+export async function listChefRequestInbox(params: { organizationId: string; countryCode: string }) {
+  return prisma.homeChefRequest.findMany({
+    where: { assignedChefOrganizationId: params.organizationId, countryCode: params.countryCode },
     ...requestListArgs,
     orderBy: [{ requestedDate: "asc" }, { createdAt: "desc" }],
   });

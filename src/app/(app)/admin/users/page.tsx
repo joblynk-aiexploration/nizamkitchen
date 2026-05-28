@@ -32,6 +32,7 @@ export default async function AdminUsersPage({
       platformRole: params.platformRole,
       countryCode: params.countryCode,
       organizationId: params.organizationId,
+      page: params.page,
     }),
     prisma.country.findMany({
       select: { countryCode: true, countryName: true },
@@ -48,6 +49,13 @@ export default async function AdminUsersPage({
       session={session}
       title="User management"
       description="Search platform users, review memberships and country assignments, and manage platform-level access only where permitted."
+      actions={
+        session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin" ? (
+          <Button asChild>
+            <Link href="/admin/users/new">Create user</Link>
+          </Button>
+        ) : null
+      }
     >
       <form className="rounded-3xl border border-[var(--color-border)] bg-white p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -67,8 +75,12 @@ export default async function AdminUsersPage({
       </form>
 
       <AdminDataTable
-        data={users}
+        data={users.items}
         emptyMessage="No users matched the current filters."
+        pagination={users.pagination}
+        paginationBasePath="/admin/users"
+        paginationSearchParams={params}
+        paginationItemLabel="users"
         columns={[
           {
             key: "user",

@@ -10,14 +10,50 @@
   --color-sidebar: #10263a;
   --color-sidebar-strong: #091a2b;
   --color-sidebar-text: #f3f7fb;
-  --color-primary: #0f766e;
-  --color-primary-strong: #115e59;
+  --color-primary: #0b625c;
+  --color-primary-strong: #084c47;
   --color-accent: #c2410c;
   --color-success: #166534;
   --color-warning: #a16207;
   --color-danger: #b91c1c;
   --color-info: #1d4ed8;
   --shadow-card: 0 16px 44px rgba(15, 35, 54, 0.08);
+
+  --text-primary: #102235;
+  --text-secondary: #34495f;
+  --text-muted: #52616f;
+  --text-inverse: #ffffff;
+  --text-disabled: #64748b;
+  --text-link: #0b625c;
+  --text-danger: #991b1b;
+  --text-success: #14532d;
+  --text-warning: #854d0e;
+
+  --button-primary-bg: #0b625c;
+  --button-primary-text: #ffffff;
+  --button-primary-hover-bg: #084c47;
+  --button-secondary-bg: #ffffff;
+  --button-secondary-text: #102235;
+  --button-secondary-hover-bg: #f1f5f9;
+  --button-outline-text: #102235;
+  --button-outline-border: #b8c6d2;
+  --button-ghost-text: #102235;
+  --button-ghost-hover-bg: #e9f2f1;
+  --button-danger-bg: #b91c1c;
+  --button-danger-text: #ffffff;
+  --button-success-bg: #166534;
+  --button-success-text: #ffffff;
+  --button-warning-bg: #92400e;
+  --button-warning-text: #ffffff;
+  --button-disabled-bg: #e2e8f0;
+  --button-disabled-text: #475569;
+
+  --background-page: #f4f7fa;
+  --background-card: #ffffff;
+  --background-admin: #edf2f7;
+  --background-input: #ffffff;
+  --background-table: #ffffff;
+  --focus-ring: rgba(11, 98, 92, 0.38);
 }
 
 @theme inline {
@@ -27,36 +63,77 @@
   --font-serif: var(--font-serif);
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-html {
-  scroll-behavior: smooth;
-}
+  html {
+    scroll-behavior: smooth;
+  }
 
-body {
-  background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 30%),
-    linear-gradient(180deg, #f4f7fa 0%, #eaf0f6 100%);
-  color: var(--color-ink);
-  font-family: var(--font-sans), sans-serif;
-}
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 30%),
+      linear-gradient(180deg, #f4f7fa 0%, #eaf0f6 100%);
+    color: var(--color-ink);
+    font-family: var(--font-sans), sans-serif;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  body,
+  input,
+  select,
+  textarea {
+    color: var(--text-primary);
+  }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-::selection {
-  background: rgba(15, 118, 110, 0.18);
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: rgba(15, 118, 110, 0.16);
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: rgba(15, 118, 110, 0.18);
+  }
 }
 
 .card-shadow {
@@ -70,6 +147,6 @@ textarea {
 
 @media (min-width: 768px) {
   .table-grid {
-    grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr));
+    grid-template-columns: var(--table-grid-template, repeat(var(--columns, 1), minmax(0, 1fr)));
   }
 }

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="NizamKitchen maskable app icon">
+  <rect width="512" height="512" fill="#0f766e"/>
+  <circle cx="256" cy="256" r="158" fill="#f8fafc"/>
+  <path d="M172 315c31 36 137 36 168 0 17-19 21-48 7-73H165c-14 25-10 54 7 73Z" fill="#0f766e"/>
+  <path d="M159 234h194c8 0 15 7 15 15s-7 15-15 15H159c-8 0-15-7-15-15s7-15 15-15Z" fill="#c2410c"/>
+  <path d="M202 196c-16-21 16-33 0-54M256 196c-16-21 16-33 0-54M310 196c-16-21 16-33 0-54" fill="none" stroke="#102235" stroke-width="17" stroke-linecap="round"/>
+</svg>

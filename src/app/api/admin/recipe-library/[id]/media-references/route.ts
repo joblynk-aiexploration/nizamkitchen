@@ -47,7 +47,7 @@ export async function POST(
       notes: formData.get("notes"),
     });
 
-    const ref = await createMediaReference({
+    await createMediaReference({
       recipeId,
       input,
       actorUserId: session.user.id,

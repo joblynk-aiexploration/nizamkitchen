@@ -41,11 +41,13 @@ export default async function YouTubeDiscoveryPage({
   searchParams: Promise<{ message?: string; tab?: string }>;
 }) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
-  const { message, tab = "coverage" } = await searchParams;
+  const { message } = await searchParams;
   const canMutate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
 
-  const discoveryAvailable = isYouTubeDiscoveryAvailable();
-  const cfg = getYouTubeDiscoveryConfig();
+  const [discoveryAvailable, cfg] = await Promise.all([
+    isYouTubeDiscoveryAvailable(),
+    getYouTubeDiscoveryConfig(),
+  ]);
 
   const [summary, coverageRows, recentRuns, groupedCandidates] = await Promise.all([
     getCoverageSummary(),
@@ -331,6 +333,7 @@ export default async function YouTubeDiscoveryPage({
                 {candidates.map((c) => (
                   <div key={c.id} className="flex gap-4 rounded-2xl border border-[var(--color-border)] p-4">
                     {c.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={c.thumbnailUrl}
                         alt={c.title}

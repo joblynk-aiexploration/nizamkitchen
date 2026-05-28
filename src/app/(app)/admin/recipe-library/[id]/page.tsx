@@ -13,6 +13,8 @@ import { isYouTubeDiscoveryAvailable } from "@/lib/youtube-discovery-config";
 import { listCandidatesForRecipe } from "@/server/youtube-discovery/candidate-service";
 import { getDiscoveryRunsForRecipe } from "@/server/youtube-discovery/discovery-service";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { ConfirmRemoveButton } from "@/components/admin/confirm-remove-button";
+import { EditVideoRefForm } from "@/components/admin/edit-video-ref-form";
 import { FormMessage } from "@/components/ui/form-message";
 import { formatYouTubeDuration } from "@/lib/youtube";
 
@@ -42,7 +44,7 @@ export default async function AdminRecipeDetailPage({
     session.user.platformRole === "platform_admin";
 
   const sections = groupIngredientsBySection(recipe.ingredients);
-  const discoveryAvailable = isYouTubeDiscoveryAvailable();
+  const discoveryAvailable = await isYouTubeDiscoveryAvailable();
 
   const youtubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")
@@ -146,27 +148,26 @@ export default async function AdminRecipeDetailPage({
                 </div>
 
                 {canMutate && (
-                  <div className="flex gap-2 border-t border-[var(--color-border)] pt-3">
-                    <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
-                      <input type="hidden" name="_method" value="DELETE" />
-                      <button
-                        type="submit"
-                        className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        onClick={(e) => {
-                          if (!confirm("Remove this video reference?")) e.preventDefault();
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </form>
-                    {!ref.isPrimary && (
-                      <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
-                        <input type="hidden" name="isPrimary" value="on" />
-                        <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-slate-50">
-                          Set as primary
-                        </button>
-                      </form>
-                    )}
+                  <div className="space-y-3 border-t border-[var(--color-border)] pt-3">
+                    <div className="flex flex-wrap gap-2">
+                      <ConfirmRemoveButton
+                        formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
+                        hiddenFields={{ _method: "DELETE" }}
+                        confirmMessage="Remove this video reference?"
+                      />
+                      {!ref.isPrimary && (
+                        <form action={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`} method="post">
+                          <input type="hidden" name="isPrimary" value="on" />
+                          <button type="submit" className="rounded-xl border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-slate-50">
+                            Set as primary
+                          </button>
+                        </form>
+                      )}
+                      <EditVideoRefForm
+                        ref_={ref}
+                        formAction={`/api/admin/recipe-library/${recipe.id}/media-references/${ref.id}`}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -266,6 +267,7 @@ export default async function AdminRecipeDetailPage({
             {pendingCandidates.map((c) => (
               <div key={c.id} className="flex gap-4 rounded-2xl border border-[var(--color-border)] p-4">
                 {c.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.thumbnailUrl} alt={c.title} width={120} height={68}
                     className="h-17 w-28 shrink-0 rounded-xl object-cover" />
                 ) : (

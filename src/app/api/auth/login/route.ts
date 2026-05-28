@@ -3,10 +3,11 @@ import { Prisma } from "@prisma/client";
 import { AccessDeniedError, assertUserCanAuthenticate } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma";
-import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
+import { enforceRateLimit, getClientIpFromHeaders, rateLimitPolicies } from "@/lib/security";
 import { createSession, getRequestMetadata } from "@/lib/session";
 import { loginSchema } from "@/lib/validation/auth";
 import { createAuditLog } from "@/lib/audit";
+import { verifyRecaptcha } from "@/server/seo/seo-service";
 
 export async function POST(request: Request) {
   const clientIp = getClientIpFromHeaders(request.headers);
@@ -14,21 +15,29 @@ export async function POST(request: Request) {
   try {
     enforceRateLimit({
       key: `login:${clientIp}`,
-      limit: 10,
-      windowMs: 60_000,
+      ...rateLimitPolicies.login,
     });
   } catch {
-    return NextResponse.redirect(new URL("/login?message=Too many requests.", request.url));
+    return redirectAfterPost(new URL("/login?message=Too many requests.", request.url));
   }
 
   const formData = await request.formData();
+  const recaptcha = await verifyRecaptcha({
+    token: formData.get("recaptchaToken")?.toString(),
+    page: "login",
+    ip: clientIp,
+  });
+  if (!recaptcha.ok) {
+    return redirectAfterPost(new URL(`/login?message=${encodeURIComponent(recaptcha.reason)}`, request.url));
+  }
+
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+    return redirectAfterPost(new URL("/login?message=Invalid credentials.", request.url));
   }
 
   try {
@@ -43,7 +52,7 @@ export async function POST(request: Request) {
     });
 
     if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
-      return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+      return redirectAfterPost(new URL("/login?message=Invalid credentials.", request.url));
     }
 
     try {
@@ -59,7 +68,7 @@ export async function POST(request: Request) {
         },
         ...(await getRequestMetadata()),
       });
-      return NextResponse.redirect(new URL("/login?message=Invalid credentials.", request.url));
+      return redirectAfterPost(new URL("/login?message=Invalid credentials.", request.url));
     }
 
     const activeMembership = user.memberships[0];
@@ -78,12 +87,12 @@ export async function POST(request: Request) {
       ...(await getRequestMetadata()),
     });
 
-    return NextResponse.redirect(
+    return redirectAfterPost(
       new URL(getPostLoginRedirectPath(user.platformRole, activeMembership?.organizationId), request.url),
     );
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
-      return NextResponse.redirect(
+      return redirectAfterPost(
         new URL(
           "/login?message=Database unavailable. Start PostgreSQL to sign in.",
           request.url,
@@ -93,6 +102,10 @@ export async function POST(request: Request) {
 
     throw error;
   }
+}
+
+function redirectAfterPost(url: URL) {
+  return NextResponse.redirect(url, { status: 303 });
 }
 
 function isDatabaseUnavailableError(error: unknown) {

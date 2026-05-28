@@ -6,6 +6,7 @@ import {
   featureFlagUpdateSchema,
 } from "@/lib/validation/admin";
 import { recordAdminAuditLog } from "@/server/audit/audit-service";
+import { createAdminNotification } from "@/server/notifications/notification-service";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
@@ -51,6 +52,14 @@ export async function createFeatureFlag(session: Session, input: unknown) {
     targetType: "feature_flag",
     targetId: flag.id,
     details: parsed,
+  });
+  await createAdminNotification({
+    countryCode: data.countryCode ?? null,
+    type: "feature_flag_changed",
+    title: "Feature flag created",
+    body: `${flag.key} was created by platform administration.`,
+    actionUrl: "/admin/feature-flags",
+    priority: "normal",
   });
 
   return flag;
@@ -100,6 +109,14 @@ export async function updateFeatureFlag(session: Session, id: string, input: unk
     targetType: "feature_flag",
     targetId: id,
     details: parsed,
+  });
+  await createAdminNotification({
+    countryCode: normalized.countryCode ?? null,
+    type: "feature_flag_changed",
+    title: "Feature flag changed",
+    body: `${flag.key} is now ${flag.enabled ? "enabled" : "disabled"}.`,
+    actionUrl: "/admin/feature-flags",
+    priority: "normal",
   });
 
   return flag;

@@ -5,18 +5,35 @@ import {
   ChefProfileStatus,
   ChefServiceType,
   ChefVerificationStatus,
+  DataCategory,
+  DishTemplateCategory,
+  GroceryIntegrationType,
+  GroceryPartnerStatus,
   IngredientCategory,
   MeasurementSystem,
   MembershipStatus,
   OrganizationStatus,
   OrganizationType,
+  PermissionAction,
+  RobotsDirective,
+  MarketplacePolicyModule,
+  LegalAudience,
+  LegalDocumentType,
+  MealType,
+  MenuTemplateType,
   PlatformRole,
   PrismaClient,
   RecipeDifficulty,
   RecipeSourceType,
   RecipeVisibility,
+  SellerRequirementType,
+  SellerType,
+  SeoScope,
   SpiceLevel,
   PreferredDeliveryMethod,
+  RetentionAction,
+  TemplateStatus,
+  TemplateVisibility,
   UnitSystem,
   UnitType,
   UserStatus,
@@ -31,9 +48,36 @@ const FEATURE_FLAGS = [
   "grocery_engine",
   "youtube_references",
   "home_chefs",
+  "home_catering",
   "restaurant_fallback",
   "grocery_partners",
+  "notifications",
+  "billing",
+  "reports",
   "payments",
+  "live_checkout",
+  "stripe_payments",
+  "paypal_payments",
+  "google_pay_wallet",
+  "seller_payouts",
+  "payment_refunds",
+  "payment_disputes",
+  "s3_storage",
+  "admin_dropbox",
+  "profile_uploads",
+  "document_uploads",
+  "seller_verification",
+  "background_checks",
+  "kitchen_safety_reviews",
+  "social_login",
+  "google_maps",
+  "seo_aeo",
+  "legal_center",
+  "privacy_center",
+  "api_management",
+  "localization",
+  "templates",
+  "cms",
   "subscriptions",
   "family_profiles",
   "chef_verification",
@@ -41,7 +85,206 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "chef_verification"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports", "localization"]);
+
+const PERMISSION_SEEDS = [
+  { key: "admin.access", name: "Access admin", module: "admin", action: "read" },
+  { key: "rbac.manage", name: "Manage RBAC", module: "access_control", action: "manage" },
+  { key: "users.manage", name: "Manage users", module: "users", action: "manage" },
+  { key: "organizations.manage", name: "Manage organizations", module: "organizations", action: "manage" },
+  { key: "countries.manage", name: "Manage countries", module: "countries", action: "manage" },
+  { key: "localization.manage", name: "Manage localization", module: "localization", action: "configure" },
+  { key: "feature_flags.manage", name: "Manage feature flags", module: "feature_flags", action: "configure" },
+  { key: "api_management.read", name: "Read API management", module: "api_management", action: "read" },
+  { key: "api_management.manage", name: "Manage API management", module: "api_management", action: "manage" },
+  { key: "api_management.manage_secrets", name: "Manage API secrets", module: "api_management", action: "configure" },
+  { key: "api_management.test", name: "Test APIs", module: "api_management", action: "configure" },
+  { key: "api_management.disable", name: "Disable APIs", module: "api_management", action: "configure" },
+  { key: "api_management.rotate_credentials", name: "Rotate API credentials", module: "api_management", action: "configure" },
+  { key: "audit.read", name: "View audit logs", module: "audit", action: "read" },
+  { key: "reports.read", name: "View reports", module: "reports", action: "read" },
+  { key: "recipes.manage", name: "Manage recipes", module: "food_library", action: "manage" },
+  { key: "youtube.manage", name: "Manage YouTube discovery", module: "youtube", action: "manage" },
+  { key: "grocery.manage", name: "Manage grocery", module: "grocery", action: "manage" },
+  { key: "meal_plans.manage", name: "Manage meal planning", module: "meal_plans", action: "manage" },
+  { key: "templates.manage", name: "Manage dish and menu templates", module: "templates", action: "manage" },
+  { key: "home_chefs.manage", name: "Manage home chef requests", module: "home_chefs", action: "manage" },
+  { key: "chefs.manage", name: "Manage chef marketplace", module: "chefs", action: "manage" },
+  { key: "home_catering.manage", name: "Manage home catering", module: "home_catering", action: "manage" },
+  { key: "restaurants.manage", name: "Manage restaurants", module: "restaurants", action: "manage" },
+  { key: "menus.manage", name: "Manage menus", module: "menus", action: "moderate" },
+  { key: "food_orders.manage", name: "Manage food orders", module: "food_orders", action: "manage" },
+  { key: "billing.manage", name: "Manage billing", module: "billing", action: "manage" },
+  { key: "payments.manage", name: "Manage payments", module: "payments", action: "manage" },
+  { key: "payments.configure", name: "Configure payment gateways", module: "payments", action: "configure" },
+  { key: "refunds.manage", name: "Manage refunds", module: "payments", action: "refund" },
+  { key: "payouts.manage", name: "Manage payouts", module: "payments", action: "payout" },
+  { key: "storage.manage", name: "Manage storage files", module: "storage", action: "manage" },
+  { key: "storage.configure", name: "Configure storage", module: "storage", action: "configure" },
+  { key: "verification.manage", name: "Manage seller verification", module: "verification", action: "verify" },
+  { key: "kyc.manage", name: "Manage KYC", module: "kyc", action: "manage" },
+  { key: "support.manage", name: "Manage support", module: "support", action: "manage" },
+  { key: "notifications.manage", name: "Manage notifications", module: "notifications", action: "manage" },
+  { key: "settings.manage", name: "Manage system settings", module: "settings", action: "configure" },
+] as const;
+
+const PLATFORM_ROLE_PERMISSION_SEEDS = {
+  platform_owner: PERMISSION_SEEDS.map((permission) => permission.key),
+  platform_admin: PERMISSION_SEEDS.filter(
+    (permission) => !["rbac.manage", "payments.configure", "storage.configure"].includes(permission.key),
+  ).map((permission) => permission.key),
+  country_manager: [
+    "admin.access",
+    "countries.manage",
+    "organizations.manage",
+    "users.manage",
+    "reports.read",
+    "audit.read",
+    "home_chefs.manage",
+    "chefs.manage",
+    "home_catering.manage",
+    "restaurants.manage",
+    "food_orders.manage",
+    "payments.manage",
+    "verification.manage",
+    "kyc.manage",
+    "storage.manage",
+    "support.manage",
+  ],
+  support_admin: [
+    "admin.access",
+    "users.manage",
+    "organizations.manage",
+    "support.manage",
+    "home_chefs.manage",
+    "chefs.manage",
+    "home_catering.manage",
+    "verification.manage",
+    "kyc.manage",
+    "storage.manage",
+    "audit.read",
+  ],
+  auditor: ["admin.access", "audit.read", "reports.read"],
+} as const;
+
+const MARKETPLACE_POLICY_SEEDS = [
+  {
+    name: "Seller verification required before menu publishing",
+    module: MarketplacePolicyModule.menu_publishing,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "Complete seller verification before publishing menu items." },
+  },
+  {
+    name: "Seller verification required before order acceptance",
+    module: MarketplacePolicyModule.food_orders,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "This seller cannot accept orders until verification is approved." },
+  },
+  {
+    name: "Payout onboarding required before live checkout",
+    module: MarketplacePolicyModule.payments,
+    priority: 90,
+    rulesJson: { requirePayoutOnboarding: true, message: "Payout setup must be completed before live checkout can be enabled." },
+  },
+  {
+    name: "Payout onboarding required before payouts",
+    module: MarketplacePolicyModule.payouts,
+    priority: 90,
+    rulesJson: { requireSellerVerified: true, requirePayoutOnboarding: true, message: "Seller verification and payout setup are required before payouts." },
+  },
+  {
+    name: "Manual payment requires admin approval for unverified sellers",
+    module: MarketplacePolicyModule.payments,
+    priority: 60,
+    rulesJson: { allowManualPayment: true, requireAdminApproval: true, message: "Manual payment for unverified sellers requires platform admin approval." },
+  },
+  {
+    name: "Public profile hidden when seller is suspended",
+    module: MarketplacePolicyModule.public_profiles,
+    priority: 100,
+    rulesJson: { hideSuspendedSeller: true, message: "Suspended sellers are hidden from public profiles." },
+  },
+  {
+    name: "Refunds require platform admin approval",
+    module: MarketplacePolicyModule.refunds,
+    priority: 80,
+    rulesJson: { requireAdminApproval: true, message: "This action requires platform admin approval." },
+  },
+  {
+    name: "Cancellation allowed before seller accepts order",
+    module: MarketplacePolicyModule.cancellations,
+    priority: 70,
+    rulesJson: { allowBeforeAcceptanceOnly: true, message: "Cancellation is allowed before the seller accepts the order." },
+  },
+  {
+    name: "Food orders require active menu item",
+    module: MarketplacePolicyModule.food_orders,
+    priority: 80,
+    rulesJson: { requireActiveMenuItem: true, message: "Food orders require an active menu item." },
+  },
+  {
+    name: "Home chef requests require verified chef before assignment",
+    module: MarketplacePolicyModule.home_chef_requests,
+    priority: 100,
+    rulesJson: { requireSellerVerified: true, message: "Chef verification is required before assignment." },
+  },
+  {
+    name: "S3 verification documents private by default",
+    module: MarketplacePolicyModule.storage,
+    priority: 100,
+    rulesJson: { privateByDefault: true, message: "Verification documents are private by default." },
+  },
+] as const;
+
+const LEGAL_TEMPLATE_NOTICE = "Template placeholder — replace with final legal counsel-approved text before production.";
+
+const LEGAL_DOCUMENT_SEEDS: Array<{
+  documentType: LegalDocumentType;
+  title: string;
+  slug: string;
+  version: string;
+  audience: LegalAudience;
+  status: "published" | "draft";
+  contentMarkdown: string;
+}> = [
+  legalSeed("terms_of_service", "Terms of Service", "terms-of-service", "all_users"),
+  legalSeed("privacy_policy", "Privacy Policy", "privacy-policy", "all_users"),
+  legalSeed("seller_agreement", "Seller Agreement", "seller-agreement", "sellers"),
+  legalSeed("food_safety_policy", "Food Safety Responsibility Agreement", "food-safety-policy", "sellers"),
+  legalSeed("refund_policy", "Payment and Refund Policy", "refund-policy", "all_users"),
+  legalSeed("cancellation_policy", "Cancellation Policy", "cancellation-policy", "all_users"),
+  legalSeed("home_chef_agreement", "Home Chef Agreement", "home-chef-agreement", "chefs"),
+  legalSeed("home_catering_agreement", "Home Catering Agreement", "home-catering-agreement", "home_catering"),
+  legalSeed("restaurant_partner_agreement", "Restaurant Partner Agreement", "restaurant-partner-agreement", "restaurants"),
+  legalSeed("background_check_consent", "KYC and Background Check Consent", "background-check-consent", "sellers"),
+  legalSeed("file_upload_policy", "S3 and File Upload Policy", "file-upload-policy", "all_users"),
+  legalSeed("marketplace_disclaimer", "Marketplace Disclaimer", "marketplace-disclaimer", "all_users"),
+];
+
+const DATA_RETENTION_POLICY_SEEDS = [
+  { dataCategory: DataCategory.payments, action: RetentionAction.retain, retentionDays: 2555, notes: "Payment ledger summaries are retained for accounting, disputes, and tax review." },
+  { dataCategory: DataCategory.audit_logs, action: RetentionAction.retain, retentionDays: 2555, notes: "Audit logs are retained for security and compliance investigations." },
+  { dataCategory: DataCategory.kyc_documents, action: RetentionAction.archive, retentionDays: 1095, notes: "KYC/document retention depends on provider and jurisdiction requirements." },
+  { dataCategory: DataCategory.user_profile, action: RetentionAction.anonymize, retentionDays: 30, notes: "User profile fields can be anonymized after approved deletion requests." },
+  { dataCategory: DataCategory.files, action: RetentionAction.archive, retentionDays: 365, notes: "Files are archived or deleted only after retention and ownership review." },
+];
+
+function legalSeed(
+  documentType: LegalDocumentType,
+  title: string,
+  slug: string,
+  audience: LegalAudience,
+) {
+  return {
+    documentType,
+    title,
+    slug,
+    version: "v1.0-template",
+    audience,
+    status: "published" as const,
+    contentMarkdown: `# ${title}\n\n**${LEGAL_TEMPLATE_NOTICE}**\n\nThis NizamKitchen template is provided for product setup and workflow testing only. It is not jurisdiction-specific legal advice and is not lawyer-approved.\n\n## Purpose\n\nDescribe the platform expectations, user responsibilities, seller responsibilities, payment/refund handling, privacy practices, and operational limits that apply to this document.\n\n## Admin replacement required\n\nBefore production launch, replace this placeholder with final reviewed text approved by qualified counsel for the countries and regions where NizamKitchen operates.\n`,
+  };
+}
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
@@ -59,12 +302,216 @@ const USER_SEEDS = [
   { email: "country@nizamkitchen.dev", fullName: "Country Manager", platformRole: PlatformRole.country_manager, status: UserStatus.active },
   { email: "household@nizamkitchen.dev", fullName: "Household Owner", platformRole: null, status: UserStatus.active },
   { email: "chef@nizamkitchen.dev", fullName: "Chef Owner", platformRole: null, status: UserStatus.active },
+  { email: "catering@nizamkitchen.dev", fullName: "Home Catering Owner", platformRole: null, status: UserStatus.active },
   { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null, status: UserStatus.active },
+  { email: "support@nizamkitchen.dev", fullName: "Support Admin", platformRole: PlatformRole.support_admin, status: UserStatus.active },
   { email: "disabled@nizamkitchen.dev", fullName: "Disabled User", platformRole: null, status: UserStatus.disabled },
+];
+
+const LOCALE_SEEDS = [
+  { localeCode: "en-US", languageName: "English (United States)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-US", isDefault: true },
+  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "en-IN", isDefault: false },
+  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "en-GB", isDefault: false },
+  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-SA", isDefault: false },
+  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-AE", isDefault: false },
+  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "hi-IN", isDefault: false },
+  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-IN", isDefault: false },
+  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-PK", isDefault: false },
+];
+
+const CURRENCY_SEEDS = [
+  { currencyCode: "USD", displayName: "US Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["US"] },
+  { currencyCode: "INR", displayName: "Indian Rupee", symbol: "₹", decimalDigits: 2, countryCodesJson: ["IN"] },
+  { currencyCode: "GBP", displayName: "Pound Sterling", symbol: "£", decimalDigits: 2, countryCodesJson: ["GB"] },
+  { currencyCode: "SAR", displayName: "Saudi Riyal", symbol: "ر.س", decimalDigits: 2, countryCodesJson: ["SA"] },
+  { currencyCode: "AED", displayName: "UAE Dirham", symbol: "د.إ", decimalDigits: 2, countryCodesJson: ["AE"] },
+  { currencyCode: "CAD", displayName: "Canadian Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["CA"] },
+  { currencyCode: "AUD", displayName: "Australian Dollar", symbol: "$", decimalDigits: 2, countryCodesJson: ["AU"] },
 ];
 
 function slugify(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+async function ensureSellerRequirement(input: {
+  sellerType: SellerType;
+  requirementType: SellerRequirementType;
+  title: string;
+  description: string;
+  sortOrder: number;
+  isRequired?: boolean;
+  countryCode?: string | null;
+  region?: string | null;
+}) {
+  const existing = await prisma.sellerVerificationRequirement.findFirst({
+    where: {
+      sellerType: input.sellerType,
+      requirementType: input.requirementType,
+      countryCode: input.countryCode ?? null,
+      region: input.region ?? null,
+      title: input.title,
+    },
+  });
+  const data = {
+    sellerType: input.sellerType,
+    requirementType: input.requirementType,
+    title: input.title,
+    description: input.description,
+    sortOrder: input.sortOrder,
+    isRequired: input.isRequired ?? true,
+    countryCode: input.countryCode ?? null,
+    region: input.region ?? null,
+    provider: "manual" as const,
+    isActive: true,
+  };
+ return existing
+    ? prisma.sellerVerificationRequirement.update({ where: { id: existing.id }, data })
+    : prisma.sellerVerificationRequirement.create({ data });
+}
+
+async function seedRbacCatalog() {
+  const permissionIds = new Map<string, string>();
+
+  for (const permission of PERMISSION_SEEDS) {
+    const record = await prisma.permission.upsert({
+      where: { key: permission.key },
+      update: {
+        name: permission.name,
+        description: `Allows ${permission.name.toLowerCase()} in NizamKitchen.`,
+        module: permission.module,
+        action: permission.action as PermissionAction,
+      },
+      create: {
+        key: permission.key,
+        name: permission.name,
+        description: `Allows ${permission.name.toLowerCase()} in NizamKitchen.`,
+        module: permission.module,
+        action: permission.action as PermissionAction,
+      },
+    });
+    permissionIds.set(permission.key, record.id);
+  }
+
+  for (const [roleName, permissionKeys] of Object.entries(PLATFORM_ROLE_PERMISSION_SEEDS)) {
+    for (const permissionKey of permissionKeys) {
+      const permissionId = permissionIds.get(permissionKey);
+      if (!permissionId) continue;
+
+      await prisma.rolePermission.upsert({
+        where: {
+          roleScope_roleName_permissionId: {
+            roleScope: "platform",
+            roleName,
+            permissionId,
+          },
+        },
+        update: {},
+        create: {
+          roleScope: "platform",
+          roleName,
+          permissionId,
+        },
+      });
+    }
+  }
+}
+
+async function seedMarketplacePolicies(createdById: string) {
+  for (const policy of MARKETPLACE_POLICY_SEEDS) {
+    const existing = await prisma.marketplacePolicy.findFirst({
+      where: {
+        name: policy.name,
+        module: policy.module,
+        countryCode: null,
+        region: null,
+        sellerType: null,
+        organizationType: null,
+      },
+    });
+    const data = {
+      description: `Default platform policy: ${policy.name}.`,
+      status: "active" as const,
+      priority: policy.priority,
+      rulesJson: policy.rulesJson,
+      updatedById: createdById,
+    };
+
+    if (existing) {
+      await prisma.marketplacePolicy.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.marketplacePolicy.create({
+        data: {
+          name: policy.name,
+          module: policy.module,
+          countryCode: null,
+          region: null,
+          sellerType: null,
+          organizationType: null,
+          createdById,
+          ...data,
+        },
+      });
+    }
+  }
+}
+
+async function seedLegalDocuments(createdById: string) {
+  for (const document of LEGAL_DOCUMENT_SEEDS) {
+    const existing = await prisma.legalDocument.findFirst({
+      where: {
+        slug: document.slug,
+        version: document.version,
+        countryCode: null,
+        region: null,
+      },
+    });
+    const data = {
+      documentType: document.documentType,
+      title: document.title,
+      audience: document.audience,
+      status: document.status,
+      contentMarkdown: document.contentMarkdown,
+      effectiveAt: new Date(),
+      publishedById: document.status === "published" ? createdById : null,
+      publishedAt: document.status === "published" ? new Date() : null,
+    };
+    if (existing) {
+      await prisma.legalDocument.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.legalDocument.create({
+        data: {
+          ...data,
+          slug: document.slug,
+          version: document.version,
+          countryCode: null,
+          region: null,
+          createdById,
+        },
+      });
+    }
+  }
+}
+
+async function seedDataRetentionPolicies(createdById: string) {
+  for (const policy of DATA_RETENTION_POLICY_SEEDS) {
+    const existing = await prisma.dataRetentionPolicy.findFirst({
+      where: { countryCode: null, dataCategory: policy.dataCategory },
+    });
+    const data = {
+      countryCode: null,
+      dataCategory: policy.dataCategory,
+      retentionDays: policy.retentionDays,
+      action: policy.action,
+      status: "active" as const,
+      notes: policy.notes,
+      updatedById: createdById,
+    };
+    if (existing) {
+      await prisma.dataRetentionPolicy.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.dataRetentionPolicy.create({ data: { ...data, createdById } });
+    }
+  }
 }
 
 async function upsertUser(
@@ -108,7 +555,13 @@ async function createOrganization(params: { name: string; organizationType: Orga
     },
   });
 
-  const role = params.organizationType === OrganizationType.household ? "org_owner" : params.organizationType === OrganizationType.chef_business ? "chef_owner" : "restaurant_owner";
+  const role = params.organizationType === OrganizationType.household
+    ? "org_owner"
+    : params.organizationType === OrganizationType.chef_business
+      ? "chef_owner"
+      : params.organizationType === OrganizationType.home_catering
+        ? "home_catering_owner"
+        : "restaurant_owner";
   await prisma.membership.upsert({
     where: { userId_organizationId: { userId: params.ownerUserId, organizationId: organization.id } },
     update: { role, status: MembershipStatus.active },
@@ -1636,6 +2089,459 @@ async function seedRecipes(
   }
 }
 
+async function seedTemplateLibrary(
+  createdById: string,
+  cuisineMap: Map<string, string>,
+  ingredientMap: Map<string, string>,
+  unitMap: Map<string, string>,
+) {
+  const hyderabadiCuisineId = cuisineMap.get("hyderabadi") ?? null;
+  const unit = (code: string) => unitMap.get(code) ?? null;
+  const ingredient = (slug: string) => ingredientMap.get(slug) ?? null;
+
+  const dishSeeds = [
+    {
+      name: "Chicken Dum Biryani",
+      slug: "template-chicken-dum-biryani",
+      description: "A platform template for layered Hyderabadi chicken dum biryani with rice, fried onions, mint, and saffron.",
+      category: DishTemplateCategory.biryani,
+      mealType: MealType.dinner,
+      defaultServings: 6,
+      defaultPriceAmount: 85,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "hyderabadi-chicken-biryani",
+      ingredients: [
+        ["chicken", "Chicken", 1000, "gram", "bone-in pieces"],
+        ["basmati-rice", "Basmati Rice", 750, "gram", "soaked and parboiled"],
+        ["yogurt", "Yogurt", 250, "gram", "for marinade"],
+        ["onion", "Onion", 4, "piece", "thinly sliced and fried"],
+        ["mint", "Mint", 1, "bunch", "for layering"],
+        ["ghee", "Ghee", 2, "tablespoon", "for dum finish"],
+      ],
+      steps: [
+        ["Marinate", "Marinate chicken with yogurt, spices, fried onions, and herbs.", 45],
+        ["Layer", "Layer marinated chicken with parboiled rice, mint, onions, and ghee.", 15],
+        ["Dum cook", "Seal and cook on dum until the chicken is tender and rice is fragrant.", 45],
+      ],
+    },
+    {
+      name: "Mutton Biryani",
+      slug: "template-mutton-biryani",
+      description: "A rich Hyderabadi mutton biryani template for weekend menus and occasion catering.",
+      category: DishTemplateCategory.biryani,
+      mealType: MealType.dinner,
+      defaultServings: 8,
+      defaultPriceAmount: 120,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "hyderabadi-mutton-biryani",
+      ingredients: [
+        ["mutton", "Mutton", 1200, "gram", "bone-in pieces"],
+        ["basmati-rice", "Basmati Rice", 900, "gram", "aged preferred"],
+        ["yogurt", "Yogurt", 300, "gram", "for marinade"],
+        ["onion", "Onion", 5, "piece", "fried dark golden"],
+        ["mint", "Mint", 1, "bunch", "for layering"],
+      ],
+      steps: [
+        ["Marinate mutton", "Marinate mutton with yogurt, spices, and fried onions for deep flavor.", 120],
+        ["Parboil rice", "Parboil soaked basmati rice until the grain still has a firm center.", 20],
+        ["Dum cook", "Layer mutton and rice, seal, and dum cook until tender.", 80],
+      ],
+    },
+    {
+      name: "Mirchi ka Salan",
+      slug: "template-mirchi-ka-salan",
+      description: "Classic peanut-sesame-tamarind salan served with biryani and bagara rice.",
+      category: DishTemplateCategory.salan,
+      mealType: MealType.side,
+      defaultServings: 6,
+      defaultPriceAmount: 28,
+      spiceLevel: SpiceLevel.hot,
+      recipeSlug: "mirchi-ka-salan",
+      ingredients: [
+        ["onion", "Onion", 2, "piece", "fried"],
+        ["coriander-powder", "Coriander Powder", 1, "teaspoon", null],
+      ],
+      steps: [
+        ["Prepare masala", "Cook a nutty salan base with fried onions, spices, and tamarind.", 20],
+        ["Simmer", "Add fried chilies and simmer until the gravy thickens.", 15],
+      ],
+    },
+    {
+      name: "Bagara Rice",
+      slug: "template-bagara-rice",
+      description: "Fragrant tempered Hyderabadi rice with fried onions, mint, and whole spices.",
+      category: DishTemplateCategory.rice,
+      mealType: MealType.lunch,
+      defaultServings: 6,
+      defaultPriceAmount: 32,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "bagara-khana",
+      ingredients: [
+        ["basmati-rice", "Basmati Rice", 500, "gram", "soaked"],
+        ["onion", "Onion", 2, "piece", "fried"],
+        ["mint", "Mint", 0.5, "bunch", null],
+        ["ghee", "Ghee", 1, "tablespoon", "for finish"],
+      ],
+      steps: [
+        ["Temper", "Bloom whole spices, onions, and mint in oil.", 8],
+        ["Cook rice", "Cook soaked rice with measured water until fluffy.", 20],
+      ],
+    },
+    {
+      name: "Khatti Dal",
+      slug: "template-khatti-dal",
+      description: "Tangy Hyderabadi toor dal with tamarind and a simple tempering.",
+      category: DishTemplateCategory.curry,
+      mealType: MealType.lunch,
+      defaultServings: 4,
+      defaultPriceAmount: 24,
+      spiceLevel: SpiceLevel.medium,
+      recipeSlug: "khatti-dal",
+      ingredients: [
+        ["toor-dal", "Toor Dal", 200, "gram", "rinsed"],
+        ["onion", "Onion", 1, "piece", "finely chopped"],
+        ["coriander-powder", "Coriander Powder", 1, "teaspoon", null],
+      ],
+      steps: [
+        ["Cook dal", "Pressure cook toor dal until soft and mash lightly.", 20],
+        ["Season", "Simmer with tamarind, spices, and tempering.", 15],
+      ],
+    },
+    {
+      name: "Double ka Meetha",
+      slug: "template-double-ka-meetha",
+      description: "Hyderabadi bread pudding with fried bread, milk, sugar syrup, and saffron.",
+      category: DishTemplateCategory.dessert,
+      mealType: MealType.dessert,
+      defaultServings: 8,
+      defaultPriceAmount: 36,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "double-ka-meetha",
+      ingredients: [
+        ["white-bread", "White Bread", 8, "piece", "cut into triangles"],
+        ["ghee", "Ghee", 3, "tablespoon", "for frying"],
+        ["sugar", "Sugar", 150, "gram", "for syrup"],
+        ["saffron", "Saffron", 1, "pinch", "optional"],
+      ],
+      steps: [
+        ["Fry bread", "Fry bread until golden and crisp.", 15],
+        ["Soak and finish", "Soak with syrup and milk, then garnish.", 15],
+      ],
+    },
+    {
+      name: "Haleem",
+      slug: "template-haleem",
+      description: "Slow-cooked Hyderabadi haleem template for Ramadan and special menus.",
+      category: DishTemplateCategory.special,
+      mealType: MealType.dinner,
+      defaultServings: 8,
+      defaultPriceAmount: 95,
+      spiceLevel: SpiceLevel.medium,
+      recipeSlug: "haleem",
+      ingredients: [
+        ["mutton", "Mutton", 1000, "gram", "for slow cooking"],
+        ["onion", "Onion", 4, "piece", "fried"],
+        ["yogurt", "Yogurt", 200, "gram", null],
+        ["ghee", "Ghee", 4, "tablespoon", "for finishing"],
+      ],
+      steps: [
+        ["Cook meat", "Cook meat and spices until very tender.", 60],
+        ["Beat haleem", "Combine grains, lentils, and meat; beat into a thick texture.", 90],
+      ],
+    },
+    {
+      name: "Qubani ka Meetha",
+      slug: "template-qubani-ka-meetha",
+      description: "Dried apricot dessert cooked into a tangy-sweet compote for celebrations.",
+      category: DishTemplateCategory.dessert,
+      mealType: MealType.dessert,
+      defaultServings: 8,
+      defaultPriceAmount: 42,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "qubani-ka-meetha",
+      ingredients: [
+        ["dried-apricots", "Dried Apricots", 400, "gram", "soaked overnight"],
+        ["sugar", "Sugar", 150, "gram", null],
+        ["saffron", "Saffron", 1, "pinch", "optional"],
+      ],
+      steps: [
+        ["Soak apricots", "Soak dried apricots until plump.", 360],
+        ["Cook compote", "Cook with sugar until thick and glossy.", 30],
+      ],
+    },
+    {
+      name: "Dahi ki Chutney",
+      slug: "template-dahi-ki-chutney",
+      description: "Cooling yogurt chutney with herbs for biryani plates and catering trays.",
+      category: DishTemplateCategory.salan,
+      mealType: MealType.side,
+      defaultServings: 6,
+      defaultPriceAmount: 14,
+      spiceLevel: SpiceLevel.mild,
+      recipeSlug: "dahi-ki-chutney",
+      ingredients: [
+        ["yogurt", "Yogurt", 300, "gram", "whisked"],
+        ["mint", "Mint", 0.25, "bunch", "optional"],
+      ],
+      steps: [
+        ["Blend herbs", "Blend herbs and green chilies with a little yogurt.", 3],
+        ["Fold", "Fold herb paste into whisked yogurt and season.", 3],
+      ],
+    },
+  ] as const;
+
+  const recipeRows = await prisma.recipe.findMany({
+    where: { slug: { in: dishSeeds.map((dish) => dish.recipeSlug) }, organizationId: null },
+    select: { id: true, slug: true },
+  });
+  const recipeMap = new Map(recipeRows.map((recipe) => [recipe.slug, recipe.id]));
+  const dishTemplates = new Map<string, string>();
+
+  for (const dish of dishSeeds) {
+    const ingredients = dish.ingredients.map(([slug, ingredientName, quantity, unitCode, preparationNote], displayOrder) => ({
+      ingredientId: ingredient(slug) ?? null,
+      ingredientName,
+      quantity,
+      unitId: unit(unitCode) ?? null,
+      preparationNote,
+      displayOrder,
+    }));
+    const steps = dish.steps.map(([title, instruction, durationMinutes], displayOrder) => ({
+      stepNumber: displayOrder + 1,
+      title,
+      instruction,
+      durationMinutes,
+      displayOrder,
+    }));
+    const baseData = {
+      name: dish.name,
+      description: dish.description,
+      cuisineId: hyderabadiCuisineId,
+      countryCode: "US",
+      region: dish.slug.includes("mutton") ? "TX" : null,
+      city: dish.slug.includes("chicken-dum") ? "Dallas" : null,
+      mealType: dish.mealType,
+      category: dish.category,
+      defaultServings: dish.defaultServings,
+      defaultPriceAmount: dish.defaultPriceAmount,
+      currencyCode: "USD",
+      spiceLevel: dish.spiceLevel,
+      status: TemplateStatus.active,
+      visibility: TemplateVisibility.public,
+      updatedById: createdById,
+    };
+    const updateData = {
+      ...baseData,
+      ingredients: {
+        deleteMany: {},
+        create: ingredients,
+      },
+      steps: {
+        deleteMany: {},
+        create: steps,
+      },
+    };
+
+    const template = await prisma.dishTemplate.upsert({
+      where: { slug: dish.slug },
+      update: updateData,
+      create: {
+        ...baseData,
+        slug: dish.slug,
+        createdById,
+        ingredients: { create: ingredients },
+        steps: { create: steps },
+      },
+    });
+    dishTemplates.set(dish.slug, template.id);
+  }
+
+  const dishId = (slug: string) => dishTemplates.get(slug) ?? null;
+  const recipeId = (slug: string) => recipeMap.get(slug) ?? null;
+  const menuSeeds = [
+    {
+      name: "Daily Hyderabadi Lunch Template",
+      slug: "daily-hyderabadi-lunch-template",
+      description: "A simple daily lunch structure for families: rice, dal, salan, and chutney.",
+      templateType: MenuTemplateType.daily,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: false,
+      visibility: TemplateVisibility.household_available,
+      items: [
+        ["Bagara Rice", 0, MealType.lunch, DishTemplateCategory.rice, 0, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Khatti Dal", 0, MealType.lunch, DishTemplateCategory.curry, 0, "USD", "template-khatti-dal", "khatti-dal"],
+        ["Dahi ki Chutney", 0, MealType.side, DishTemplateCategory.salan, 0, "USD", "template-dahi-ki-chutney", "dahi-ki-chutney"],
+      ],
+    },
+    {
+      name: "Weekly Hyderabadi Family Meal Plan",
+      slug: "weekly-hyderabadi-family-meal-plan",
+      description: "A week of familiar Hyderabadi family meals for household meal planning.",
+      templateType: MenuTemplateType.weekly,
+      countryCode: "US",
+      region: "TX",
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: false,
+      visibility: TemplateVisibility.household_available,
+      items: [
+        ["Khatti Dal", 0, MealType.lunch, DishTemplateCategory.curry, 0, "USD", "template-khatti-dal", "khatti-dal"],
+        ["Bagara Rice", 1, MealType.dinner, DishTemplateCategory.rice, 0, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Chicken Dum Biryani", 4, MealType.dinner, DishTemplateCategory.biryani, 0, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mirchi ka Salan", 4, MealType.side, DishTemplateCategory.salan, 0, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha", 6, MealType.dessert, DishTemplateCategory.dessert, 0, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+      ],
+    },
+    {
+      name: "Monthly Hyderabadi Menu Rotation",
+      slug: "monthly-hyderabadi-menu-rotation",
+      description: "A rotating monthly menu of biryani, dal, rice, salan, haleem, and desserts.",
+      templateType: MenuTemplateType.monthly,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Chicken Dum Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani", 7, MealType.dinner, DishTemplateCategory.biryani, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Haleem", 14, MealType.dinner, DishTemplateCategory.special, 95, "USD", "template-haleem", "haleem"],
+        ["Qubani ka Meetha", 21, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Ramadan Iftar Menu",
+      slug: "ramadan-iftar-menu",
+      description: "A Ramadan-ready menu featuring haleem, biryani, chutney, and dessert.",
+      templateType: MenuTemplateType.ramadan,
+      countryCode: "US",
+      region: null,
+      city: "Houston",
+      sellerType: SellerType.home_catering,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Haleem", 0, MealType.dinner, DishTemplateCategory.special, 95, "USD", "template-haleem", "haleem"],
+        ["Chicken Dum Biryani", 1, MealType.dinner, DishTemplateCategory.biryani, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Dahi ki Chutney", 1, MealType.side, DishTemplateCategory.salan, 14, "USD", "template-dahi-ki-chutney", "dahi-ki-chutney"],
+        ["Qubani ka Meetha", 2, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Eid Special Menu",
+      slug: "eid-special-menu",
+      description: "A celebratory Eid menu with mutton biryani, salan, and classic sweets.",
+      templateType: MenuTemplateType.eid,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: null,
+      householdUseEnabled: true,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.public,
+      items: [
+        ["Mutton Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Mirchi ka Salan", 0, MealType.side, DishTemplateCategory.salan, 28, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 36, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+        ["Qubani ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 42, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+    {
+      name: "Home Catering Weekend Biryani Menu",
+      slug: "home-catering-weekend-biryani-menu",
+      description: "A seller-ready weekend biryani tray menu for home catering businesses.",
+      templateType: MenuTemplateType.weekly,
+      countryCode: "US",
+      region: "TX",
+      city: "Dallas",
+      sellerType: SellerType.home_catering,
+      householdUseEnabled: false,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.seller_available,
+      items: [
+        ["Chicken Dum Biryani Tray", 0, MealType.dinner, DishTemplateCategory.catering_tray, 85, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani Tray", 0, MealType.dinner, DishTemplateCategory.catering_tray, 120, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Mirchi ka Salan Quart", 0, MealType.side, DishTemplateCategory.salan, 28, "USD", "template-mirchi-ka-salan", "mirchi-ka-salan"],
+        ["Double ka Meetha Tray", 0, MealType.dessert, DishTemplateCategory.dessert, 36, "USD", "template-double-ka-meetha", "double-ka-meetha"],
+      ],
+    },
+    {
+      name: "Restaurant Biryani House Starter Menu",
+      slug: "restaurant-biryani-house-starter-menu",
+      description: "A starter menu for restaurant profiles offering Hyderabadi biryani, salan, rice, and desserts.",
+      templateType: MenuTemplateType.daily,
+      countryCode: "US",
+      region: null,
+      city: null,
+      sellerType: SellerType.restaurant,
+      householdUseEnabled: false,
+      sellerUseEnabled: true,
+      visibility: TemplateVisibility.seller_available,
+      items: [
+        ["Chicken Dum Biryani", 0, MealType.lunch, DishTemplateCategory.biryani, 18, "USD", "template-chicken-dum-biryani", "hyderabadi-chicken-biryani"],
+        ["Mutton Biryani", 0, MealType.dinner, DishTemplateCategory.biryani, 22, "USD", "template-mutton-biryani", "hyderabadi-mutton-biryani"],
+        ["Bagara Rice", 0, MealType.side, DishTemplateCategory.rice, 8, "USD", "template-bagara-rice", "bagara-khana"],
+        ["Qubani ka Meetha", 0, MealType.dessert, DishTemplateCategory.dessert, 9, "USD", "template-qubani-ka-meetha", "qubani-ka-meetha"],
+      ],
+    },
+  ] as const;
+
+  for (const menu of menuSeeds) {
+    const items = menu.items.map(([nameSnapshot, dayOffset, mealSlot, category, priceAmount, currencyCode, dishSlug, recipeSlug], displayOrder) => ({
+      dishTemplateId: dishId(dishSlug),
+      recipeId: recipeId(recipeSlug),
+      nameSnapshot,
+      dayOffset,
+      mealSlot,
+      category,
+      quantity: menu.householdUseEnabled ? 4 : null,
+      priceAmount,
+      currencyCode,
+      displayOrder,
+    }));
+    const baseData = {
+      name: menu.name,
+      description: menu.description,
+      templateType: menu.templateType,
+      countryCode: menu.countryCode,
+      region: menu.region,
+      city: menu.city,
+      sellerType: menu.sellerType,
+      householdUseEnabled: menu.householdUseEnabled,
+      sellerUseEnabled: menu.sellerUseEnabled,
+      status: TemplateStatus.active,
+      visibility: menu.visibility,
+      updatedById: createdById,
+    };
+    const updateData = {
+      ...baseData,
+      items: {
+        deleteMany: {},
+        create: items,
+      },
+    };
+
+    await prisma.menuTemplate.upsert({
+      where: { slug: menu.slug },
+      update: updateData,
+      create: {
+        ...baseData,
+        slug: menu.slug,
+        createdById,
+        items: { create: items },
+      },
+    });
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1648,6 +2554,51 @@ async function main() {
       create: { ...country, supportedModules: FEATURE_FLAGS, isActive: true },
     });
   }
+
+  for (const locale of LOCALE_SEEDS) {
+    await prisma.localizationLocale.upsert({
+      where: { localeCode: locale.localeCode },
+      update: { ...locale, status: "active" },
+      create: { ...locale, status: "active" },
+    });
+  }
+
+  for (const currency of CURRENCY_SEEDS) {
+    await prisma.currencySetting.upsert({
+      where: { currencyCode: currency.currencyCode },
+      update: { ...currency, status: "active" },
+      create: { ...currency, status: "active" },
+    });
+  }
+
+  for (const country of COUNTRY_SEEDS) {
+    await prisma.countryRegionalSetting.upsert({
+      where: { countryCode: country.countryCode },
+      update: {
+        defaultLocale: country.defaultLocale,
+        supportedLocalesJson: [country.defaultLocale],
+        supportedCurrencyCodesJson: [country.currencyCode],
+        measurementSystem: country.measurementSystem,
+        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
+        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
+        rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
+      },
+      create: {
+        countryCode: country.countryCode,
+        defaultLocale: country.defaultLocale,
+        supportedLocalesJson: [country.defaultLocale],
+        supportedCurrencyCodesJson: [country.currencyCode],
+        measurementSystem: country.measurementSystem,
+        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
+        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
+        rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
+      },
+    });
+  }
+
+  await seedRbacCatalog();
 
   const users = new Map<string, Awaited<ReturnType<typeof upsertUser>>>();
   for (const user of USER_SEEDS) {
@@ -1663,7 +2614,55 @@ async function main() {
 
   const householdOrg = await createOrganization({ name: "Nizam Family Kitchen", organizationType: OrganizationType.household, countryCode: "US", ownerUserId: users.get("household@nizamkitchen.dev")!.id });
   const chefOrg = await createOrganization({ name: "Hyderabad Home Chefs Demo", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: users.get("chef@nizamkitchen.dev")!.id });
+  const homeCateringOrg = await createOrganization({ name: "Deccan Dastarkhwan", organizationType: OrganizationType.home_catering, countryCode: "US", ownerUserId: users.get("catering@nizamkitchen.dev")!.id });
   const restaurantOrg = await createOrganization({ name: "Biryani House Demo", organizationType: OrganizationType.restaurant, countryCode: "US", ownerUserId: users.get("restaurant@nizamkitchen.dev")!.id });
+
+  await prisma.homeCateringProfile.upsert({
+    where: { organizationId: homeCateringOrg.id },
+    update: {
+      countryCode: "US",
+      displayName: "Deccan Dastarkhwan",
+      slug: "deccan-dastarkhwan",
+      ownerName: "Home Catering Owner",
+      bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
+      status: "draft",
+      verificationStatus: "unverified",
+      cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
+      languagesJson: ["English", "Urdu"],
+      serviceAreaText: "Chicago pickup and nearby preorder delivery.",
+      city: "Chicago",
+      region: "IL",
+      phone: "+1 312 555 0188",
+      email: "catering@nizamkitchen.dev",
+      acceptsPickup: true,
+      acceptsDelivery: true,
+      acceptsPreorders: true,
+      minimumNoticeHours: 24,
+      isPublic: false,
+    },
+    create: {
+      organizationId: homeCateringOrg.id,
+      countryCode: "US",
+      displayName: "Deccan Dastarkhwan",
+      slug: "deccan-dastarkhwan",
+      ownerName: "Home Catering Owner",
+      bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
+      status: "draft",
+      verificationStatus: "unverified",
+      cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
+      languagesJson: ["English", "Urdu"],
+      serviceAreaText: "Chicago pickup and nearby preorder delivery.",
+      city: "Chicago",
+      region: "IL",
+      phone: "+1 312 555 0188",
+      email: "catering@nizamkitchen.dev",
+      acceptsPickup: true,
+      acceptsDelivery: true,
+      acceptsPreorders: true,
+      minimumNoticeHours: 24,
+      isPublic: false,
+    },
+  });
 
   for (const key of FEATURE_FLAGS) {
     const existing = await prisma.featureFlag.findFirst({ where: { key, organizationId: null, countryCode: null } });
@@ -1678,11 +2677,140 @@ async function main() {
   // Remove discontinued AI flags from the database.
   await prisma.featureFlag.deleteMany({ where: { key: { in: ["ai_video_analysis", "ai_training", "ai_suggestions"] } } });
 
-  const existingSubscription = await prisma.billingSubscription.findFirst({ where: { organizationId: householdOrg.id, planCode: "foundation-trial" } });
-  if (!existingSubscription) {
-    await prisma.billingSubscription.create({
-      data: { organizationId: householdOrg.id, countryCode: "US", provider: "placeholder", status: "trialing", planCode: "foundation-trial", currencyCode: "USD", billingPeriod: "monthly" },
+  const platformOwner = Array.from(users.values()).find((user) => user.platformRole === PlatformRole.platform_owner);
+  if (!platformOwner) throw new Error("Platform owner seed is required before marketplace policies.");
+  const existingGlobalSeo = await prisma.seoSetting.findFirst({ where: { scope: SeoScope.global, path: "/" } });
+  const globalSeoData = {
+    scope: SeoScope.global,
+    path: "/",
+    metaTitle: "NizamKitchen | Plan, Cook, Hire, or Order Hyderabadi Food",
+    metaDescription: "Plan Hyderabadi meals, generate grocery lists, cook from recipes, request home chefs, discover caterers, and order from restaurants.",
+    canonicalUrl: "https://nizamkitchen.com/",
+    robotsDirective: RobotsDirective.index_follow,
+    structuredDataJson: { "@type": "Organization", name: "NizamKitchen" },
+    aeoSummary: "NizamKitchen helps households plan, cook, hire food help, and order from trusted food businesses.",
+    aeoFaqJson: [
+      { question: "What is NizamKitchen?", answer: "NizamKitchen is a meal planning, recipe, chef, catering, restaurant, and food marketplace platform." },
+      { question: "Does NizamKitchen show fake ratings?", answer: "No. Ratings and reviews should only appear when verified platform data exists." },
+    ],
+    isActive: true,
+    updatedById: platformOwner.id,
+  };
+  if (existingGlobalSeo) {
+    await prisma.seoSetting.update({ where: { id: existingGlobalSeo.id }, data: globalSeoData });
+  } else {
+    await prisma.seoSetting.create({ data: { ...globalSeoData, createdById: platformOwner.id } });
+  }
+  await seedMarketplacePolicies(platformOwner.id);
+  await seedLegalDocuments(platformOwner.id);
+  await seedDataRetentionPolicies(platformOwner.id);
+
+  const sellerRequirementSeeds = [
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.food_handler_certificate, title: "Food handler certificate", description: "Upload a current food handler certificate where required.", sortOrder: 20 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.local_permit, title: "Local permit or cottage-food license", description: "Upload any local permit or cottage-food license that applies to your region.", sortOrder: 30, isRequired: false },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.kitchen_photos, title: "Kitchen safety photos", description: "Upload private kitchen safety photos for admin review.", sortOrder: 40 },
+    { sellerType: SellerType.home_catering, requirementType: SellerRequirementType.background_check, title: "Background check consent", description: "Accept background-check consent for future provider review.", sortOrder: 50 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.identity, title: "Identity verification", description: "Identity/KYC review through provider or local admin workflow.", sortOrder: 10 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.food_handler_certificate, title: "Food handler certificate", description: "Upload a current food handler certificate where required.", sortOrder: 20 },
+    { sellerType: SellerType.chef_business, requirementType: SellerRequirementType.background_check, title: "Background check consent", description: "Accept background-check consent for future provider review.", sortOrder: 30 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.business_info, title: "Business information", description: "Provide business details for admin review.", sortOrder: 10 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.local_permit, title: "Restaurant permit or license", description: "Upload restaurant license or permit documentation.", sortOrder: 20 },
+    { sellerType: SellerType.restaurant, requirementType: SellerRequirementType.payout_onboarding, title: "Payout onboarding", description: "Complete payout setup before receiving marketplace payments.", sortOrder: 30 },
+  ];
+  for (const requirement of sellerRequirementSeeds) {
+    await ensureSellerRequirement(requirement);
+  }
+
+  // ─── Billing Plans ──────────────────────────────────────────────────────────
+  const billingPlanSeeds = [
+    {
+      slug: "free",
+      name: "Free / Starter",
+      description: "Get started with essential features. No payment required.",
+      priceAmount: 0,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 1, maxSavedRestaurants: 5, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Recipe browsing", "Basic meal planning", "Simple grocery lists"],
+    },
+    {
+      slug: "family-plus",
+      name: "Family Plus",
+      description: "More meal plans, grocery exports, and restaurant fallback for growing families.",
+      priceAmount: 9.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 10, maxGroceryListsPerMonth: 20, maxHouseholdMembers: 6, maxSavedRestaurants: 30, maxChefRequestsPerMonth: 3, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Everything in Free", "10 meal plans", "Grocery exports (PDF/CSV)", "Restaurant fallback", "Browse home chefs", "Favorites & preferences"],
+    },
+    {
+      slug: "premium-household",
+      name: "Premium Household",
+      description: "Unlimited meal planning, advanced features, and home chef request access.",
+      priceAmount: 19.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 10, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 10, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Everything in Family Plus", "Unlimited meal plans", "Unlimited grocery lists", "Home chef request priority", "Advanced preferences"],
+    },
+    {
+      slug: "chef-business",
+      name: "Chef Business",
+      description: "Chef profile, services, availability management, and request fulfillment.",
+      priceAmount: 14.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: 10, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
+      featuresJson: ["Chef marketplace listing", "Service & availability setup", "Unlimited request management", "Chef review system", "Profile verification"],
+    },
+    {
+      slug: "restaurant-partner",
+      name: "Restaurant Partner",
+      description: "Saved restaurant listing and future order lead features.",
+      priceAmount: 0,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 3, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Restaurant profile placeholder", "Order lead pipeline (coming soon)"],
+    },
+    {
+      slug: "enterprise",
+      name: "Enterprise / Country Partner",
+      description: "Custom limits for country operators and large household networks.",
+      priceAmount: 0,
+      billingInterval: "custom" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: -1, maxSavedRestaurants: -1, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["All features", "Custom limits", "Country-level configuration", "Priority support"],
+    },
+  ];
+
+  const billingPlans = new Map<string, { id: string }>();
+  for (const plan of billingPlanSeeds) {
+    const upserted = await prisma.billingPlan.upsert({
+      where: { slug: plan.slug },
+      update: { name: plan.name, description: plan.description, priceAmount: plan.priceAmount, billingInterval: plan.billingInterval, status: plan.status, limitsJson: plan.limitsJson, featuresJson: plan.featuresJson },
+      create: { ...plan },
     });
+    billingPlans.set(plan.slug, upserted);
+  }
+
+  // Assign demo subscriptions (idempotent — skip if org already has one)
+  const demoSubscriptions: Array<{ orgId: string; planSlug: string; status: "free" | "trialing" | "active" }> = [
+    { orgId: householdOrg.id, planSlug: "family-plus", status: "trialing" },
+    { orgId: chefOrg.id, planSlug: "chef-business", status: "active" },
+    { orgId: restaurantOrg.id, planSlug: "restaurant-partner", status: "free" },
+  ];
+
+  for (const { orgId, planSlug, status } of demoSubscriptions) {
+    const plan = billingPlans.get(planSlug)!;
+    const existing = await prisma.billingSubscription.findFirst({ where: { organizationId: orgId } });
+    if (!existing) {
+      await prisma.billingSubscription.create({
+        data: { organizationId: orgId, planId: plan.id, status, provider: "manual" },
+      });
+    }
   }
 
   await prisma.systemSetting.upsert({
@@ -1790,6 +2918,9 @@ async function main() {
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
 
+  console.log("Seeding dish and menu templates...");
+  await seedTemplateLibrary(platformOwner.id, cuisineMap, ingredientMap, unitMap);
+
   // Clear then re-seed curated YouTube videos for all platform recipes.
   await prisma.recipeMediaReference.deleteMany({
     where: {
@@ -1800,6 +2931,9 @@ async function main() {
 
   console.log("Seeding curated YouTube videos...");
   await seedRecipeVideos();
+
+  console.log("Seeding grocery partner placeholders...");
+  await seedGroceryPartners();
 
   console.log("Seeding demo chef marketplace profiles...");
   await seedChefMarketplaceProfiles([
@@ -2243,6 +3377,39 @@ async function seedRecipeVideos() {
       },
     });
     console.log(`  [ok] ${ref.slug} → ${ref.videoId}`);
+  }
+}
+
+async function seedGroceryPartners() {
+  const partners = [
+    {
+      countryCode: "US",
+      name: "Local Grocery Website Placeholder",
+      slug: "local-grocery-website-placeholder",
+      websiteUrl: "https://example.com/grocery",
+      integrationType: GroceryIntegrationType.manual_link,
+      status: GroceryPartnerStatus.active,
+      supportedRegions: ["Chicago", "Dallas", "Houston"],
+      notes: "Demo placeholder for manual grocery partner handoff. No checkout or personal data transfer is enabled.",
+    },
+    {
+      countryCode: "IN",
+      name: "India Grocery Export Placeholder",
+      slug: "india-grocery-export-placeholder",
+      websiteUrl: "https://example.com/india-grocery",
+      integrationType: GroceryIntegrationType.export_only,
+      status: GroceryPartnerStatus.draft,
+      supportedRegions: ["Hyderabad"],
+      notes: "Draft placeholder for future India grocery partner exploration.",
+    },
+  ];
+
+  for (const partner of partners) {
+    await prisma.groceryPartner.upsert({
+      where: { slug: partner.slug },
+      update: partner,
+      create: partner,
+    });
   }
 }
 

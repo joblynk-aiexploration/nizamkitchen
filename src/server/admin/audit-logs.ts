@@ -7,6 +7,9 @@ import { getAuditSeverity } from "@/server/audit/audit-service";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
+const AUDIT_LOG_PAGE_SIZE = 10;
+const SEVERITY_FILTER_SCAN_LIMIT = 1000;
+
 export async function listAdminAuditLogs(session: Session, rawFilters: Record<string, string | undefined>) {
   assertPlatformRole(session.user.platformRole, [
     "platform_owner",
@@ -24,6 +27,11 @@ export async function listAdminAuditLogs(session: Session, rawFilters: Record<st
     assertCountryAccess(session, filters.countryCode);
   }
 
+  const dateTo = filters.dateTo ? new Date(filters.dateTo) : undefined;
+  if (dateTo) {
+    dateTo.setHours(23, 59, 59, 999);
+  }
+
   const where: Prisma.AuditLogWhereInput = {
     action: filters.action
       ? { contains: filters.action, mode: "insensitive" }
@@ -37,32 +45,56 @@ export async function listAdminAuditLogs(session: Session, rawFilters: Record<st
       filters.dateFrom || filters.dateTo
         ? {
             gte: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
-            lte: filters.dateTo ? new Date(filters.dateTo) : undefined,
+            lte: dateTo,
           }
         : undefined,
   };
 
-  const logs = await prisma.auditLog.findMany({
-    where,
-    include: {
-      actorUser: true,
-      organization: true,
-      country: true,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const skip = (filters.page - 1) * AUDIT_LOG_PAGE_SIZE;
+  const include = {
+    actorUser: true,
+    organization: true,
+    country: true,
+  } satisfies Prisma.AuditLogInclude;
 
-  const filteredBySeverity = filters.severity
-    ? logs.filter((log) => getAuditSeverity(log.action) === filters.severity)
-    : logs;
+  const severityFilteredLogs = filters.severity
+    ? (await prisma.auditLog.findMany({
+        where,
+        include,
+        orderBy: { createdAt: "desc" },
+        take: SEVERITY_FILTER_SCAN_LIMIT,
+      })).filter((log) => getAuditSeverity(log.action) === filters.severity)
+    : null;
+
+  const [totalLogs, logs] = severityFilteredLogs
+    ? [severityFilteredLogs.length, severityFilteredLogs.slice(skip, skip + AUDIT_LOG_PAGE_SIZE)] as const
+    : await Promise.all([
+        prisma.auditLog.count({ where }),
+        prisma.auditLog.findMany({
+          where,
+          include,
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: AUDIT_LOG_PAGE_SIZE,
+        }),
+      ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalLogs / AUDIT_LOG_PAGE_SIZE));
 
   return {
     filters,
-    logs: filteredBySeverity,
+    logs,
+    pagination: {
+      page: filters.page,
+      pageSize: AUDIT_LOG_PAGE_SIZE,
+      totalLogs,
+      totalPages,
+      hasPreviousPage: filters.page > 1,
+      hasNextPage: filters.page < totalPages,
+    },
     selectedLog:
       filters.logId
-        ? filteredBySeverity.find((log) => log.id === filters.logId) ?? null
+        ? logs.find((log) => log.id === filters.logId) ?? null
         : null,
   };
 }

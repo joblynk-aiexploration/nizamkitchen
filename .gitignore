@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+/tests/e2e/.auth
 
 # next.js
 /.next/
@@ -19,11 +22,15 @@
 
 # production
 /build
+/backups
+*.dump
+*.backup
 
 # misc
 .DS_Store
 *.pem
 /tmp
+/.storage
 
 # debug
 npm-debug.log*
@@ -40,3 +47,5 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# local-only dev files (tracked but kept local via skip-worktree)
