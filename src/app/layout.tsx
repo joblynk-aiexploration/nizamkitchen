@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, Playfair_Display } from "next/font/google";
+import { PwaRegister } from "@/components/pwa/pwa-register";
+import { buildSeoMetadata, getGooglePlatformPublicConfig } from "@/server/seo/seo-service";
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -13,9 +15,30 @@ const serif = Playfair_Display({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Nizam Kitchen",
-  description: "Enterprise multi-tenant SaaS foundation for NizamKitchen.",
+export async function generateMetadata(): Promise<Metadata> {
+  const [seo, google] = await Promise.all([
+    buildSeoMetadata({ path: "/" }),
+    getGooglePlatformPublicConfig(),
+  ]);
+
+  return {
+    ...seo,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "NizamKitchen",
+    },
+    applicationName: "NizamKitchen",
+    verification: google.searchConsoleVerification
+      ? { other: { "google-site-verification": google.searchConsoleVerification } }
+      : undefined,
+  };
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0f766e",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -24,8 +47,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable} h-full antialiased`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${sans.variable} ${serif.variable} h-full antialiased`}>
       <body className="min-h-full bg-[var(--color-app-surface)] text-[var(--color-ink)]">
+        <PwaRegister />
         {children}
       </body>
     </html>

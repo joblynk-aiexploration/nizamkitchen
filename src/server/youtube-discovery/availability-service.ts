@@ -25,7 +25,7 @@ export async function recheckMediaReferenceAvailability(params: {
   if (!ref) throw new Error("Media reference not found.");
   if (!ref.externalId) throw new Error("Media reference has no video ID.");
 
-  const cfg = getYouTubeDiscoveryConfig();
+  const cfg = await getYouTubeDiscoveryConfig();
   if (!cfg.enabled) {
     // Without API key, mark as unknown rather than crash
     await prisma.recipeMediaReference.update({
@@ -105,7 +105,7 @@ export async function recheckCandidateAvailability(params: {
   const candidate = await prisma.youTubeVideoCandidate.findUnique({ where: { id: candidateId } });
   if (!candidate) throw new Error("Candidate not found.");
 
-  const cfg = getYouTubeDiscoveryConfig();
+  const cfg = await getYouTubeDiscoveryConfig();
   if (!cfg.enabled) {
     await prisma.youTubeVideoCandidate.update({
       where: { id: candidateId },

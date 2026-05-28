@@ -2,21 +2,34 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { getPaginationInput, getPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminConversionsPage() {
+export default async function AdminConversionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin", "support_admin", "auditor"]);
+  const params = await searchParams;
+  const paginationInput = getPaginationInput({ page: params.page });
 
-  const conversions = await prisma.unitConversion.findMany({
-    include: {
-      fromUnit: true,
-      toUnit: true,
-      ingredient: { select: { canonicalName: true } },
-    },
-    orderBy: [{ fromUnit: { type: "asc" } }, { fromUnit: { name: "asc" } }],
-  });
+  const [totalConversions, conversions] = await Promise.all([
+    prisma.unitConversion.count(),
+    prisma.unitConversion.findMany({
+      include: {
+        fromUnit: true,
+        toUnit: true,
+        ingredient: { select: { canonicalName: true } },
+      },
+      orderBy: [{ fromUnit: { type: "asc" } }, { fromUnit: { name: "asc" } }],
+      skip: paginationInput.skip,
+      take: paginationInput.take,
+    }),
+  ]);
 
   const byType = new Map<string, typeof conversions>();
   for (const conv of conversions) {
@@ -70,6 +83,12 @@ export default async function AdminConversionsPage() {
           <p className="text-sm text-[var(--color-muted)]">No unit conversions found. Run the database seed to add standard conversions.</p>
         </Card>
       )}
+      <PaginationControls
+        pagination={getPaginationMeta(totalConversions, paginationInput)}
+        basePath="/admin/grocery-engine/conversions"
+        searchParams={params}
+        itemLabel="conversions"
+      />
     </AdminShell>
   );
 }

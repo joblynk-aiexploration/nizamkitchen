@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { SeoScope } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +19,9 @@ import {
   isFavoriteRecipe,
   listAvoidedIngredients,
 } from "@/server/household";
+import { canAccessHomeCatering } from "@/server/home-catering";
 import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
+import { buildSeoMetadata, recipeJsonLd } from "@/server/seo/seo-service";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +38,23 @@ const SPICE_LABELS = {
   hot: "Hot",
   extra_hot: "Extra Hot",
 } as const;
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const recipe = await getRecipeById(id);
+  if (!recipe || !recipe.isPublished) {
+    return buildSeoMetadata({ path: "/recipes", title: "Recipe unavailable", description: "This recipe is not available." });
+  }
+  return buildSeoMetadata({
+    path: `/recipes/${recipe.id}`,
+    title: `${recipe.name} Recipe | NizamKitchen`,
+    description: recipe.description ?? `Cook ${recipe.name} with NizamKitchen.`,
+    scope: SeoScope.recipe,
+    entityType: "recipe",
+    entityId: recipe.id,
+    countryCode: recipe.countryCode ?? undefined,
+  });
+}
 
 export default async function RecipeDetailPage({
   params,
@@ -52,15 +73,24 @@ export default async function RecipeDetailPage({
   const canEdit = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES) ||
     (recipe.organizationId === orgId);
 
-  const youtubeEnabled = await isFeatureEnabled("youtube_references", orgId);
+  const [youtubeEnabled, restaurantFallbackEnabled] = await Promise.all([
+    isFeatureEnabled("youtube_references", orgId),
+    isFeatureEnabled("restaurant_fallback", orgId),
+  ]);
   const familyProfilesEnabled = await canAccessFamilyProfiles({
     organizationId: orgId,
     platformRole: session.user.platformRole,
   });
-  const homeChefsEnabled = await canAccessHomeChefs({
-    organizationId: orgId,
-    platformRole: session.user.platformRole,
-  });
+  const [homeChefsEnabled, homeCateringEnabled] = await Promise.all([
+    canAccessHomeChefs({
+      organizationId: orgId,
+      platformRole: session.user.platformRole,
+    }),
+    canAccessHomeCatering({
+      organizationId: orgId,
+      platformRole: session.user.platformRole,
+    }),
+  ]);
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
@@ -79,8 +109,9 @@ export default async function RecipeDetailPage({
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
 
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
-  const showHomeChefRequest =
-    homeChefsEnabled && isHouseholdRequestOrganization(session.activeOrganization.organizationType);
+  const showRecipeProviderRequest =
+    isHouseholdRequestOrganization(session.activeOrganization.organizationType) &&
+    (homeChefsEnabled || homeCateringEnabled);
   const [favorite, avoidedIngredients] = showHouseholdTools
     ? await Promise.all([
         isFavoriteRecipe(orgId, recipe.id),
@@ -91,10 +122,20 @@ export default async function RecipeDetailPage({
 
   return (
     <div className="space-y-8">
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(recipeJsonLd(recipe)) }}
+      />
       <PageHeader
         eyebrow={recipe.cuisine.name}
         title={recipe.name}
         description={recipe.description ?? ""}
+        actions={
+          <Button asChild variant="secondary">
+            <Link href={`/recipes/${recipe.id}/cooking`}>Cooking Mode</Link>
+          </Button>
+        }
       />
 
       <div className="flex flex-wrap gap-2">
@@ -123,9 +164,16 @@ export default async function RecipeDetailPage({
             </Button>
           </form>
         )}
-        {showHomeChefRequest && (
+        {showRecipeProviderRequest && (
           <Button asChild variant="secondary">
-            <Link href={`/home-chef/request?type=recipe&recipeId=${recipe.id}`}>Request a chef for this recipe</Link>
+            <Link href={`/recipes/${recipe.id}/request`}>Request chef/caterer</Link>
+          </Button>
+        )}
+        {restaurantFallbackEnabled && (
+          <Button asChild variant="secondary">
+            <Link href={`/order-instead/search?q=${encodeURIComponent(recipe.name)}&recipeId=${recipe.id}`}>
+              Order Instead
+            </Link>
           </Button>
         )}
       </div>
@@ -173,7 +221,7 @@ export default async function RecipeDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
         <div className="space-y-6">
-          <Card>
+          <Card className="touch-manipulation">
             <h2 className="font-semibold text-[var(--color-ink)]">Ingredients</h2>
             {Array.from(sections.entries()).map(([section, items]) => (
               <div key={section} className="mt-4">
@@ -184,7 +232,7 @@ export default async function RecipeDetailPage({
                 )}
                 <ul className="space-y-2">
                   {items.map((ri) => (
-                    <li key={ri.id} className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                    <li key={ri.id} className="flex min-h-12 items-start gap-3 rounded-xl bg-slate-50 px-3 py-3 text-base sm:text-sm">
                       <span className="font-medium text-[var(--color-ink)]">
                         {formatQuantity(ri.quantity, ri.unit)}
                       </span>
@@ -210,7 +258,7 @@ export default async function RecipeDetailPage({
         <div className="space-y-4">
           <h2 className="font-semibold text-[var(--color-ink)]">Steps</h2>
           {recipe.steps.map((step) => (
-            <Card key={step.id}>
+            <Card key={step.id} className="touch-manipulation">
               <div className="flex items-start gap-4">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-bold text-white">
                   {step.stepNumber}
@@ -219,7 +267,7 @@ export default async function RecipeDetailPage({
                   {step.title && (
                     <p className="font-semibold text-[var(--color-ink)]">{step.title}</p>
                   )}
-                  <p className="mt-1 text-sm text-[var(--color-ink)]">{step.instruction}</p>
+                  <p className="mt-1 text-base leading-7 text-[var(--color-ink)] sm:text-sm sm:leading-6">{step.instruction}</p>
                   {step.durationMinutes && (
                     <p className="mt-2 text-xs text-[var(--color-muted)]">
                       ~{step.durationMinutes} min

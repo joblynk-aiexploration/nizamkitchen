@@ -2,18 +2,32 @@ import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PageHeader } from "@/components/ui/page-header";
+import { getPaginationInput, getPaginationMeta } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function AuditLogsPage() {
+export default async function AuditLogsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requireMembership();
-  const logs = await prisma.auditLog.findMany({
-    where: { organizationId: session.activeOrganization.id },
-    include: { actorUser: true },
-    orderBy: { createdAt: "desc" },
-    take: 25,
-  });
+  const params = await searchParams;
+  const paginationInput = getPaginationInput({ page: params.page });
+  const where = { organizationId: session.activeOrganization.id };
+  const [totalLogs, logs] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      where,
+      include: { actorUser: true },
+      orderBy: { createdAt: "desc" },
+      skip: paginationInput.skip,
+      take: paginationInput.take,
+    }),
+  ]);
+  const pagination = getPaginationMeta(totalLogs, paginationInput);
 
   return (
     <div className="space-y-8">
@@ -31,6 +45,12 @@ export default async function AuditLogsPage() {
         ]}
         data={logs}
         emptyMessage="No audit log entries have been recorded for this organization yet."
+      />
+      <PaginationControls
+        pagination={pagination}
+        basePath="/audit-logs"
+        searchParams={params}
+        itemLabel="audit entries"
       />
     </div>
   );

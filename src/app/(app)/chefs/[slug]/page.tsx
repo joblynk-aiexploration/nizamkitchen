@@ -1,11 +1,16 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BusinessServicesSection, ContactActions, ProfileHeader, ProfileSection, ReviewsPreviewSection, SocialLinksRow, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
+import { PublicReviewList, RatingSummary } from "@/components/reviews/review-components";
+import { SellerVerificationBadge } from "@/components/seller-verifications/verification-badge";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
+import { getPublicSellerVerificationBadges } from "@/server/seller-verifications";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getPublicSellerReviewSummary, listPublicSellerReviews } from "@/server/trust/review-service";
 
 export const dynamic = "force-dynamic";
 
@@ -22,27 +27,37 @@ export default async function ChefPublicProfilePage({
   if (!enabled) notFound();
   const chef = await getPublicChefProfile(slug, session.activeOrganization.id);
   if (!chef) notFound();
+  const [socialLinks, profileImageUrl, coverImageUrl, sellerBadges, reviewSummary, reviews] = await Promise.all([
+    listPublicBusinessSocialLinks(chef.organizationId, "chef_business"),
+    getStorageImageUrl(session, chef.profilePhotoFileId, chef.profilePhotoUrl),
+    getStorageImageUrl(session, chef.coverPhotoFileId),
+    getPublicSellerVerificationBadges(chef.organizationId),
+    getPublicSellerReviewSummary(chef.organizationId),
+    listPublicSellerReviews(chef.organizationId),
+  ]);
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Home chef"
-        title={chef.displayName}
-        description={chef.bio}
-        actions={<Button asChild><Link href={`/chefs/${chef.slug}/request`}>Request this chef</Link></Button>}
+      <PageHeader eyebrow="Home chef" title="Chef profile" description="Review chef services, specialties, availability, and social links before submitting a manual request." />
+      <ProfileHeader
+        coverUrl={coverImageUrl}
+        avatarUrl={profileImageUrl}
+        name={chef.displayName}
+        headline={chef.bio}
+        location={chef.baseCity ? `${chef.baseCity}${chef.baseRegion ? `, ${chef.baseRegion}` : ""}` : null}
+        initials={initialsFromName(chef.displayName)}
+        badges={[
+          <Badge key="public" tone="success">Approved public profile</Badge>,
+          <VerificationBadge key="verified" status={chef.verificationStatus} />,
+          ...sellerBadges.map((badge) => <SellerVerificationBadge key={`seller-verification-${badge.label}`} label={badge.label} tone={badge.tone} />),
+          chef.yearsExperience ? <Badge key="exp" tone="neutral">{chef.yearsExperience} years experience</Badge> : null,
+        ].filter(Boolean)}
+        actions={<ContactActions href={`/chefs/${chef.slug}/request`} label="Request this chef" />}
       />
-
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="success">Approved public profile</Badge>
-        {chef.verificationStatus === "verified" ? <Badge tone="success">Verified</Badge> : null}
-        {chef.baseCity ? <Badge tone="info">{chef.baseCity}{chef.baseRegion ? `, ${chef.baseRegion}` : ""}</Badge> : null}
-        {chef.yearsExperience ? <Badge tone="neutral">{chef.yearsExperience} years experience</Badge> : null}
-      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-[var(--color-ink)]">Services</h2>
+          <BusinessServicesSection>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {chef.services.filter((service) => service.isActive).map((service) => (
                 <div key={service.id} className="rounded-2xl border border-[var(--color-border)] p-4">
@@ -54,10 +69,9 @@ export default async function ChefPublicProfilePage({
                 </div>
               ))}
             </div>
-          </Card>
+          </BusinessServicesSection>
 
-          <Card>
-            <h2 className="text-lg font-semibold text-[var(--color-ink)]">Specialties</h2>
+          <ProfileSection title="Specialties">
             <div className="mt-5 flex flex-wrap gap-2">
               {Array.isArray(chef.specialties) ? chef.specialties.map((item) => <Badge key={String(item)} tone="info">{String(item)}</Badge>) : null}
             </div>
@@ -69,7 +83,7 @@ export default async function ChefPublicProfilePage({
                 </div>
               ))}
             </div>
-          </Card>
+          </ProfileSection>
         </div>
 
         <div className="space-y-6">
@@ -88,6 +102,11 @@ export default async function ChefPublicProfilePage({
               )}
             </div>
           </Card>
+          <ProfileSection title="Social links">
+            <SocialLinksRow links={socialLinks} />
+          </ProfileSection>
+          <ReviewsPreviewSection rating={chef.averageRating} count={chef.ratingCount} />
+          <RatingSummary averageRating={reviewSummary.averageRating} ratingCount={reviewSummary.ratingCount} />
           <Card>
             <h2 className="font-semibold text-[var(--color-ink)]">Important</h2>
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
@@ -96,6 +115,7 @@ export default async function ChefPublicProfilePage({
           </Card>
         </div>
       </div>
+      <PublicReviewList reviews={reviews} />
     </div>
   );
 }

@@ -66,7 +66,7 @@ export async function createMediaReference(params: {
   };
 
   if (externalId && (input.type === "youtube" || input.provider === "youtube")) {
-    const cfg = getYouTubeDiscoveryConfig();
+    const cfg = await getYouTubeDiscoveryConfig();
     if (cfg.enabled) {
       const check = await verifyVideoAvailability({ videoId: externalId, apiKey: cfg.apiKey });
       if (check.available) {

@@ -1,6 +1,7 @@
-import { MembershipStatus, OrganizationStatus, OrganizationType } from "@prisma/client";
+import { MembershipStatus, OrganizationStatus, OrganizationType, Prisma } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import {
   organizationMetadataUpdateSchema,
@@ -17,6 +18,8 @@ export async function listAdminOrganizations(
     countryCode?: string;
     organizationType?: string;
     status?: string;
+    page?: string | string[] | number;
+    pageSize?: string | string[] | number;
   },
 ) {
   assertPlatformRole(session.user.platformRole, [
@@ -33,8 +36,7 @@ export async function listAdminOrganizations(
     assertCountryAccess(session, filters.countryCode);
   }
 
-  return prisma.organization.findMany({
-    where: {
+  const where: Prisma.OrganizationWhereInput = {
       countryCode: isCountryManager
         ? filters.countryCode || { in: assignedCountries }
         : filters.countryCode || undefined,
@@ -44,34 +46,44 @@ export async function listAdminOrganizations(
       status: filters.status ? (filters.status as OrganizationStatus) : undefined,
       OR: filters.search
         ? [
-            { name: { contains: filters.search, mode: "insensitive" } },
+            { name: { contains: filters.search, mode: "insensitive" as const } },
             {
               memberships: {
                 some: {
                   user: {
-                    email: { contains: filters.search, mode: "insensitive" },
+                    email: { contains: filters.search, mode: "insensitive" as const },
                   },
                 },
               },
             },
           ]
         : undefined,
-    },
-    include: {
-      country: true,
-      memberships: {
-        where: { status: MembershipStatus.active },
-        include: { user: true },
-      },
-      featureFlags: true,
-      _count: {
-        select: {
-          memberships: true,
+  };
+
+  return paginatedQuery(
+    prisma.organization.count({ where }),
+    ({ skip, take }) =>
+      prisma.organization.findMany({
+        where,
+        include: {
+          country: true,
+          memberships: {
+            where: { status: MembershipStatus.active },
+            include: { user: true },
+          },
+          featureFlags: true,
+          _count: {
+            select: {
+              memberships: true,
+            },
+          },
         },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+    { page: filters.page, pageSize: filters.pageSize },
+  );
 }
 
 export async function getAdminOrganizationDetail(session: Session, id: string) {

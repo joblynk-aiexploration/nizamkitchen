@@ -8,9 +8,14 @@ import { listCuisines } from "@/server/cuisines";
 export const dynamic = "force-dynamic";
 
 export default async function NewRecipePage() {
-  await requireMembership();
+  const session = await requireMembership();
 
   const cuisines = await listCuisines();
+  const isHousehold = session.activeOrganization.organizationType === "household";
+  const sharedVisibilityLabel = isHousehold ? "My household" : "Workspace only";
+  const sharedVisibilityHint = isHousehold
+    ? "Visible to members of your household account."
+    : "Visible to members of your current workspace.";
 
   async function createRecipe(formData: FormData) {
     "use server";
@@ -88,16 +93,17 @@ export default async function NewRecipePage() {
 
             <div>
               <label className="block text-sm font-semibold text-[var(--color-ink)]" htmlFor="visibility">
-                Visibility
+                Who can see this recipe?
               </label>
               <select
                 id="visibility"
                 name="visibility"
                 className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm"
               >
-                <option value="organization">Organization only</option>
+                <option value="organization">{sharedVisibilityLabel}</option>
                 <option value="private">Private</option>
               </select>
+              <p className="mt-2 text-xs text-[var(--color-muted)]">{sharedVisibilityHint}</p>
             </div>
 
             <div>

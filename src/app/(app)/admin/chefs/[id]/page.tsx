@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminSocialLinks } from "@/components/business-social-links/social-link-components";
+import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { requirePlatformRole } from "@/lib/auth/session";
+import { listBusinessSocialLinks } from "@/server/business-social-links";
 import { getAdminChefProfile } from "@/server/chefs";
+import { getStorageImageUrl } from "@/server/storage/storage-images";
+import { getBusinessProfileCompletion } from "@/server/users/profile";
+import { moderateDeleteBusinessSocialLinkAction } from "../../business-social-links/actions";
 import { updateAdminChefProfileAction, updateAdminChefReviewAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +37,25 @@ export default async function AdminChefDetailPage({ params }: { params: Promise<
   const { id } = await params;
   const profile = await getAdminChefProfile(session, id).catch(() => null);
   if (!profile) notFound();
+  const [socialLinks, avatarUrl, coverUrl] = await Promise.all([
+    listBusinessSocialLinks(profile.organizationId),
+    getStorageImageUrl(session, profile.profilePhotoFileId, profile.profilePhotoUrl),
+    getStorageImageUrl(session, profile.coverPhotoFileId),
+  ]);
+  const completion = getBusinessProfileCompletion(profile, { services: profile.services.length, socialLinks: socialLinks.length });
   const canMutate = session.user.platformRole !== "auditor";
 
   return (
     <AdminShell session={session} title={profile.displayName} description={`${profile.organization.name} · ${profile.countryCode}`}>
+      <ProfileHeader
+        coverUrl={coverUrl}
+        avatarUrl={avatarUrl}
+        name={profile.displayName}
+        headline={profile.bio}
+        location={profile.baseCity ? `${profile.baseCity}${profile.baseRegion ? `, ${profile.baseRegion}` : ""}` : profile.countryCode}
+        initials={initialsFromName(profile.displayName)}
+        badges={[<VerificationBadge key="verification" status={profile.verificationStatus} />, <Badge key="status" tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>]}
+      />
       <div className="flex flex-wrap gap-2">
         <Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge>
         <Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge>
@@ -96,9 +117,12 @@ export default async function AdminChefDetailPage({ params }: { params: Promise<
               ))}
             </div>
           </Card>
+
+          <AdminSocialLinks links={socialLinks} deleteAction={moderateDeleteBusinessSocialLinkAction} />
         </div>
 
         <div className="space-y-6">
+          <ProfileCompletionCard score={completion} />
           {canMutate ? (
             <Card className="space-y-4">
               <h2 className="font-semibold text-[var(--color-ink)]">Admin controls</h2>

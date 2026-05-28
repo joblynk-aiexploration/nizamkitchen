@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => ({
   mockPrisma: {
+    user: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    membership: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
+    recipe: {
+      findMany: vi.fn(),
+    },
     householdProfile: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
@@ -47,14 +59,18 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/server/audit", () => ({ createAuditEvent }));
 vi.mock("@/lib/feature-flags", () => ({ isFeatureEnabled }));
+vi.mock("@/lib/auth/password", () => ({ hashPassword: vi.fn(async () => "hashed-password") }));
 
 import {
   addAvoidedIngredient,
   addFavoriteRecipe,
   canAccessFamilyProfiles,
+  createHouseholdMemberAccount,
   deleteAvoidedIngredient,
   findAvoidedIngredientMatches,
   isHouseholdOrganization,
+  listHouseholdMembers,
+  listHouseholdSharedRecipes,
   removeFavoriteRecipe,
   upsertShoppingPreference,
   updatePantryItem,
@@ -167,7 +183,7 @@ describe("household profiles and preferences", () => {
       organizationId: "org-1",
       actorUserId: "user-1",
       countryCode: "US",
-      input: { recipeId: "recipe-1" },
+      input: { recipeId: "recipe-1", targetServings: 6 },
     });
     await removeFavoriteRecipe({
       organizationId: "org-1",
@@ -179,6 +195,8 @@ describe("household profiles and preferences", () => {
     expect(mockPrisma.favoriteRecipe.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { organizationId_recipeId: { organizationId: "org-1", recipeId: "recipe-1" } },
+        update: { targetServings: 6 },
+        create: expect.objectContaining({ targetServings: 6 }),
       }),
     );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "favorite_recipe.created" }));
@@ -281,5 +299,84 @@ describe("household profiles and preferences", () => {
       }),
     );
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "shopping_preference.updated" }));
+  });
+
+  it("creates a family member account and active household membership", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.user.create.mockResolvedValue({
+      id: "daughter-1",
+      fullName: "Ayesha Nizam",
+      email: "ayesha@example.com",
+    });
+    mockPrisma.membership.findUnique.mockResolvedValue(null);
+    mockPrisma.membership.upsert.mockResolvedValue({
+      id: "membership-1",
+      userId: "daughter-1",
+      organizationId: "org-1",
+      role: "household_member",
+      status: "active",
+    });
+
+    await createHouseholdMemberAccount({
+      organizationId: "org-1",
+      actorUserId: "parent-1",
+      actorRole: "org_owner",
+      countryCode: "US",
+      input: {
+        fullName: "Ayesha Nizam",
+        email: "Ayesha@Example.com",
+        password: "Password123",
+      },
+    });
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith({
+      data: {
+        fullName: "Ayesha Nizam",
+        email: "ayesha@example.com",
+        passwordHash: "hashed-password",
+      },
+    });
+    expect(mockPrisma.membership.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          userId: "daughter-1",
+          organizationId: "org-1",
+          role: "household_member",
+          status: "active",
+        }),
+      }),
+    );
+    expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "household_member.created" }));
+  });
+
+  it("blocks regular household members from creating more family logins", async () => {
+    await expect(
+      createHouseholdMemberAccount({
+        organizationId: "org-1",
+        actorUserId: "member-1",
+        actorRole: "household_member",
+        countryCode: "US",
+        input: {
+          fullName: "Ayesha Nizam",
+          email: "ayesha@example.com",
+          password: "Password123",
+        },
+      }),
+    ).rejects.toThrow("Only household owners and admins can create family member accounts.");
+  });
+
+  it("lists active household members and household-shared recipes", async () => {
+    mockPrisma.membership.findMany.mockResolvedValue([{ id: "membership-1" }]);
+    mockPrisma.favoriteRecipe.findMany.mockResolvedValue([{ id: "favorite-1", recipe: { id: "recipe-1" }, targetServings: 6 }]);
+
+    await expect(listHouseholdMembers("org-1")).resolves.toEqual([{ id: "membership-1" }]);
+    await expect(listHouseholdSharedRecipes("org-1")).resolves.toEqual([{ id: "favorite-1", recipe: { id: "recipe-1" }, targetServings: 6 }]);
+
+    expect(mockPrisma.membership.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { organizationId: "org-1", status: "active" } }),
+    );
+    expect(mockPrisma.favoriteRecipe.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { organizationId: "org-1" } }),
+    );
   });
 });

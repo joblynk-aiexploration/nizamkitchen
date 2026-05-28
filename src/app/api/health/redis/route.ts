@@ -35,7 +35,6 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       redis: "reachable",
-      url: env.REDIS_URL,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -43,7 +42,6 @@ export async function GET() {
       {
         ok: false,
         redis: "unreachable",
-        url: env.REDIS_URL,
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 503 },

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 import type { GroceryListUpdateInput, GroceryItemUpdateInput } from "@/lib/validation/grocery";
@@ -25,6 +26,29 @@ export async function listGroceryLists(organizationId: string) {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function listGroceryListsPage(
+  organizationId: string,
+  params: { page?: string | string[] | number; pageSize?: string | string[] | number } = {},
+) {
+  const where = { organizationId };
+
+  return paginatedQuery(
+    prisma.groceryList.count({ where }),
+    ({ skip, take }) =>
+      prisma.groceryList.findMany({
+        where,
+        include: {
+          recipes: { select: { recipeNameSnapshot: true } },
+          _count: { select: { items: true, warnings: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+    params,
+  );
 }
 
 export async function getGroceryList(id: string, organizationId: string) {

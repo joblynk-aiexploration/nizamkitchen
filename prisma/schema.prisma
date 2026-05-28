@@ -19,16 +19,50 @@ enum OrganizationRole {
   org_owner
   org_admin
   member
+  household_member
   chef_owner
   chef_staff
+  home_catering_owner
+  home_catering_staff
   restaurant_owner
   restaurant_staff
   grocery_partner_admin
 }
 
+enum PermissionAction {
+  create
+  read
+  update
+  delete
+  archive
+  restore
+  approve
+  reject
+  export
+  manage
+  configure
+  impersonate_placeholder
+  refund
+  payout
+  verify
+  moderate
+}
+
+enum PermissionEffect {
+  allow
+  deny
+}
+
+enum RoleScope {
+  platform
+  organization
+  country
+}
+
 enum OrganizationType {
   household
   chef_business
+  home_catering
   restaurant
   grocery_partner
   internal_admin
@@ -54,39 +88,364 @@ enum MeasurementSystem {
   mixed
 }
 
+enum LocaleTextDirection {
+  ltr
+  rtl
+}
+
+enum LocalizationStatus {
+  active
+  disabled
+}
+
+enum TranslationStatus {
+  draft
+  published
+  disabled
+}
+
 enum UserStatus {
   active
   suspended
   disabled
 }
 
+enum NotificationStatus {
+  unread
+  read
+  archived
+}
+
+enum NotificationPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum SupportTicketType {
+  bug
+  feedback
+  feature_request
+  account_help
+  billing
+  other
+}
+
+enum SupportTicketStatus {
+  open
+  in_review
+  waiting_on_user
+  resolved
+  closed
+}
+
+enum SupportTicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum StorageProvider {
+  aws_s3
+  s3_compatible
+  local_dev
+}
+
+enum StorageConfigurationStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum StorageTestStatus {
+  not_tested
+  success
+  failed
+}
+
+enum StorageFileVisibility {
+  private
+  organization
+  public
+}
+
+enum StorageFileStatus {
+  active
+  archived
+  deleted
+  quarantined
+}
+
+enum StorageFilePurpose {
+  user_profile_photo
+  user_cover_photo
+  business_profile_photo
+  business_cover_photo
+  recipe_image
+  menu_item_photo
+  chef_document
+  home_catering_document
+  restaurant_document
+  verification_document
+  business_license_document
+  food_handler_certificate
+  kitchen_photo
+  background_check_consent
+  support_attachment
+  order_attachment
+  grocery_attachment
+  data_export
+  general_document
+  admin_dropbox
+}
+
+enum StorageModule {
+  users
+  organizations
+  recipes
+  menus
+  home_chefs
+  home_catering
+  restaurants
+  orders
+  grocery
+  support
+  privacy
+  admin_dropbox
+  system
+}
+
+enum StorageFileAction {
+  uploaded
+  downloaded
+  viewed
+  signed_url_created
+  deleted
+  archived
+  restored
+}
+
+enum LocationProvider {
+  google
+  manual
+}
+
+enum LocationVisibility {
+  private
+  organization
+  public_city_only
+  public_full
+}
+
+enum IntegrationProvider {
+  google_maps
+  google_places
+  google_geocoding
+  google_oauth
+  facebook_oauth
+  google_analytics
+  google_search_console
+  google_recaptcha
+  google_adsense
+  youtube_data
+  aws_s3
+  s3_compatible
+  smtp
+  stripe
+  paypal
+  google_pay
+  stripe_identity
+  stripe_connect
+  persona_placeholder
+  checkr_placeholder
+  kyc_provider
+  background_check_provider
+  custom
+}
+
+enum IntegrationCategory {
+  maps
+  auth
+  analytics
+  seo
+  ads
+  storage
+  payments
+  email
+  verification
+  security
+  marketplace
+  other
+}
+
+enum IntegrationStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum IntegrationEnvironment {
+  sandbox
+  production
+  development
+}
+
+enum IntegrationTestStatus {
+  not_tested
+  success
+  failed
+}
+
+enum SeoScope {
+  global
+  page
+  recipe
+  seller_profile
+  city_page
+  country_page
+  menu_template
+  custom_path
+}
+
+enum RobotsDirective {
+  index_follow
+  noindex_follow
+  noindex_nofollow
+  index_nofollow
+}
+
+enum OAuthProvider {
+  google
+  facebook
+}
+
 model User {
-  id                      String                         @id @default(cuid())
-  email                   String                         @unique
-  passwordHash            String
-  fullName                String
-  status                  UserStatus                     @default(active)
-  platformRole            PlatformRole?
-  preferredLocale         String?                        @default("en-US")
-  preferredTimezone       String?                        @default("UTC")
-  lastLoginAt             DateTime?
-  createdAt               DateTime                       @default(now())
-  updatedAt               DateTime                       @updatedAt
-  sessions                Session[]
-  memberships             Membership[]
-  countryAssignments      CountryAssignment[]
-  auditLogs               AuditLog[]
-  emailLogs               EmailLog[]
-  apiKeys                 ApiKey[]
-  groceryLists            GroceryList[]
-  createdMealPlans        MealPlan[]                     @relation("MealPlanCreatedBy")
-  discoveryRuns           YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates      YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
-  favoriteRecipesCreated  FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent    HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges   HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews             ChefReview[]
+  id                               String                         @id @default(cuid())
+  email                            String                         @unique
+  passwordHash                     String
+  fullName                         String
+  status                           UserStatus                     @default(active)
+  platformRole                     PlatformRole?
+  profilePhotoFileId               String?
+  coverPhotoFileId                 String?
+  headline                         String?
+  bio                              String?
+  location                         String?
+  locationText                     String?
+  phone                            String?
+  religion                         String?
+  preferredLanguage                String?
+  publicProfileEnabled             Boolean                        @default(false)
+  preferredLocale                  String?                        @default("en-US")
+  preferredTimezone                String?                        @default("America/Chicago")
+  lastLoginAt                      DateTime?
+  createdAt                        DateTime                       @default(now())
+  updatedAt                        DateTime                       @updatedAt
+  sessions                         Session[]
+  passwordResetTokens              PasswordResetToken[]
+  memberships                      Membership[]
+  countryAssignments               CountryAssignment[]
+  auditLogs                        AuditLog[]
+  emailLogs                        EmailLog[]
+  emailTemplatesCreated            EmailTemplate[]                 @relation("EmailTemplateCreatedBy")
+  emailTemplatesUpdated            EmailTemplate[]                 @relation("EmailTemplateUpdatedBy")
+  emailPreference                  EmailPreference?
+  emailSuppressionsCreated         EmailSuppression[]              @relation("EmailSuppressionCreatedBy")
+  apiKeys                          ApiKey[]
+  groceryLists                     GroceryList[]
+  groceryListShares                GroceryListShare[]             @relation("GroceryListShareCreatedBy")
+  groceryListExports               GroceryListExport[]            @relation("GroceryListExportCreatedBy")
+  createdMealPlans                 MealPlan[]                     @relation("MealPlanCreatedBy")
+  discoveryRuns                    YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates               YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
+  favoriteRecipesCreated           FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
+  homeChefRequestsCreated          HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent             HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges            HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
+  chefReviews                      ChefReview[]
+  restaurantFallbackSearches       RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
+  notifications                    Notification[]
+  notificationPreference           NotificationPreference?
+  localizationPreference           UserLocalizationPreference?
+  supportTicketsCreated            SupportTicket[]                @relation("SupportTicketCreatedBy")
+  supportTicketsAssigned           SupportTicket[]                @relation("SupportTicketAssignedTo")
+  supportTicketComments            SupportTicketComment[]
+  foodOrders                       FoodOrder[]                    @relation("FoodOrderCustomerUser")
+  foodOrderMessages                FoodOrderMessage[]             @relation("FoodOrderMessageSender")
+  foodOrderStatusChanges           FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
+  foodOrderFulfillmentEvents       FoodOrderFulfillmentEvent[]    @relation("FoodOrderFulfillmentEventActor")
+  marketplaceReviewsWritten        MarketplaceReview[]            @relation("MarketplaceReviewReviewer")
+  marketplaceReviewSellerReplies   MarketplaceReview[]            @relation("MarketplaceReviewSellerReplyBy")
+  marketplaceReviewsModerated      MarketplaceReview[]            @relation("MarketplaceReviewModeratedBy")
+  marketplaceReviewReportsCreated  MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReporter")
+  marketplaceReviewReportsReviewed MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReviewedBy")
+  trustComplaintsCreated           TrustComplaint[]               @relation("TrustComplaintReporter")
+  trustComplaintsReviewed          TrustComplaint[]               @relation("TrustComplaintReviewedBy")
+  storageConfigurationsCreated     StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
+  storageConfigurationsUpdated     StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
+  storageFilesUploaded             StorageFile[]                  @relation("StorageFileUploadedBy")
+  storageFileAccessLogs            StorageFileAccessLog[]
+  storageFileVersions              StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
+  reviewedSellerProfiles           SellerVerificationProfile[]    @relation("SellerVerificationProfileReviewedBy")
+  reviewedVerificationItems        SellerVerificationItem[]       @relation("SellerVerificationItemReviewedBy")
+  reviewedFoodSafetyCertificates   FoodSafetyCertificate[]        @relation("FoodSafetyCertificateReviewedBy")
+  reviewedSellerPermits            SellerPermit[]                 @relation("SellerPermitReviewedBy")
+  acceptedSellerAttestations       SellerAttestation[]            @relation("SellerAttestationAcceptedBy")
+  requestedBackgroundChecks        SellerBackgroundCheck[]        @relation("SellerBackgroundCheckRequestedBy")
+  reviewedKitchenSafety            KitchenSafetyReview[]          @relation("KitchenSafetyReviewReviewedBy")
+  reviewedSellerTrials             SellerTrialReview[]            @relation("SellerTrialReviewReviewedBy")
+  kycProviderConfigurationsCreated KycProviderConfiguration[]     @relation("KycProviderConfigurationCreatedBy")
+  kycProviderConfigurationsUpdated KycProviderConfiguration[]     @relation("KycProviderConfigurationUpdatedBy")
+  identityVerifications            IdentityVerification[]
+  sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
+  permissionOverrides              UserPermissionOverride[]        @relation("UserPermissionOverrideUser")
+  permissionOverridesCreated       UserPermissionOverride[]        @relation("UserPermissionOverrideCreatedBy")
+  resolvedSystemAlerts             SystemAlert[]                  @relation("SystemAlertResolvedBy")
+  marketplacePoliciesCreated       MarketplacePolicy[]             @relation("MarketplacePolicyCreatedBy")
+  marketplacePoliciesUpdated       MarketplacePolicy[]             @relation("MarketplacePolicyUpdatedBy")
+  marketplacePolicyOverrides       MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideUser")
+  marketplacePolicyOverridesCreated MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideCreatedBy")
+  marketplacePolicyOverridesRevoked MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideRevokedBy")
+  marketplacePolicyLogs            MarketplacePolicyEvaluationLog[]
+  legalDocumentsCreated            LegalDocument[]                  @relation("LegalDocumentCreatedBy")
+  legalDocumentsPublished          LegalDocument[]                  @relation("LegalDocumentPublishedBy")
+  legalDocumentAcceptances         LegalDocumentAcceptance[]
+  legalConsentEvents               LegalConsentEvent[]
+  dataPrivacyRequests              DataPrivacyRequest[]             @relation("DataPrivacyRequestUser")
+  dataPrivacyRequestsCreated       DataPrivacyRequest[]             @relation("DataPrivacyRequestRequestedBy")
+  dataPrivacyRequestsCompleted     DataPrivacyRequest[]             @relation("DataPrivacyRequestCompletedBy")
+  dataRetentionPoliciesCreated     DataRetentionPolicy[]            @relation("DataRetentionPolicyCreatedBy")
+  dataRetentionPoliciesUpdated     DataRetentionPolicy[]            @relation("DataRetentionPolicyUpdatedBy")
+  platformIntegrationsCreated      PlatformIntegration[]            @relation("PlatformIntegrationCreatedBy")
+  platformIntegrationsUpdated      PlatformIntegration[]            @relation("PlatformIntegrationUpdatedBy")
+  platformIntegrationCredentialsCreated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialCreatedBy")
+  platformIntegrationCredentialsUpdated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialUpdatedBy")
+  platformIntegrationTests         PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
+  oauthAccounts                    OAuthAccount[]
+  userActivities                   UserActivity[]
+  privacySetting                   UserPrivacySetting?
+  dishTemplatesCreated             DishTemplate[]                   @relation("DishTemplateCreatedBy")
+  dishTemplatesUpdated             DishTemplate[]                   @relation("DishTemplateUpdatedBy")
+  menuTemplatesCreated             MenuTemplate[]                   @relation("MenuTemplateCreatedBy")
+  menuTemplatesUpdated             MenuTemplate[]                   @relation("MenuTemplateUpdatedBy")
+  seoSettingsCreated               SeoSetting[]                     @relation("SeoSettingCreatedBy")
+  seoSettingsUpdated               SeoSetting[]                     @relation("SeoSettingUpdatedBy")
+  locations                        Location[]
+  promotionsCreated                Promotion[]                      @relation("PromotionCreatedBy")
+  promotionsUpdated                Promotion[]                      @relation("PromotionUpdatedBy")
+  cmsPagesCreated                  CmsPage[]                        @relation("CmsPageCreatedBy")
+  cmsPagesUpdated                  CmsPage[]                        @relation("CmsPageUpdatedBy")
+  cmsPagesPublished                CmsPage[]                        @relation("CmsPagePublishedBy")
+  helpArticlesCreated              HelpArticle[]                    @relation("HelpArticleCreatedBy")
+  helpArticlesUpdated              HelpArticle[]                    @relation("HelpArticleUpdatedBy")
+  helpArticlesPublished            HelpArticle[]                    @relation("HelpArticlePublishedBy")
+  faqsCreated                      FaqItem[]                        @relation("FaqItemCreatedBy")
+  faqsUpdated                      FaqItem[]                        @relation("FaqItemUpdatedBy")
+  faqsPublished                    FaqItem[]                        @relation("FaqItemPublishedBy")
 }
 
 model Session {
@@ -107,44 +466,134 @@ model Session {
   @@index([expiresAt])
 }
 
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model OAuthAccount {
+  id                    String        @id @default(cuid())
+  userId                String
+  provider              OAuthProvider
+  providerAccountId     String
+  email                 String?
+  emailVerified         Boolean       @default(false)
+  displayName           String?
+  avatarUrl             String?
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime?
+  rawProfileJson        Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([email])
+}
+
 model Organization {
-  id                   String                       @id @default(cuid())
-  name                 String
-  slug                 String                       @unique
-  organizationType     OrganizationType
-  status               OrganizationStatus           @default(active)
-  organizationId       String                       @unique
-  countryCode          String
-  currencyCode         String
-  defaultTimezone      String
-  defaultLocale        String
-  measurementSystem    MeasurementSystem
-  createdAt            DateTime                     @default(now())
-  updatedAt            DateTime                     @updatedAt
-  memberships          Membership[]
-  country              Country                      @relation(fields: [countryCode], references: [countryCode])
-  sessions             Session[]
-  auditLogs            AuditLog[]
-  featureFlags         FeatureFlag[]
-  billingSubscriptions BillingSubscription[]
-  apiKeys              ApiKey[]
-  storageFiles         StorageFile[]
-  emailLogs            EmailLog[]
-  countryConfigs       CountryConfig[]
-  groceryLists         GroceryList[]
-  mealPlans            MealPlan[]
-  mealPlanPreference   MealPlanPreference?
-  householdProfile     HouseholdProfile?
-  householdPreferences HouseholdPreference[]
-  preferredCuisines    HouseholdPreferredCuisine[]
-  avoidedIngredients   AvoidedIngredient[]
-  favoriteRecipes      FavoriteRecipe[]
-  pantryItems          HouseholdPantryItem[]
-  shoppingPreference   HouseholdShoppingPreference?
-  chefProfile          ChefProfile?
-  homeChefRequests     HomeChefRequest[]            @relation("HomeChefRequestOrganization")
-  assignedChefRequests HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
-  chefReviews          ChefReview[]
+  id                         String                       @id @default(cuid())
+  name                       String
+  slug                       String                       @unique
+  organizationType           OrganizationType
+  status                     OrganizationStatus           @default(active)
+  organizationId             String                       @unique
+  countryCode                String
+  currencyCode               String
+  logoFileId                 String?
+  coverPhotoFileId           String?
+  defaultTimezone            String
+  defaultLocale              String
+  measurementSystem          MeasurementSystem
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  memberships                Membership[]
+  country                    Country                      @relation(fields: [countryCode], references: [countryCode])
+  sessions                   Session[]
+  auditLogs                  AuditLog[]
+  featureFlags               FeatureFlag[]
+  billingSubscriptions       BillingSubscription[]
+  apiKeys                    ApiKey[]
+  storageFiles               StorageFile[]
+  emailLogs                  EmailLog[]
+  countryConfigs             CountryConfig[]
+  groceryLists               GroceryList[]
+  groceryListShares          GroceryListShare[]
+  groceryListExports         GroceryListExport[]
+  mealPlans                  MealPlan[]
+  mealPlanPreference         MealPlanPreference?
+  householdProfile           HouseholdProfile?
+  homeCateringProfile        HomeCateringProfile?
+  menus                      Menu[]
+  menuItems                  MenuItem[]
+  householdPreferences       HouseholdPreference[]
+  preferredCuisines          HouseholdPreferredCuisine[]
+  avoidedIngredients         AvoidedIngredient[]
+  favoriteRecipes            FavoriteRecipe[]
+  pantryItems                HouseholdPantryItem[]
+  shoppingPreference         HouseholdShoppingPreference?
+  chefProfile                ChefProfile?
+  homeChefRequests           HomeChefRequest[]            @relation("HomeChefRequestOrganization")
+  assignedChefRequests       HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
+  chefReviews                ChefReview[]
+  restaurantFallbackSearches RestaurantFallbackSearch[]
+  savedRestaurants           SavedRestaurant[]
+  notifications              Notification[]
+  supportTickets             SupportTicket[]
+  foodOrders                 FoodOrder[]                  @relation("FoodOrderTenantOrganization")
+  customerFoodOrders         FoodOrder[]                  @relation("FoodOrderCustomerOrganization")
+  sellerFoodOrders           FoodOrder[]                  @relation("FoodOrderSellerOrganization")
+  marketplaceReviewsWritten  MarketplaceReview[]          @relation("MarketplaceReviewCustomerOrganization")
+  marketplaceReviewsReceived MarketplaceReview[]          @relation("MarketplaceReviewSellerOrganization")
+  marketplaceReviewReports   MarketplaceReviewReport[]
+  trustComplaintsReporter    TrustComplaint[]             @relation("TrustComplaintReporterOrganization")
+  trustComplaintsSeller      TrustComplaint[]             @relation("TrustComplaintSellerOrganization")
+  fulfillmentPickupLocations FulfillmentPickupLocation[]
+  fulfillmentDeliveryZones   FulfillmentDeliveryZone[]
+  fulfillmentTimeSlots       FulfillmentTimeSlot[]
+  fulfillmentEvents          FoodOrderFulfillmentEvent[]
+  businessSocialLinks        BusinessSocialLink[]
+  paymentGateways            PaymentGateway[]
+  paymentOrders              PaymentOrder[]
+  paymentTransactions        PaymentTransaction[]
+  paymentRefunds             PaymentRefund[]
+  paymentDisputes            PaymentDispute[]
+  accountingDocuments        AccountingDocument[]
+  sellerSettlementReports    SellerSettlementReport[]
+  sellerPayoutAccounts       SellerPayoutAccount[]
+  sellerPayouts              SellerPayout[]
+  sellerVerificationProfile  SellerVerificationProfile?
+  foodSafetyCertificates     FoodSafetyCertificate[]
+  sellerPermits              SellerPermit[]
+  sellerAttestations         SellerAttestation[]
+  sellerBackgroundChecks     SellerBackgroundCheck[]
+  kitchenSafetyReviews       KitchenSafetyReview[]
+  sellerTrialReviews         SellerTrialReview[]
+  identityVerifications      IdentityVerification[]
+  sellerVerificationOverrides SellerVerificationOverride[]
+  marketplacePolicyOverrides MarketplacePolicyOverride[]
+  marketplacePolicyLogs      MarketplacePolicyEvaluationLog[]
+  legalDocumentAcceptances   LegalDocumentAcceptance[]
+  legalConsentEvents         LegalConsentEvent[]
+  dataPrivacyRequests        DataPrivacyRequest[]
+  userActivities             UserActivity[]
+  locations                  Location[]
+  sellerPromotions           Promotion[]                 @relation("SellerPromotions")
 
   @@index([countryCode])
   @@index([status])
@@ -182,8 +631,105 @@ model Country {
   organizations      Organization[]
   countryAssignments CountryAssignment[]
   countryConfigs     CountryConfig[]
+  regionalSetting    CountryRegionalSetting?
   auditLogs          AuditLog[]
   mealPlans          MealPlan[]
+  dishTemplates      DishTemplate[]
+  menuTemplates      MenuTemplate[]
+  groceryPartners    GroceryPartner[]
+  notifications      Notification[]
+  supportTickets     SupportTicket[]
+}
+
+model Notification {
+  id             String               @id @default(cuid())
+  organizationId String?
+  userId         String?
+  countryCode    String?
+  type           String
+  title          String
+  body           String
+  actionUrl      String?
+  status         NotificationStatus   @default(unread)
+  priority       NotificationPriority @default(normal)
+  readAt         DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country        Country?             @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  emailEnabled        Boolean  @default(true)
+  inAppEnabled        Boolean  @default(true)
+  homeChefUpdates     Boolean  @default(true)
+  chefRequestMessages Boolean  @default(true)
+  groceryReminders    Boolean  @default(true)
+  mealPlanReminders   Boolean  @default(true)
+  adminAlerts         Boolean  @default(true)
+  marketingEmails     Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id             String                 @id @default(cuid())
+  organizationId String?
+  createdById    String?
+  assignedToId   String?
+  countryCode    String?
+  type           SupportTicketType
+  status         SupportTicketStatus    @default(open)
+  priority       SupportTicketPriority  @default(normal)
+  title          String
+  description    String
+  pageUrl        String?
+  browserInfo    String?
+  adminNotes     String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  closedAt       DateTime?
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy      User?                  @relation("SupportTicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo     User?                  @relation("SupportTicketAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  country        Country?               @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  comments       SupportTicketComment[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([countryCode])
+  @@index([type])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model SupportTicketComment {
+  id         String        @id @default(cuid())
+  ticketId   String
+  authorId   String
+  body       String
+  isInternal Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([isInternal])
 }
 
 model CountryAssignment {
@@ -214,6 +760,107 @@ model CountryConfig {
   @@index([countryCode])
 }
 
+model LocalizationLocale {
+  id                  String                       @id @default(cuid())
+  localeCode          String                       @unique
+  languageName        String
+  nativeName          String
+  textDirection       LocaleTextDirection          @default(ltr)
+  status              LocalizationStatus           @default(active)
+  isDefault           Boolean                      @default(false)
+  dateFormat          String
+  timeFormat          String
+  numberFormat        String
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  translations        LocalizationTranslation[]
+  userPreferences     UserLocalizationPreference[]
+  terminologyAliases  FoodTerminologyAlias[]
+
+  @@index([status])
+  @@index([textDirection])
+}
+
+model LocalizationTranslation {
+  id              String              @id @default(cuid())
+  localeCode      String
+  namespace       String
+  translationKey  String
+  defaultValue    String
+  translatedValue String
+  status          TranslationStatus   @default(published)
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  locale          LocalizationLocale  @relation(fields: [localeCode], references: [localeCode], onDelete: Cascade)
+
+  @@unique([localeCode, namespace, translationKey])
+  @@index([namespace])
+  @@index([status])
+}
+
+model CurrencySetting {
+  id                  String             @id @default(cuid())
+  currencyCode        String             @unique
+  displayName         String
+  symbol              String
+  decimalDigits       Int                @default(2)
+  status              LocalizationStatus @default(active)
+  countryCodesJson    Json?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([status])
+}
+
+model CountryRegionalSetting {
+  id                         String             @id @default(cuid())
+  countryCode                String             @unique
+  defaultLocale              String
+  supportedLocalesJson       Json
+  supportedCurrencyCodesJson Json
+  measurementSystem          MeasurementSystem
+  dateFormat                 String
+  timeFormat                 String
+  addressFormatJson          Json
+  rtlEnabled                 Boolean            @default(false)
+  createdById                String?
+  updatedById                String?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  country                    Country            @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([defaultLocale])
+  @@index([measurementSystem])
+}
+
+model FoodTerminologyAlias {
+  id                  String                @id @default(cuid())
+  localeCode          String?
+  countryCode         String?
+  ingredientId        String?
+  sourceTerm          String
+  localizedTerm       String
+  transliteration     String?
+  notes               String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  locale              LocalizationLocale?    @relation(fields: [localeCode], references: [localeCode], onDelete: SetNull)
+  ingredient          Ingredient?            @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([localeCode])
+  @@index([countryCode])
+  @@index([ingredientId])
+  @@index([sourceTerm])
+}
+
 model AuditLog {
   id             String        @id @default(cuid())
   actorUserId    String?
@@ -236,6 +883,52 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model Permission {
+  id           String                   @id @default(cuid())
+  key          String                   @unique
+  name         String
+  description  String?
+  module       String
+  action       PermissionAction
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  roleBindings RolePermission[]
+  userOverrides UserPermissionOverride[]
+
+  @@index([module])
+  @@index([action])
+}
+
+model RolePermission {
+  id           String       @id @default(cuid())
+  roleScope    RoleScope
+  roleName     String
+  permissionId String
+  createdAt    DateTime     @default(now())
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleScope, roleName, permissionId])
+  @@index([roleScope, roleName])
+  @@index([permissionId])
+}
+
+model UserPermissionOverride {
+  id           String             @id @default(cuid())
+  userId       String
+  permissionId String
+  effect       PermissionEffect
+  createdById  String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission         @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([createdById])
+}
+
 model FeatureFlag {
   id             String        @id @default(cuid())
   key            String
@@ -253,23 +946,90 @@ model FeatureFlag {
   @@index([countryCode])
 }
 
+// ─── Billing Foundation ───────────────────────────────────────────────────────
+
+enum BillingInterval {
+  monthly
+  yearly
+  custom
+}
+
+enum BillingPlanStatus {
+  draft
+  active
+  archived
+}
+
+enum BillingSubscriptionStatus {
+  trialing
+  active
+  past_due
+  cancelled
+  unpaid
+  free
+}
+
+enum BillingProvider {
+  manual
+  stripe_placeholder
+  stripe
+}
+
+model BillingPlan {
+  id              String                @id @default(cuid())
+  name            String
+  slug            String                @unique
+  description     String?
+  priceAmount     Decimal               @default(0) @db.Decimal(10, 2)
+  currencyCode    String                @default("USD")
+  billingInterval BillingInterval       @default(monthly)
+  status          BillingPlanStatus     @default(draft)
+  limitsJson      Json                  @default("{}")
+  featuresJson    Json                  @default("[]")
+  stripePriceId   String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  subscriptions   BillingSubscription[]
+
+  @@index([status])
+  @@index([slug])
+}
+
 model BillingSubscription {
-  id               String       @id @default(cuid())
-  organizationId   String
-  countryCode      String
-  provider         String
-  externalId       String?
-  status           String
-  planCode         String
-  currencyCode     String
-  billingPeriod    String
-  currentPeriodEnd DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                     String                    @id @default(cuid())
+  organizationId         String
+  planId                 String
+  status                 BillingSubscriptionStatus @default(free)
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialEndsAt            DateTime?
+  cancelAtPeriodEnd      Boolean                   @default(false)
+  provider               BillingProvider           @default(manual)
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  paymentOrderId         String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  organization           Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                   BillingPlan               @relation(fields: [planId], references: [id])
 
   @@index([organizationId])
-  @@index([countryCode])
+  @@index([planId])
+  @@index([status])
+}
+
+model BillingUsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  usageType      String
+  quantity       Int
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([usageType])
+  @@index([periodStart, periodEnd])
 }
 
 model ApiKey {
@@ -289,40 +1049,417 @@ model ApiKey {
   @@index([userId])
 }
 
-model StorageFile {
-  id             String       @id @default(cuid())
-  organizationId String
-  countryCode    String
-  storageKey     String
-  bucket         String
-  contentType    String
-  sizeBytes      Int
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model StorageConfiguration {
+  id                        String                     @id @default(cuid())
+  provider                  StorageProvider            @default(aws_s3)
+  displayName               String
+  status                    StorageConfigurationStatus @default(draft)
+  bucketName                String
+  region                    String?
+  endpoint                  String?
+  forcePathStyle            Boolean                    @default(false)
+  publicBaseUrl             String?
+  encryptedAccessKeyId      String?
+  encryptedSecretAccessKey  String?
+  encryptedSessionToken     String?
+  signedUrlExpiresInSeconds Int                        @default(900)
+  maxUploadSizeBytes        Int                        @default(10485760)
+  allowedMimeTypesJson      Json
+  createdById               String
+  updatedById               String?
+  lastTestedAt              DateTime?
+  lastTestStatus            StorageTestStatus          @default(not_tested)
+  lastTestMessage           String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  createdBy                 User                       @relation("StorageConfigurationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                 User?                      @relation("StorageConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  @@unique([bucket, storageKey])
+  @@index([provider])
+  @@index([status])
+  @@index([createdById])
+}
+
+model StorageFile {
+  id               String                 @id @default(cuid())
+  organizationId   String?
+  userId           String?
+  uploadedById     String
+  countryCode      String?
+  module           StorageModule
+  entityType       String?
+  entityId         String?
+  provider         StorageProvider
+  bucketName       String
+  objectKey        String
+  originalFilename String
+  storedFilename   String
+  mimeType         String
+  fileExtension    String?
+  sizeBytes        Int
+  checksumSha256   String?
+  visibility       StorageFileVisibility  @default(private)
+  status           StorageFileStatus      @default(active)
+  purpose          StorageFilePurpose
+  metadataJson     Json?
+  imageWidth       Int?
+  imageHeight      Int?
+  altText          String?
+  caption          String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+  organization     Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy       User                   @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  accessLogs       StorageFileAccessLog[]
+  versions         StorageFileVersion[]
+  dataPrivacyExports DataPrivacyRequest[]
+
+  @@unique([bucketName, objectKey])
   @@index([organizationId])
+  @@index([userId])
+  @@index([uploadedById])
   @@index([countryCode])
+  @@index([module])
+  @@index([entityType, entityId])
+  @@index([visibility])
+  @@index([status])
+  @@index([purpose])
+}
+
+model StorageFileAccessLog {
+  id        String            @id @default(cuid())
+  fileId    String
+  userId    String?
+  action    StorageFileAction
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime          @default(now())
+  file      StorageFile       @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([fileId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model StorageFileVersion {
+  id             String      @id @default(cuid())
+  fileId         String
+  versionNumber  Int
+  objectKey      String
+  sizeBytes      Int
+  checksumSha256 String?
+  createdById    String
+  createdAt      DateTime    @default(now())
+  file           StorageFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdBy      User        @relation("StorageFileVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([fileId, versionNumber])
+  @@index([fileId])
+  @@index([createdById])
+}
+
+model PlatformIntegration {
+  id              String                 @id @default(cuid())
+  provider        IntegrationProvider
+  category        IntegrationCategory
+  displayName     String
+  description     String?
+  status          IntegrationStatus      @default(draft)
+  environment     IntegrationEnvironment @default(production)
+  countryCode     String?
+  region          String?
+  isGlobal        Boolean                @default(true)
+  isDefault       Boolean                @default(false)
+  createdById     String
+  updatedById     String?
+  lastTestedAt    DateTime?
+  lastTestStatus  IntegrationTestStatus  @default(not_tested)
+  lastTestMessage String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  createdBy       User                   @relation("PlatformIntegrationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?                  @relation("PlatformIntegrationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  credentials     PlatformIntegrationCredential[]
+  settings        PlatformIntegrationSetting[]
+  testLogs        PlatformIntegrationTestLog[]
+
+  @@index([provider])
+  @@index([category])
+  @@index([status])
+  @@index([environment])
+  @@index([countryCode])
+  @@index([isDefault])
+}
+
+model PlatformIntegrationCredential {
+  id                 String              @id @default(cuid())
+  integrationId      String
+  keyName            String
+  encryptedValue     String
+  valuePreview       String
+  isPublicClientValue Boolean            @default(false)
+  createdById        String
+  updatedById        String?
+  rotatedAt          DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  integration        PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  createdBy          User                @relation("PlatformIntegrationCredentialCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User?               @relation("PlatformIntegrationCredentialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([integrationId, keyName])
+  @@index([integrationId])
+  @@index([keyName])
+  @@index([isPublicClientValue])
+}
+
+model PlatformIntegrationSetting {
+  id               String              @id @default(cuid())
+  integrationId    String
+  settingKey       String
+  settingValueJson Json
+  isSecret         Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  integration      PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, settingKey])
+  @@index([integrationId])
+  @@index([isSecret])
+}
+
+model PlatformIntegrationTestLog {
+  id           String                @id @default(cuid())
+  integrationId String
+  testType     String
+  status       IntegrationTestStatus @default(not_tested)
+  message      String
+  metadataJson Json?
+  testedById   String
+  createdAt    DateTime              @default(now())
+  integration  PlatformIntegration   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  testedBy     User                  @relation("PlatformIntegrationTestedBy", fields: [testedById], references: [id], onDelete: Restrict)
+
+  @@index([integrationId])
+  @@index([status])
+  @@index([testedById])
+  @@index([createdAt])
+}
+
+model SeoSetting {
+  id                    String          @id @default(cuid())
+  scope                 SeoScope
+  entityType            String?
+  entityId              String?
+  countryCode           String?
+  city                  String?
+  path                  String?
+  metaTitle             String?
+  metaDescription       String?
+  canonicalUrl          String?
+  ogTitle               String?
+  ogDescription         String?
+  ogImageFileId         String?
+  twitterTitle          String?
+  twitterDescription    String?
+  twitterImageFileId    String?
+  robotsDirective       RobotsDirective?
+  structuredDataJson    Json?
+  aeoSummary            String?
+  aeoFaqJson            Json?
+  isActive              Boolean         @default(true)
+  createdById           String
+  updatedById           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  createdBy             User            @relation("SeoSettingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy             User?           @relation("SeoSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([scope])
+  @@index([entityType, entityId])
+  @@index([countryCode])
+  @@index([city])
+  @@index([path])
+  @@index([isActive])
+  @@index([createdById])
+}
+
+enum EmailTemplateCategory {
+  authentication
+  account
+  legal_privacy
+  household
+  meal_planning
+  grocery
+  home_chef
+  chef_staff
+  home_catering
+  restaurant
+  food_order
+  payment
+  billing
+  invoice
+  refund
+  payout
+  verification
+  storage
+  support
+  notification
+  review
+  promotion
+  referral
+  admin_alert
+  system
+}
+
+enum EmailTemplateStatus {
+  draft
+  active
+  archived
+}
+
+enum EmailDeliveryStatus {
+  queued
+  sent
+  failed
+  skipped
+  suppressed
+}
+
+enum EmailProvider {
+  disabled
+  smtp
+  sendgrid_placeholder
+  resend_placeholder
+  postmark_placeholder
+  ses_placeholder
+}
+
+enum EmailSuppressionReason {
+  unsubscribed
+  bounced
+  complaint
+  admin_suppressed
+  invalid_email
+}
+
+model EmailTemplate {
+  id           String                @id @default(cuid())
+  templateKey  String
+  name         String
+  description  String?
+  category     EmailTemplateCategory
+  subject      String
+  preheader    String?
+  htmlBody     String
+  textBody     String
+  status       EmailTemplateStatus   @default(draft)
+  locale       String?
+  countryCode  String?
+  version      Int                   @default(1)
+  isSystem     Boolean               @default(false)
+  createdById  String?
+  updatedById  String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  createdBy    User?                 @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?                 @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  variables    EmailTemplateVariable[]
+
+  @@unique([templateKey, locale, countryCode, version])
+  @@index([templateKey])
+  @@index([category])
+  @@index([status])
+  @@index([locale])
+  @@index([countryCode])
+  @@index([isSystem])
+}
+
+model EmailTemplateVariable {
+  id            String        @id @default(cuid())
+  templateId    String
+  variableKey   String
+  description   String?
+  exampleValue  String?
+  isRequired    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  template      EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, variableKey])
+  @@index([templateId])
 }
 
 model EmailLog {
-  id                String        @id @default(cuid())
+  id                String                @id @default(cuid())
   organizationId    String?
   userId            String?
+  recipientUserId   String?
   countryCode       String?
-  templateKey       String
+  templateKey       String?
   recipientEmail    String
-  deliveryStatus    String
+  category          EmailTemplateCategory @default(notification)
+  subject           String                @default("NizamKitchen update")
+  status            EmailDeliveryStatus   @default(queued)
+  deliveryStatus    String                @default("queued")
+  provider          EmailProvider         @default(disabled)
   providerMessageId String?
+  errorMessage      String?
   metadata          Json?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  metadataJson      Json?
+  sentAt            DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  organization      Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user              User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([countryCode])
+  @@index([recipientUserId])
+  @@index([recipientEmail])
+  @@index([templateKey])
+  @@index([category])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model EmailPreference {
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  transactionalEnabled       Boolean  @default(true)
+  marketingEnabled           Boolean  @default(false)
+  mealPlanningEmails         Boolean  @default(true)
+  groceryEmails              Boolean  @default(true)
+  orderEmails                Boolean  @default(true)
+  homeChefEmails             Boolean  @default(true)
+  sellerEmails               Boolean  @default(true)
+  paymentEmails              Boolean  @default(true)
+  verificationEmails         Boolean  @default(true)
+  supportEmails              Boolean  @default(true)
+  reviewEmails               Boolean  @default(true)
+  promotionEmails            Boolean  @default(false)
+  adminAlertEmails           Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailSuppression {
+  id          String                  @id @default(cuid())
+  email       String
+  reason      EmailSuppressionReason
+  category    EmailTemplateCategory?
+  createdAt   DateTime                @default(now())
+  createdById String?
+  createdBy   User?                   @relation("EmailSuppressionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([email, category])
+  @@index([email])
+  @@index([reason])
+  @@index([category])
 }
 
 model SystemSetting {
@@ -332,6 +1469,38 @@ model SystemSetting {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum SystemAlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum SystemAlertStatus {
+  open
+  resolved
+  ignored
+}
+
+model SystemAlert {
+  id          String              @id @default(cuid())
+  type        String
+  severity    SystemAlertSeverity @default(info)
+  status      SystemAlertStatus   @default(open)
+  title       String
+  message     String
+  metadataJson Json?
+  resolvedById String?
+  resolvedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  resolvedBy  User?               @relation("SystemAlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([severity])
+  @@index([type])
 }
 
 // ─── Food Foundation ─────────────────────────────────────────────────────────
@@ -496,6 +1665,656 @@ enum ChefProfileStatus {
   disabled
 }
 
+enum HomeCateringProfileStatus {
+  draft
+  active
+  paused
+  suspended
+  disabled
+}
+
+enum CateringOperationType {
+  home_caterer
+  restaurant_caterer
+}
+
+enum HomeCateringVerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum MenuStatus {
+  draft
+  active
+  paused
+  archived
+}
+
+enum MenuVisibility {
+  private
+  public
+}
+
+enum MenuItemStatus {
+  draft
+  active
+  sold_out
+  paused
+  archived
+}
+
+enum MenuItemCategory {
+  biryani
+  curry
+  salan
+  rice
+  bread
+  snack
+  dessert
+  drink
+  combo
+  catering_tray
+  special
+  other
+}
+
+enum DishTemplateCategory {
+  biryani
+  curry
+  salan
+  rice
+  bread
+  snack
+  dessert
+  drink
+  combo
+  catering_tray
+  special
+  other
+}
+
+enum TemplateStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum TemplateVisibility {
+  internal_admin
+  public
+  seller_available
+  household_available
+}
+
+enum MenuTemplateType {
+  daily
+  weekly
+  monthly
+  occasion
+  ramadan
+  eid
+  wedding
+  party
+  custom
+}
+
+enum FoodOrderSellerType {
+  home_catering
+  restaurant
+}
+
+enum FoodOrderStatus {
+  draft
+  submitted
+  accepted
+  declined
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  completed
+  cancelled
+}
+
+enum FoodOrderFulfillmentType {
+  pickup
+  delivery
+  preorder
+  inquiry_only
+}
+
+enum FulfillmentRecordStatus {
+  active
+  disabled
+  archived
+}
+
+enum FulfillmentTimeSlotType {
+  pickup
+  delivery
+  preorder
+}
+
+enum FulfillmentEventType {
+  scheduled
+  accepted
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  completed
+  cancelled
+  delivery_zone_applied
+  pickup_location_applied
+  note_added
+}
+
+enum ModulePaymentStatus {
+  unpaid
+  pending
+  paid
+  failed
+  refunded
+  partially_refunded
+  not_required
+}
+
+enum BusinessProfileType {
+  home_catering
+  chef_business
+  restaurant
+}
+
+enum SocialPlatform {
+  instagram
+  facebook
+  tiktok
+  youtube
+  whatsapp
+  website
+  x
+  snapchat
+  other
+}
+
+enum PaymentProvider {
+  stripe
+  paypal
+  google_pay
+  adyen
+  razorpay
+  paystack
+  flutterwave
+  mollie
+  manual
+  cash
+}
+
+enum PaymentGatewayStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum PaymentEnvironment {
+  sandbox
+  live
+}
+
+enum PaymentConfigurationStatus {
+  active
+  disabled
+}
+
+enum TaxConfigurationStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum TaxCalculationMode {
+  disabled
+  flat_percent
+  manual
+}
+
+enum AccountingDocumentType {
+  invoice
+  receipt
+}
+
+enum AccountingDocumentStatus {
+  draft
+  issued
+  void
+}
+
+enum CommissionRecordStatus {
+  pending
+  earned
+  reversed
+}
+
+enum SellerSettlementStatus {
+  draft
+  pending
+  approved
+  paid
+  cancelled
+}
+
+enum PaymentModule {
+  subscription
+  food_order
+  home_chef_request
+  catering_order
+  restaurant_order
+  chef_booking
+  manual_invoice
+}
+
+enum PaymentOrderStatus {
+  draft
+  pending
+  checkout_created
+  requires_action
+  authorized
+  paid
+  partially_refunded
+  refunded
+  cancelled
+  failed
+  expired
+}
+
+enum PaymentTransactionType {
+  authorization
+  capture
+  charge
+  refund
+  adjustment
+  payout
+  fee
+}
+
+enum PaymentTransactionStatus {
+  pending
+  succeeded
+  failed
+  cancelled
+}
+
+enum PaymentRefundStatus {
+  requested
+  processing
+  succeeded
+  failed
+  cancelled
+}
+
+enum PaymentWebhookStatus {
+  received
+  processed
+  failed
+  ignored
+}
+
+enum PaymentDisputeStatus {
+  warning_needs_response
+  needs_response
+  under_review
+  won
+  lost
+  closed
+}
+
+enum SellerPayoutAccountStatus {
+  not_started
+  pending
+  active
+  restricted
+  disabled
+}
+
+enum SellerPayoutStatus {
+  pending
+  in_transit
+  paid
+  failed
+  cancelled
+}
+
+enum SellerType {
+  chef_business
+  home_catering
+  restaurant
+}
+
+enum SellerVerificationStatus {
+  not_started
+  in_progress
+  submitted
+  under_review
+  verified
+  rejected
+  expired
+  suspended
+}
+
+enum SellerVerificationPolicyStatus {
+  active
+  disabled
+}
+
+enum MarketplacePolicyStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum MarketplacePolicyModule {
+  seller_verification
+  menu_publishing
+  food_orders
+  home_chef_requests
+  payments
+  payouts
+  public_profiles
+  refunds
+  cancellations
+  storage
+  support
+  general
+}
+
+enum MarketplacePolicyResult {
+  allowed
+  denied
+  warning
+  needs_review
+}
+
+enum PolicyOverrideStatus {
+  active
+  revoked
+  expired
+}
+
+enum LegalDocumentType {
+  user_terms
+  terms_of_service
+  privacy_policy
+  seller_terms
+  seller_agreement
+  home_chef_agreement
+  home_catering_agreement
+  restaurant_partner_agreement
+  refund_policy
+  cancellation_policy
+  food_safety_policy
+  background_check_consent
+  file_upload_policy
+  marketplace_disclaimer
+  other
+}
+
+enum LegalDocumentStatus {
+  draft
+  published
+  archived
+}
+
+enum LegalAudience {
+  all_users
+  households
+  chefs
+  home_catering
+  restaurants
+  admins
+  sellers
+}
+
+enum ConsentStatus {
+  accepted
+  revoked
+  declined
+}
+
+enum DataPrivacyRequestType {
+  user_export
+  organization_export
+  account_deletion
+  organization_deletion
+  anonymization
+  file_deletion
+  correction_request
+}
+
+enum DataPrivacyRequestStatus {
+  submitted
+  reviewing
+  processing
+  completed
+  rejected
+  cancelled
+}
+
+enum DataCategory {
+  user_profile
+  organization_profile
+  orders
+  payments
+  files
+  kyc_documents
+  support_tickets
+  audit_logs
+  notifications
+  marketing
+  marketplace_profiles
+}
+
+enum RetentionAction {
+  retain
+  archive
+  anonymize
+  delete
+}
+
+enum DataRetentionPolicyStatus {
+  active
+  disabled
+}
+
+enum UserActivityVisibility {
+  private
+  organization
+  admin_only
+}
+
+enum UserActivityType {
+  login
+  logout
+  recipe_viewed
+  recipe_favorited
+  meal_plan_created
+  grocery_list_created
+  order_created
+  support_ticket_created
+  profile_updated
+  file_uploaded
+  privacy_action
+  other
+}
+
+enum UserProfileVisibility {
+  private
+  organization
+  public
+}
+
+enum SellerVerificationLevel {
+  unverified
+  profile_verified
+  identity_verified
+  food_safety_verified
+  kitchen_reviewed
+  background_checked
+  fully_verified
+}
+
+enum SellerRequirementType {
+  identity
+  business_info
+  food_handler_certificate
+  local_permit
+  kitchen_photos
+  background_check
+  payout_onboarding
+  insurance
+  tax_form
+  platform_attestation
+  trial_taste_test
+  other
+}
+
+enum SellerVerificationItemStatus {
+  not_started
+  pending
+  submitted
+  approved
+  rejected
+  expired
+  provider_pending
+  provider_failed
+}
+
+enum VerificationProvider {
+  manual
+  stripe_identity
+  stripe_connect
+  persona_placeholder
+  checkr_placeholder
+  local_admin_review
+  other
+}
+
+enum BackgroundCheckStatus {
+  not_started
+  consent_required
+  consent_collected
+  requested
+  pending
+  clear
+  consider
+  suspended
+  failed
+  cancelled
+}
+
+enum AdverseActionStatus {
+  none
+  pre_adverse_action
+  waiting_period
+  post_adverse_action
+  resolved
+}
+
+enum KitchenSafetyReviewStatus {
+  not_started
+  submitted
+  under_review
+  approved
+  rejected
+  needs_more_info
+}
+
+enum KitchenSafetyPhotoCategory {
+  cooking_area
+  sink_sanitation
+  refrigerator_storage
+  dry_storage
+  prep_surface
+  packaging_area
+  waste_trash_area
+  pet_separation
+  handwashing
+  other
+}
+
+enum AttestationType {
+  food_safety_responsibility
+  cottage_food_compliance
+  background_check_consent
+  seller_terms
+  tax_responsibility
+  kitchen_safety_attestation
+  local_law_acknowledgement
+}
+
+enum FoodSafetyCertificateStatus {
+  submitted
+  approved
+  rejected
+  expired
+  needs_more_info
+}
+
+enum SellerPermitType {
+  food_establishment_permit
+  cottage_food_registration
+  business_license
+  tax_registration
+  health_department_permit
+  other
+}
+
+enum SellerPermitStatus {
+  submitted
+  approved
+  rejected
+  expired
+  needs_more_info
+}
+
+enum SellerTrialReviewStatus {
+  not_required
+  requested
+  scheduled
+  submitted
+  approved
+  rejected
+  waived
+}
+
+enum KycProvider {
+  stripe_identity
+  stripe_connect
+  persona_placeholder
+  checkr_placeholder
+  manual
+}
+
+enum KycProviderStatus {
+  draft
+  active
+  disabled
+  error
+}
+
+enum IdentityVerificationStatus {
+  not_started
+  session_created
+  pending
+  verified
+  failed
+  expired
+  cancelled
+}
+
 enum ChefVerificationStatus {
   unverified
   pending
@@ -527,6 +2346,138 @@ enum ReviewStatus {
   hidden
 }
 
+enum MarketplaceReviewSubjectType {
+  food_order
+  home_chef_request
+}
+
+enum MarketplaceReviewSellerType {
+  chef_business
+  home_catering
+  restaurant
+}
+
+enum MarketplaceReviewStatus {
+  pending
+  published
+  hidden
+  removed
+}
+
+enum ReviewReportReason {
+  abuse
+  spam
+  fake_review
+  privacy
+  safety
+  other
+}
+
+enum ReviewReportStatus {
+  open
+  under_review
+  resolved
+  dismissed
+}
+
+enum ComplaintStatus {
+  open
+  under_review
+  resolved
+  dismissed
+}
+
+enum PromotionType {
+  promo_code
+  seller_discount
+  referral_reward
+  loyalty_credit
+  manual_credit
+}
+
+enum PromotionDiscountType {
+  percent
+  fixed_amount
+  free_delivery
+  credit_amount
+}
+
+enum PromotionStatus {
+  draft
+  active
+  disabled
+  expired
+  archived
+}
+
+enum PromotionScope {
+  platform
+  seller
+}
+
+enum PromotionModule {
+  food_order
+  home_chef_request
+  subscription
+}
+
+enum PromotionRedemptionStatus {
+  reserved
+  applied
+  voided
+  refunded
+}
+
+enum PlatformCreditAccountStatus {
+  active
+  disabled
+}
+
+enum PlatformCreditLedgerType {
+  grant
+  redeem
+  refund
+  adjustment
+  expiry
+}
+
+enum ReferralCodeStatus {
+  active
+  disabled
+  archived
+}
+
+enum ReferralEventStatus {
+  started
+  qualified
+  rewarded
+  cancelled
+}
+
+enum ContentStatus {
+  draft
+  published
+  archived
+}
+
+enum ContentAudience {
+  all_users
+  households
+  chefs
+  home_catering
+  restaurants
+  sellers
+  admins
+}
+
+enum HelpArticleType {
+  help_article
+  onboarding_guide
+  seller_guide
+  food_safety_guide
+  support_documentation
+}
+
 model Cuisine {
   id                         String                      @id @default(cuid())
   name                       String
@@ -537,6 +2488,7 @@ model Cuisine {
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   recipes                    Recipe[]
+  dishTemplates              DishTemplate[]
   householdPreferredCuisines HouseholdPreferredCuisine[]
 
   @@index([countryCode])
@@ -556,6 +2508,7 @@ model Unit {
   updatedAt                  DateTime                @updatedAt
   ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
   recipeIngredients          RecipeIngredient[]
+  dishTemplateIngredients    DishTemplateIngredient[]
   conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
   conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
   groceryListItems           GroceryListItem[]
@@ -584,7 +2537,9 @@ model Ingredient {
   updatedAt               DateTime                   @updatedAt
   defaultUnit             Unit?                      @relation("IngredientDefaultUnit", fields: [defaultUnitId], references: [id])
   aliases                 IngredientAlias[]
+  terminologyAliases      FoodTerminologyAlias[]
   recipeIngredients       RecipeIngredient[]
+  dishTemplateIngredients  DishTemplateIngredient[]
   unitConversions         UnitConversion[]
   groceryListItems        GroceryListItem[]
   groceryWarnings         GroceryConversionWarning[]
@@ -635,42 +2590,44 @@ model UnitConversion {
 }
 
 model Recipe {
-  id                 String                     @id @default(cuid())
-  organizationId     String?
-  countryCode        String?
-  cuisineId          String
-  name               String
-  slug               String
-  description        String?
-  story              String?
-  difficulty         RecipeDifficulty
-  spiceLevel         SpiceLevel
-  prepMinutes        Int
-  cookMinutes        Int
-  restMinutes        Int?
-  servings           Int
-  servingUnit        String                     @default("serving")
-  visibility         RecipeVisibility           @default(global)
-  sourceType         RecipeSourceType
-  createdById        String?
-  isGlobal           Boolean                    @default(false)
-  isPublished        Boolean                    @default(false)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
-  cuisine            Cuisine                    @relation(fields: [cuisineId], references: [id])
-  ingredients        RecipeIngredient[]
-  steps              RecipeStep[]
-  mediaRefs          RecipeMediaReference[]
-  dietaryTags        RecipeDietaryTag[]
-  groceryListRecipes GroceryListRecipe[]
-  groceryItemSources GroceryListItemSource[]
-  groceryWarnings    GroceryConversionWarning[]
-  mealPlanEntries    MealPlanEntry[]
-  discoveryRuns      YouTubeDiscoveryRun[]
-  youtubeCandidates  YouTubeVideoCandidate[]
-  favoriteRecipes    FavoriteRecipe[]
-  homeChefRequests   HomeChefRequest[]
-  chefSpecialties    ChefSpecialtyRecipe[]
+  id                         String                     @id @default(cuid())
+  organizationId             String?
+  countryCode                String?
+  cuisineId                  String
+  name                       String
+  slug                       String
+  description                String?
+  story                      String?
+  difficulty                 RecipeDifficulty
+  spiceLevel                 SpiceLevel
+  prepMinutes                Int
+  cookMinutes                Int
+  restMinutes                Int?
+  servings                   Int
+  servingUnit                String                     @default("serving")
+  visibility                 RecipeVisibility           @default(global)
+  sourceType                 RecipeSourceType
+  createdById                String?
+  isGlobal                   Boolean                    @default(false)
+  isPublished                Boolean                    @default(false)
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  cuisine                    Cuisine                    @relation(fields: [cuisineId], references: [id])
+  ingredients                RecipeIngredient[]
+  steps                      RecipeStep[]
+  mediaRefs                  RecipeMediaReference[]
+  dietaryTags                RecipeDietaryTag[]
+  groceryListRecipes         GroceryListRecipe[]
+  groceryItemSources         GroceryListItemSource[]
+  groceryWarnings            GroceryConversionWarning[]
+  mealPlanEntries            MealPlanEntry[]
+  discoveryRuns              YouTubeDiscoveryRun[]
+  youtubeCandidates          YouTubeVideoCandidate[]
+  favoriteRecipes            FavoriteRecipe[]
+  menuTemplateItems          MenuTemplateItem[]
+  homeChefRequests           HomeChefRequest[]
+  chefSpecialties            ChefSpecialtyRecipe[]
+  restaurantFallbackSearches RestaurantFallbackSearch[]
 
   @@unique([slug, organizationId])
   @@index([organizationId])
@@ -678,6 +2635,80 @@ model Recipe {
   @@index([cuisineId])
   @@index([isPublished])
   @@index([visibility])
+}
+
+model DishTemplate {
+  id                 String                   @id @default(cuid())
+  name               String
+  slug               String                   @unique
+  description        String?
+  cuisineId          String?
+  countryCode        String?
+  region             String?
+  city               String?
+  mealType           MealType?
+  category           DishTemplateCategory
+  defaultServings    Int?
+  defaultPriceAmount Float?
+  currencyCode       String?
+  spiceLevel         SpiceLevel?
+  status             TemplateStatus           @default(draft)
+  visibility         TemplateVisibility       @default(internal_admin)
+  createdById        String
+  updatedById        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  cuisine            Cuisine?                 @relation(fields: [cuisineId], references: [id], onDelete: SetNull)
+  country            Country?                 @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  createdBy          User                     @relation("DishTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User?                    @relation("DishTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  ingredients        DishTemplateIngredient[]
+  steps              DishTemplateStep[]
+  menuTemplateItems  MenuTemplateItem[]
+
+  @@index([cuisineId])
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([mealType])
+  @@index([category])
+  @@index([status])
+  @@index([visibility])
+  @@index([createdById])
+}
+
+model DishTemplateIngredient {
+  id              String       @id @default(cuid())
+  dishTemplateId  String
+  ingredientId    String?
+  ingredientName  String
+  quantity        Float?
+  unitId          String?
+  preparationNote String?
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  dishTemplate    DishTemplate @relation(fields: [dishTemplateId], references: [id], onDelete: Cascade)
+  ingredient      Ingredient?  @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+  unit            Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([dishTemplateId])
+  @@index([ingredientId])
+  @@index([unitId])
+}
+
+model DishTemplateStep {
+  id              String       @id @default(cuid())
+  dishTemplateId  String
+  stepNumber      Int
+  title           String?
+  instruction     String
+  durationMinutes Int?
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  dishTemplate    DishTemplate @relation(fields: [dishTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([dishTemplateId])
+  @@index([stepNumber])
 }
 
 model RecipeIngredient {
@@ -833,6 +2864,28 @@ enum WarningSeverity {
   error
 }
 
+enum GroceryPartnerStatus {
+  draft
+  active
+  paused
+  disabled
+}
+
+enum GroceryIntegrationType {
+  manual_link
+  affiliate_link
+  api_placeholder
+  export_only
+}
+
+enum GroceryListExportType {
+  pdf
+  csv
+  print
+  copy
+  share_link
+}
+
 model GroceryList {
   id                 String                     @id @default(cuid())
   organizationId     String
@@ -855,11 +2908,67 @@ model GroceryList {
   recipes            GroceryListRecipe[]
   items              GroceryListItem[]
   warnings           GroceryConversionWarning[]
+  shares             GroceryListShare[]
+  exports            GroceryListExport[]
 
   @@index([organizationId])
   @@index([createdById])
   @@index([mealPlanId])
   @@index([status])
+}
+
+model GroceryPartner {
+  id               String                 @id @default(cuid())
+  countryCode      String
+  name             String
+  slug             String                 @unique
+  status           GroceryPartnerStatus   @default(draft)
+  websiteUrl       String?
+  logoUrl          String?
+  supportedRegions Json?
+  integrationType  GroceryIntegrationType @default(export_only)
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  country          Country                @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+
+  @@index([countryCode])
+  @@index([status])
+}
+
+model GroceryListShare {
+  id             String       @id @default(cuid())
+  groceryListId  String
+  organizationId String
+  tokenHash      String       @unique
+  expiresAt      DateTime?
+  createdById    String
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  groceryList    GroceryList  @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("GroceryListShareCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([groceryListId])
+  @@index([organizationId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+}
+
+model GroceryListExport {
+  id             String                @id @default(cuid())
+  groceryListId  String
+  organizationId String
+  exportType     GroceryListExportType
+  createdById    String
+  createdAt      DateTime              @default(now())
+  groceryList    GroceryList           @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("GroceryListExportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([groceryListId])
+  @@index([organizationId])
+  @@index([exportType])
 }
 
 model MealPlan {
@@ -1015,6 +3124,7 @@ model FavoriteRecipe {
   organizationId String
   recipeId       String
   createdById    String
+  targetServings Int?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   recipe         Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
@@ -1058,6 +3168,846 @@ model HouseholdShoppingPreference {
   @@index([organizationId])
 }
 
+model HomeCateringProfile {
+  id                     String                         @id @default(cuid())
+  organizationId         String                         @unique
+  countryCode            String
+  displayName            String
+  slug                   String                         @unique
+  ownerName              String?
+  bio                    String?
+  operationType          CateringOperationType          @default(home_caterer)
+  restaurantName         String?
+  restaurantAddress      String?
+  restaurantLicense      String?
+  status                 HomeCateringProfileStatus      @default(draft)
+  verificationStatus     HomeCateringVerificationStatus @default(unverified)
+  profilePhotoUrl        String?
+  coverPhotoUrl          String?
+  profilePhotoFileId     String?
+  coverPhotoFileId       String?
+  cuisineSpecialtiesJson Json
+  languagesJson          Json
+  serviceAreaText        String?
+  city                   String?
+  region                 String?
+  postalCode             String?
+  phone                  String?
+  email                  String?
+  acceptsPickup          Boolean                        @default(true)
+  acceptsDelivery        Boolean                        @default(false)
+  acceptsPreorders       Boolean                        @default(true)
+  minimumNoticeHours     Int?
+  averageRating          Float?
+  ratingCount            Int                            @default(0)
+  isPublic               Boolean                        @default(false)
+  adminNotes             String?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([isPublic])
+  @@index([city])
+  @@index([region])
+}
+
+model Menu {
+  id             String         @id @default(cuid())
+  organizationId String
+  countryCode    String
+  name           String
+  description    String?
+  status         MenuStatus     @default(draft)
+  visibility     MenuVisibility @default(private)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items          MenuItem[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([visibility])
+}
+
+model MenuTemplate {
+  id                  String             @id @default(cuid())
+  name                String
+  slug                String             @unique
+  description         String?
+  templateType        MenuTemplateType
+  countryCode         String?
+  region              String?
+  city                String?
+  sellerType          SellerType?
+  householdUseEnabled Boolean            @default(false)
+  sellerUseEnabled    Boolean            @default(false)
+  status              TemplateStatus     @default(draft)
+  visibility          TemplateVisibility @default(internal_admin)
+  createdById         String
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  country             Country?           @relation(fields: [countryCode], references: [countryCode], onDelete: SetNull)
+  createdBy           User               @relation("MenuTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User?              @relation("MenuTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items               MenuTemplateItem[]
+
+  @@index([templateType])
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([sellerType])
+  @@index([householdUseEnabled])
+  @@index([sellerUseEnabled])
+  @@index([status])
+  @@index([visibility])
+}
+
+model MenuTemplateItem {
+  id             String              @id @default(cuid())
+  menuTemplateId String
+  dishTemplateId String?
+  recipeId       String?
+  nameSnapshot   String
+  dayOffset      Int?
+  mealSlot       MealType?
+  category       DishTemplateCategory?
+  quantity       Float?
+  priceAmount    Float?
+  currencyCode   String?
+  displayOrder   Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  menuTemplate   MenuTemplate        @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  dishTemplate   DishTemplate?       @relation(fields: [dishTemplateId], references: [id], onDelete: SetNull)
+  recipe         Recipe?             @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([menuTemplateId])
+  @@index([dishTemplateId])
+  @@index([recipeId])
+  @@index([mealSlot])
+  @@index([category])
+  @@index([displayOrder])
+}
+
+model MenuItem {
+  id                     String                 @id @default(cuid())
+  organizationId         String
+  menuId                 String?
+  countryCode            String
+  name                   String
+  slug                   String
+  description            String?
+  cuisine                String?
+  category               MenuItemCategory
+  priceAmount            Float?
+  currencyCode           String
+  servingSize            String?
+  spiceLevel             SpiceLevel?
+  preparationTimeMinutes Int?
+  minimumOrderQuantity   Int?
+  maxDailyQuantity       Int?
+  availableFrom          DateTime?
+  availableUntil         DateTime?
+  preorderRequired       Boolean                @default(false)
+  minimumNoticeHours     Int?
+  pickupAvailable        Boolean                @default(true)
+  deliveryAvailable      Boolean                @default(false)
+  photoUrl               String?
+  photoFileId            String?
+  allergensJson          Json?
+  ingredientsSummary     String?
+  status                 MenuItemStatus         @default(draft)
+  isFeatured             Boolean                @default(false)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  menu                   Menu?                  @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  availability           MenuItemAvailability[]
+  orderItems             FoodOrderItem[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([menuId])
+  @@index([countryCode])
+  @@index([category])
+  @@index([status])
+  @@index([isFeatured])
+}
+
+model MenuItemAvailability {
+  id          String   @id @default(cuid())
+  menuItemId  String
+  dayOfWeek   Int
+  startTime   String?
+  endTime     String?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, dayOfWeek])
+  @@index([menuItemId])
+  @@index([dayOfWeek])
+}
+
+model FoodOrder {
+  id                     String                   @id @default(cuid())
+  organizationId         String
+  countryCode            String
+  customerOrganizationId String
+  customerUserId         String
+  sellerOrganizationId   String
+  sellerType             FoodOrderSellerType
+  status                 FoodOrderStatus          @default(submitted)
+  fulfillmentType        FoodOrderFulfillmentType
+  fulfillmentStatus      String                   @default("scheduled")
+  pickupLocationId       String?
+  deliveryZoneId         String?
+  fulfillmentTimeSlotId  String?
+  requestedDate          DateTime?
+  requestedTimeWindow    String?
+  preparationMinutes     Int?
+  cutoffAt               DateTime?
+  promisedReadyAt        DateTime?
+  subtotalAmount         Float?
+  deliveryFeeAmount      Float?
+  currencyCode           String
+  customerName           String?
+  customerPhone          String?
+  customerEmail          String?
+  pickupAddressSnapshot  String?
+  deliveryAddressLine1   String?
+  deliveryAddressLine2   String?
+  deliveryCity           String?
+  deliveryRegion         String?
+  deliveryCountryCode    String?
+  deliveryPostalCode     String?
+  deliveryLatitude       Float?
+  deliveryLongitude      Float?
+  deliveryProviderPlaceId String?
+  customerNotes          String?
+  sellerNotes            String?
+  adminNotes             String?
+  paymentRequired        Boolean                  @default(false)
+  paymentStatus          ModulePaymentStatus      @default(not_required)
+  paymentOrderId         String?
+  promotionCode          String?
+  promotionDiscountAmount Float?
+  platformCreditAppliedAmount Float?
+  paidAt                 DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  cancelledAt            DateTime?
+  completedAt            DateTime?
+  organization           Organization             @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  customerOrganization   Organization             @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  customerUser           User                     @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
+  sellerOrganization     Organization             @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  pickupLocation         FulfillmentPickupLocation? @relation(fields: [pickupLocationId], references: [id], onDelete: SetNull)
+  deliveryZone           FulfillmentDeliveryZone?   @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  fulfillmentTimeSlot    FulfillmentTimeSlot?       @relation(fields: [fulfillmentTimeSlotId], references: [id], onDelete: SetNull)
+  items                  FoodOrderItem[]
+  messages               FoodOrderMessage[]
+  statusHistory          FoodOrderStatusHistory[]
+  fulfillmentEvents      FoodOrderFulfillmentEvent[]
+  marketplaceReviews     MarketplaceReview[]
+
+  @@index([organizationId])
+  @@index([customerOrganizationId])
+  @@index([customerUserId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([sellerType])
+  @@index([status])
+  @@index([fulfillmentStatus])
+  @@index([pickupLocationId])
+  @@index([deliveryZoneId])
+  @@index([fulfillmentTimeSlotId])
+  @@index([paymentStatus])
+  @@index([paymentOrderId])
+  @@index([promotionCode])
+  @@index([createdAt])
+}
+
+model FoodOrderItem {
+  id              String    @id @default(cuid())
+  orderId         String
+  menuItemId      String
+  nameSnapshot    String
+  quantity        Int
+  unitPriceAmount Float?
+  totalAmount     Float?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  order           FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem        MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model FoodOrderMessage {
+  id           String    @id @default(cuid())
+  orderId      String
+  senderUserId String
+  message      String
+  isInternal   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  order        FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sender       User      @relation("FoodOrderMessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([senderUserId])
+  @@index([isInternal])
+}
+
+model FoodOrderStatusHistory {
+  id          String           @id @default(cuid())
+  orderId     String
+  oldStatus   FoodOrderStatus?
+  newStatus   FoodOrderStatus
+  changedById String
+  note        String?
+  createdAt   DateTime         @default(now())
+  order       FoodOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   User             @relation("FoodOrderStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([changedById])
+  @@index([newStatus])
+}
+
+model FulfillmentPickupLocation {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  label           String
+  instructions    String?
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  region          String?
+  postalCode      String?
+  latitude        Float?
+  longitude       Float?
+  providerPlaceId String?
+  timezone        String?
+  isDefault       Boolean                 @default(false)
+  status          FulfillmentRecordStatus @default(active)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders      FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([isDefault])
+}
+
+model FulfillmentDeliveryZone {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  countryCode        String
+  name               String
+  description        String?
+  city               String?
+  region             String?
+  postalCodesJson    Json?
+  centerLatitude     Float?
+  centerLongitude    Float?
+  radiusKm           Float?
+  minimumOrderAmount Float?
+  deliveryFeeAmount  Float                   @default(0)
+  freeDeliveryAt     Float?
+  estimatedMinutes   Int?
+  status             FulfillmentRecordStatus @default(active)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders         FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([status])
+}
+
+model FulfillmentTimeSlot {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  countryCode        String
+  label              String
+  slotType           FulfillmentTimeSlotType
+  dayOfWeek          Int
+  startTime          String
+  endTime            String
+  capacity           Int?
+  preparationMinutes Int?
+  cutoffMinutes      Int?
+  status             FulfillmentRecordStatus @default(active)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  foodOrders         FoodOrder[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([slotType])
+  @@index([dayOfWeek])
+  @@index([status])
+}
+
+model FoodOrderFulfillmentEvent {
+  id             String               @id @default(cuid())
+  orderId        String
+  organizationId String
+  countryCode    String
+  eventType      FulfillmentEventType
+  statusSnapshot String?
+  note           String?
+  metadataJson   Json?
+  actorUserId    String?
+  createdAt      DateTime             @default(now())
+  order          FoodOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User?                @relation("FoodOrderFulfillmentEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model BusinessSocialLink {
+  id             String              @id @default(cuid())
+  organizationId String
+  profileType    BusinessProfileType
+  platform       SocialPlatform
+  label          String?
+  url            String
+  displayOrder   Int                 @default(0)
+  isPublic       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([profileType])
+  @@index([platform])
+  @@index([isPublic])
+  @@index([displayOrder])
+}
+
+model PaymentGateway {
+  id                      String                     @id @default(cuid())
+  organizationId          String?
+  provider                PaymentProvider
+  displayName             String
+  status                  PaymentGatewayStatus       @default(draft)
+  environment             PaymentEnvironment         @default(sandbox)
+  countryCode             String?
+  supportedCountriesJson  Json
+  supportedCurrenciesJson Json
+  priority                Int                        @default(100)
+  isDefault               Boolean                    @default(false)
+  isPlatformGateway       Boolean                    @default(true)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  organization            Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credentials             PaymentGatewayCredential[]
+  settings                PaymentGatewaySetting[]
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+  @@index([environment])
+  @@index([countryCode])
+  @@index([isDefault])
+}
+
+model PaymentGatewayCredential {
+  id             String         @id @default(cuid())
+  gatewayId      String
+  keyName        String
+  encryptedValue String
+  valuePreview   String
+  createdById    String
+  updatedById    String?
+  rotatedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  gateway        PaymentGateway @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+
+  @@unique([gatewayId, keyName])
+  @@index([gatewayId])
+  @@index([keyName])
+}
+
+model PaymentGatewaySetting {
+  id               String         @id @default(cuid())
+  gatewayId        String
+  settingKey       String
+  settingValueJson Json
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  gateway          PaymentGateway @relation(fields: [gatewayId], references: [id], onDelete: Cascade)
+
+  @@unique([gatewayId, settingKey])
+  @@index([gatewayId])
+}
+
+model PaymentConfiguration {
+  id                        String                     @id @default(cuid())
+  countryCode               String
+  currencyCode              String
+  defaultGatewayId          String?
+  allowStripe               Boolean                    @default(false)
+  allowPayPal               Boolean                    @default(false)
+  allowGooglePay            Boolean                    @default(false)
+  allowManualPayment        Boolean                    @default(true)
+  platformCommissionPercent Decimal?                   @db.Decimal(5, 2)
+  fixedCommissionAmount     Decimal?                   @db.Decimal(10, 2)
+  taxPercent                Decimal?                   @db.Decimal(5, 2)
+  status                    PaymentConfigurationStatus @default(active)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+
+  @@unique([countryCode, currencyCode])
+  @@index([countryCode])
+  @@index([currencyCode])
+  @@index([status])
+}
+
+model PaymentOrder {
+  id                        String               @id @default(cuid())
+  organizationId            String
+  countryCode               String
+  customerOrganizationId    String?
+  customerUserId            String?
+  sellerOrganizationId      String?
+  module                    PaymentModule
+  moduleEntityId            String
+  provider                  PaymentProvider
+  gatewayId                 String?
+  status                    PaymentOrderStatus   @default(pending)
+  amount                    Decimal              @db.Decimal(10, 2)
+  currencyCode              String
+  platformFeeAmount         Decimal?             @db.Decimal(10, 2)
+  sellerAmount              Decimal?             @db.Decimal(10, 2)
+  taxAmount                 Decimal?             @db.Decimal(10, 2)
+  discountAmount            Decimal?             @db.Decimal(10, 2)
+  platformCreditAmount      Decimal?             @db.Decimal(10, 2)
+  promotionCode             String?
+  promotionRedemptionId     String?
+  providerOrderId           String?
+  providerPaymentIntentId   String?
+  providerCheckoutSessionId String?
+  providerCustomerId        String?
+  idempotencyKey            String               @unique
+  checkoutUrl               String?
+  returnUrl                 String?
+  cancelUrl                 String?
+  metadataJson              Json?
+  failureCode               String?
+  failureMessage            String?
+  expiresAt                 DateTime?
+  paidAt                    DateTime?
+  cancelledAt               DateTime?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions              PaymentTransaction[]
+  refunds                   PaymentRefund[]
+  disputes                  PaymentDispute[]
+  accountingDocuments       AccountingDocument[]
+  commissionRecords         CommissionRecord[]
+  settlementReports         SellerSettlementReport[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([customerOrganizationId])
+  @@index([customerUserId])
+  @@index([sellerOrganizationId])
+  @@index([module, moduleEntityId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([promotionCode])
+  @@index([promotionRedemptionId])
+  @@index([createdAt])
+}
+
+model TaxConfiguration {
+  id              String                 @id @default(cuid())
+  name            String
+  countryCode     String?
+  region          String?
+  currencyCode    String?
+  module          PaymentModule?
+  mode            TaxCalculationMode     @default(disabled)
+  taxPercent      Decimal?               @db.Decimal(5, 2)
+  fixedTaxAmount  Decimal?               @db.Decimal(10, 2)
+  status          TaxConfigurationStatus @default(draft)
+  notes           String?
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([countryCode])
+  @@index([currencyCode])
+  @@index([module])
+  @@index([status])
+}
+
+model AccountingDocument {
+  id                     String                   @id @default(cuid())
+  documentNumber         String                   @unique
+  documentType           AccountingDocumentType
+  status                 AccountingDocumentStatus @default(issued)
+  paymentOrderId         String
+  organizationId         String
+  customerOrganizationId String?
+  sellerOrganizationId   String?
+  countryCode            String
+  currencyCode           String
+  subtotalAmount         Decimal                  @db.Decimal(10, 2)
+  taxAmount              Decimal                  @default(0) @db.Decimal(10, 2)
+  totalAmount            Decimal                  @db.Decimal(10, 2)
+  platformFeeAmount      Decimal?                 @db.Decimal(10, 2)
+  sellerAmount           Decimal?                 @db.Decimal(10, 2)
+  pdfFileId              String?
+  issuedAt               DateTime                 @default(now())
+  dueAt                  DateTime?
+  voidedAt               DateTime?
+  metadataJson           Json?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  paymentOrder           PaymentOrder             @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId, documentType])
+  @@index([organizationId])
+  @@index([customerOrganizationId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([documentType])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model CommissionRecord {
+  id                   String                 @id @default(cuid())
+  paymentOrderId       String
+  sellerOrganizationId String?
+  countryCode          String
+  currencyCode         String
+  grossAmount          Decimal                @db.Decimal(10, 2)
+  platformFeeAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  sellerAmount         Decimal                @default(0) @db.Decimal(10, 2)
+  taxAmount            Decimal                @default(0) @db.Decimal(10, 2)
+  commissionPercent    Decimal?               @db.Decimal(5, 2)
+  status               CommissionRecordStatus @default(earned)
+  earnedAt             DateTime               @default(now())
+  reversedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  paymentOrder         PaymentOrder           @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentOrderId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([earnedAt])
+}
+
+model SellerSettlementReport {
+  id                   String                 @id @default(cuid())
+  sellerOrganizationId String
+  countryCode          String
+  currencyCode         String
+  periodStart          DateTime
+  periodEnd            DateTime
+  status               SellerSettlementStatus @default(draft)
+  grossAmount          Decimal                @default(0) @db.Decimal(10, 2)
+  platformFeeAmount    Decimal                @default(0) @db.Decimal(10, 2)
+  refundAmount         Decimal                @default(0) @db.Decimal(10, 2)
+  sellerNetAmount      Decimal                @default(0) @db.Decimal(10, 2)
+  paymentOrderId       String?
+  reportFileId         String?
+  generatedById        String?
+  approvedById         String?
+  paidAt               DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  paymentOrder         PaymentOrder?          @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  sellerOrganization   Organization           @relation(fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+
+  @@index([sellerOrganizationId])
+  @@index([countryCode])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+}
+
+model PaymentTransaction {
+  id                    String                   @id @default(cuid())
+  paymentOrderId        String
+  organizationId        String
+  provider              PaymentProvider
+  gatewayId             String?
+  transactionType       PaymentTransactionType
+  status                PaymentTransactionStatus @default(pending)
+  amount                Decimal                  @db.Decimal(10, 2)
+  currencyCode          String
+  providerTransactionId String?
+  providerChargeId      String?
+  providerRefundId      String?
+  providerRawJson       Json?
+  failureCode           String?
+  failureMessage        String?
+  createdAt             DateTime                 @default(now())
+  paymentOrder          PaymentOrder             @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  refunds               PaymentRefund[]
+
+  @@index([paymentOrderId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([transactionType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentRefund {
+  id                   String              @id @default(cuid())
+  paymentOrderId       String
+  paymentTransactionId String?
+  organizationId       String
+  provider             PaymentProvider
+  gatewayId            String?
+  status               PaymentRefundStatus @default(requested)
+  amount               Decimal             @db.Decimal(10, 2)
+  currencyCode         String
+  reason               String?
+  providerRefundId     String?
+  requestedById        String
+  processedById        String?
+  failureMessage       String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  paymentOrder         PaymentOrder        @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([paymentOrderId])
+  @@index([paymentTransactionId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentWebhookEvent {
+  id             String               @id @default(cuid())
+  provider       PaymentProvider
+  gatewayId      String?
+  eventId        String
+  eventType      String
+  status         PaymentWebhookStatus @default(received)
+  rawJson        Json
+  signatureValid Boolean              @default(false)
+  processedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime             @default(now())
+
+  @@unique([provider, eventId])
+  @@index([gatewayId])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentDispute {
+  id                String               @id @default(cuid())
+  paymentOrderId    String?
+  organizationId    String?
+  provider          PaymentProvider
+  status            PaymentDisputeStatus
+  amount            Decimal?             @db.Decimal(10, 2)
+  currencyCode      String?
+  providerDisputeId String
+  reason            String?
+  evidenceDueBy     DateTime?
+  rawJson           Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  paymentOrder      PaymentOrder?        @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  organization      Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerDisputeId])
+  @@index([paymentOrderId])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SellerPayoutAccount {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  provider          PaymentProvider
+  gatewayId         String?
+  status            SellerPayoutAccountStatus @default(not_started)
+  providerAccountId String?
+  onboardingUrl     String?
+  chargesEnabled    Boolean                   @default(false)
+  payoutsEnabled    Boolean                   @default(false)
+  detailsSubmitted  Boolean                   @default(false)
+  countryCode       String
+  currencyCode      String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([countryCode])
+}
+
+model SellerPayout {
+  id               String             @id @default(cuid())
+  organizationId   String
+  provider         PaymentProvider
+  gatewayId        String?
+  status           SellerPayoutStatus @default(pending)
+  amount           Decimal            @db.Decimal(10, 2)
+  currencyCode     String
+  providerPayoutId String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  failureMessage   String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([gatewayId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model ChefProfile {
   id                    String                     @id @default(cuid())
   organizationId        String                     @unique
@@ -1068,6 +4018,8 @@ model ChefProfile {
   status                ChefProfileStatus          @default(draft)
   verificationStatus    ChefVerificationStatus     @default(unverified)
   profilePhotoUrl       String?
+  profilePhotoFileId    String?
+  coverPhotoFileId      String?
   languages             Json
   specialties           Json
   yearsExperience       Int?
@@ -1170,6 +4122,266 @@ model ChefReview {
   @@index([status])
 }
 
+model MarketplaceReview {
+  id                     String                      @id @default(cuid())
+  organizationId         String
+  countryCode            String
+  customerOrganizationId String
+  reviewerUserId         String
+  sellerOrganizationId   String
+  sellerType             MarketplaceReviewSellerType
+  subjectType            MarketplaceReviewSubjectType
+  foodOrderId            String?
+  homeChefRequestId      String?
+  rating                 Int
+  title                  String?
+  comment                String?
+  status                 MarketplaceReviewStatus    @default(pending)
+  verifiedPurchase       Boolean                     @default(true)
+  sellerReply            String?
+  sellerReplyById        String?
+  sellerRepliedAt        DateTime?
+  moderatedById          String?
+  moderatedAt            DateTime?
+  moderationNote         String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  customerOrganization   Organization                @relation("MarketplaceReviewCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  sellerOrganization     Organization                @relation("MarketplaceReviewSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  reviewer               User                        @relation("MarketplaceReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  sellerReplyBy          User?                       @relation("MarketplaceReviewSellerReplyBy", fields: [sellerReplyById], references: [id], onDelete: SetNull)
+  moderatedBy            User?                       @relation("MarketplaceReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  foodOrder              FoodOrder?                  @relation(fields: [foodOrderId], references: [id], onDelete: SetNull)
+  homeChefRequest        HomeChefRequest?            @relation(fields: [homeChefRequestId], references: [id], onDelete: SetNull)
+  reports                MarketplaceReviewReport[]
+
+  @@unique([foodOrderId, reviewerUserId])
+  @@unique([homeChefRequestId, reviewerUserId])
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([customerOrganizationId])
+  @@index([sellerOrganizationId])
+  @@index([reviewerUserId])
+  @@index([sellerType])
+  @@index([subjectType])
+  @@index([status])
+  @@index([verifiedPurchase])
+  @@index([createdAt])
+}
+
+model MarketplaceReviewReport {
+  id                     String             @id @default(cuid())
+  reviewId               String
+  reporterUserId         String
+  reporterOrganizationId String
+  reason                 ReviewReportReason
+  details                String?
+  status                 ReviewReportStatus @default(open)
+  reviewedById           String?
+  reviewedAt             DateTime?
+  resolutionNote         String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  review                 MarketplaceReview  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reporter               User               @relation("MarketplaceReviewReportReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reporterOrganization   Organization       @relation(fields: [reporterOrganizationId], references: [id], onDelete: Cascade)
+  reviewedBy             User?              @relation("MarketplaceReviewReportReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([reviewId])
+  @@index([reporterUserId])
+  @@index([reporterOrganizationId])
+  @@index([reason])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TrustComplaint {
+  id                     String          @id @default(cuid())
+  reporterOrganizationId String
+  reporterUserId         String
+  sellerOrganizationId   String?
+  subjectType            String
+  subjectId              String
+  title                  String
+  description            String
+  status                 ComplaintStatus @default(open)
+  reviewedById           String?
+  reviewedAt             DateTime?
+  resolutionNote         String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  reporterOrganization   Organization    @relation("TrustComplaintReporterOrganization", fields: [reporterOrganizationId], references: [id], onDelete: Cascade)
+  sellerOrganization     Organization?   @relation("TrustComplaintSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: SetNull)
+  reporter               User            @relation("TrustComplaintReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reviewedBy             User?           @relation("TrustComplaintReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([reporterOrganizationId])
+  @@index([reporterUserId])
+  @@index([sellerOrganizationId])
+  @@index([subjectType, subjectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Promotion {
+  id                         String                @id @default(cuid())
+  code                       String                @unique
+  name                       String
+  description                String?
+  promotionType              PromotionType         @default(promo_code)
+  discountType               PromotionDiscountType
+  status                     PromotionStatus       @default(draft)
+  scope                      PromotionScope        @default(platform)
+  sellerOrganizationId       String?
+  countryCode                String?
+  region                     String?
+  city                       String?
+  currencyCode               String?
+  percentOff                 Decimal?              @db.Decimal(5, 2)
+  amountOff                  Decimal?              @db.Decimal(10, 2)
+  minOrderAmount             Decimal?              @db.Decimal(10, 2)
+  maxDiscountAmount          Decimal?              @db.Decimal(10, 2)
+  startsAt                   DateTime?
+  endsAt                     DateTime?
+  usageLimit                 Int?
+  perUserLimit               Int?
+  appliesToFoodOrders        Boolean               @default(true)
+  appliesToHomeChefRequests  Boolean               @default(true)
+  appliesToSubscriptions     Boolean               @default(false)
+  createdById                String
+  updatedById                String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  sellerOrganization         Organization?         @relation("SellerPromotions", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  createdBy                  User                  @relation("PromotionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                  User?                 @relation("PromotionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  redemptions                PromotionRedemption[]
+
+  @@index([code])
+  @@index([status])
+  @@index([scope])
+  @@index([sellerOrganizationId])
+  @@index([countryCode, region, city])
+  @@index([currencyCode])
+  @@index([startsAt, endsAt])
+  @@index([createdAt])
+}
+
+model PromotionRedemption {
+  id                    String                    @id @default(cuid())
+  promotionId           String
+  userId                String?
+  organizationId        String?
+  sellerOrganizationId  String?
+  countryCode           String?
+  city                  String?
+  module                PromotionModule
+  moduleEntityId        String
+  foodOrderId           String?
+  homeChefRequestId     String?
+  billingSubscriptionId String?
+  paymentOrderId        String?
+  originalAmount        Decimal                   @db.Decimal(10, 2)
+  discountAmount        Decimal                   @db.Decimal(10, 2)
+  currencyCode          String
+  status                PromotionRedemptionStatus @default(applied)
+  metadataJson          Json?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  promotion             Promotion                 @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+
+  @@unique([promotionId, module, moduleEntityId])
+  @@index([promotionId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([sellerOrganizationId])
+  @@index([countryCode, city])
+  @@index([module, moduleEntityId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PlatformCreditAccount {
+  id             String                      @id @default(cuid())
+  organizationId String?
+  userId         String?
+  currencyCode   String
+  balanceAmount  Decimal                     @default(0) @db.Decimal(10, 2)
+  status         PlatformCreditAccountStatus @default(active)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  ledgerEntries  PlatformCreditLedgerEntry[]
+
+  @@unique([organizationId, currencyCode])
+  @@unique([userId, currencyCode])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([currencyCode])
+  @@index([status])
+}
+
+model PlatformCreditLedgerEntry {
+  id                     String                   @id @default(cuid())
+  accountId              String
+  entryType              PlatformCreditLedgerType
+  amount                 Decimal                  @db.Decimal(10, 2)
+  balanceAfter           Decimal                  @db.Decimal(10, 2)
+  reason                 String?
+  createdById            String?
+  promotionRedemptionId  String?
+  metadataJson           Json?
+  createdAt              DateTime                 @default(now())
+  account                PlatformCreditAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([entryType])
+  @@index([createdById])
+  @@index([promotionRedemptionId])
+  @@index([createdAt])
+}
+
+model ReferralCode {
+  id                 String             @id @default(cuid())
+  code               String             @unique
+  ownerUserId        String
+  ownerOrganizationId String?
+  countryCode        String?
+  city               String?
+  status             ReferralCodeStatus @default(active)
+  usageLimit         Int?
+  usageCount         Int                @default(0)
+  rewardCreditAmount Decimal?           @db.Decimal(10, 2)
+  rewardCurrencyCode String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  events             ReferralEvent[]
+
+  @@index([ownerUserId])
+  @@index([ownerOrganizationId])
+  @@index([countryCode, city])
+  @@index([status])
+}
+
+model ReferralEvent {
+  id                      String              @id @default(cuid())
+  referralCodeId          String
+  referredUserId          String
+  referredOrganizationId  String?
+  status                  ReferralEventStatus @default(started)
+  rewardCreditAmount      Decimal?            @db.Decimal(10, 2)
+  rewardCurrencyCode      String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  referralCode            ReferralCode        @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([referralCodeId, referredUserId])
+  @@index([referralCodeId])
+  @@index([referredUserId])
+  @@index([referredOrganizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model ChefVerificationDocument {
   id            String                 @id @default(cuid())
   chefProfileId String
@@ -1183,6 +4395,739 @@ model ChefVerificationDocument {
 
   @@index([chefProfileId])
   @@index([status])
+}
+
+model SellerVerificationProfile {
+  id                     String                   @id @default(cuid())
+  organizationId         String                   @unique
+  countryCode            String
+  region                 String?
+  sellerType             SellerType
+  status                 SellerVerificationStatus @default(not_started)
+  verificationLevel      SellerVerificationLevel  @default(unverified)
+  submittedAt            DateTime?
+  reviewedAt             DateTime?
+  reviewedById           String?
+  rejectionReason        String?
+  adminNotes             String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy             User?                    @relation("SellerVerificationProfileReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  items                  SellerVerificationItem[]
+  foodSafetyCertificates FoodSafetyCertificate[]
+  permits                SellerPermit[]
+  attestations           SellerAttestation[]
+  backgroundChecks       SellerBackgroundCheck[]
+  kitchenReviews         KitchenSafetyReview[]
+  trialReviews           SellerTrialReview[]
+  identityVerifications  IdentityVerification[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([status])
+  @@index([verificationLevel])
+}
+
+model FoodSafetyCertificate {
+  id                    String                      @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  fileId                String
+  providerName          String?
+  certificateNumber     String?
+  issuedAt              DateTime?
+  expiresAt             DateTime?
+  countryCode           String
+  region                String?
+  notes                 String?
+  status                FoodSafetyCertificateStatus @default(submitted)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  rejectionReason       String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile   @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                       @relation("FoodSafetyCertificateReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([fileId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([countryCode])
+  @@index([region])
+}
+
+model SellerPermit {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  permitType            SellerPermitType
+  fileId                String
+  issuingAuthority      String?
+  permitNumber          String?
+  issuedAt              DateTime?
+  expiresAt             DateTime?
+  status                SellerPermitStatus        @default(submitted)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  rejectionReason       String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("SellerPermitReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([permitType])
+  @@index([fileId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model SellerVerificationRequirement {
+  id              String                   @id @default(cuid())
+  countryCode     String?
+  region          String?
+  sellerType      SellerType
+  requirementType SellerRequirementType
+  title           String
+  description     String?
+  isRequired      Boolean                  @default(true)
+  provider        VerificationProvider     @default(manual)
+  validityDays    Int?
+  sortOrder       Int                      @default(0)
+  isActive        Boolean                  @default(true)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  items           SellerVerificationItem[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([requirementType])
+  @@index([isActive])
+}
+
+model SellerVerificationPolicy {
+  id                                      String                         @id @default(cuid())
+  countryCode                             String?
+  region                                  String?
+  sellerType                              SellerType
+  policyName                              String
+  status                                  SellerVerificationPolicyStatus @default(active)
+  allowPublicProfileBeforeVerification    Boolean                        @default(false)
+  allowMenuPublishingBeforeVerification   Boolean                        @default(false)
+  allowOrderAcceptanceBeforeVerification  Boolean                        @default(false)
+  allowPayoutsBeforeVerification          Boolean                        @default(false)
+  requireIdentityVerification             Boolean                        @default(false)
+  requireFoodHandlerCertificate           Boolean                        @default(false)
+  requireLocalPermit                      Boolean                        @default(false)
+  requireKitchenReview                    Boolean                        @default(false)
+  requireBackgroundCheck                  Boolean                        @default(false)
+  requirePayoutOnboarding                 Boolean                        @default(false)
+  requireAdminApproval                    Boolean                        @default(true)
+  createdAt                               DateTime                       @default(now())
+  updatedAt                               DateTime                       @updatedAt
+  overrides                               SellerVerificationOverride[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([status])
+}
+
+model SellerVerificationOverride {
+  id             String                    @id @default(cuid())
+  organizationId String
+  policyId       String?
+  grantedById    String
+  reason         String
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime                  @default(now())
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policy         SellerVerificationPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  grantedBy      User                      @relation("SellerVerificationOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([policyId])
+  @@index([grantedById])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model MarketplacePolicy {
+  id               String                         @id @default(cuid())
+  name             String
+  description      String?
+  countryCode      String?
+  region           String?
+  sellerType       SellerType?
+  organizationType OrganizationType?
+  module           MarketplacePolicyModule
+  status           MarketplacePolicyStatus        @default(draft)
+  priority         Int                            @default(0)
+  rulesJson        Json                           @default("{}")
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  createdBy        User                           @relation("MarketplacePolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        User?                          @relation("MarketplacePolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  overrides        MarketplacePolicyOverride[]
+  evaluationLogs   MarketplacePolicyEvaluationLog[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([sellerType])
+  @@index([organizationType])
+  @@index([module])
+  @@index([status])
+  @@index([priority])
+}
+
+model MarketplacePolicyOverride {
+  id             String               @id @default(cuid())
+  policyId       String
+  organizationId String?
+  userId         String?
+  reason         String
+  status         PolicyOverrideStatus @default(active)
+  expiresAt      DateTime?
+  createdById    String
+  revokedById    String?
+  revokedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  policy         MarketplacePolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  organization   Organization?         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?                 @relation("MarketplacePolicyOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("MarketplacePolicyOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedBy      User?                 @relation("MarketplacePolicyOverrideRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([policyId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model MarketplacePolicyEvaluationLog {
+  id             String                  @id @default(cuid())
+  policyId       String?
+  organizationId String?
+  userId         String?
+  module         MarketplacePolicyModule
+  action         String
+  result         MarketplacePolicyResult
+  reason         String?
+  metadataJson   Json?
+  createdAt      DateTime                @default(now())
+  policy         MarketplacePolicy?       @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([policyId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([result])
+  @@index([createdAt])
+}
+
+model LegalDocument {
+  id              String                    @id @default(cuid())
+  documentType    LegalDocumentType
+  title           String
+  slug            String
+  version         String
+  status          LegalDocumentStatus       @default(draft)
+  countryCode     String?
+  region          String?
+  audience        LegalAudience
+  contentMarkdown String
+  effectiveAt     DateTime?
+  createdById     String
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  createdBy       User                      @relation("LegalDocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  publishedBy     User?                     @relation("LegalDocumentPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  acceptances     LegalDocumentAcceptance[]
+
+  @@unique([slug, version, countryCode, region])
+  @@index([documentType])
+  @@index([slug])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([region])
+  @@index([effectiveAt])
+}
+
+model LegalDocumentAcceptance {
+  id              String        @id @default(cuid())
+  documentId      String
+  userId          String
+  organizationId  String?
+  acceptedVersion String
+  acceptedAt      DateTime      @default(now())
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime      @default(now())
+  document        LegalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([acceptedVersion])
+  @@index([acceptedAt])
+}
+
+model LegalConsentEvent {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  consentType    LegalDocumentType
+  status         ConsentStatus
+  textSnapshot   String
+  version        String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([consentType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CmsPage {
+  id              String          @id @default(cuid())
+  title           String
+  slug            String
+  excerpt         String?
+  contentMarkdown String
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  metaTitle       String?
+  metaDescription String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("CmsPageCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("CmsPageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("CmsPagePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([slug, countryCode])
+  @@index([slug])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
+}
+
+model HelpArticle {
+  id              String          @id @default(cuid())
+  title           String
+  slug            String          @unique
+  category        String
+  articleType     HelpArticleType @default(help_article)
+  excerpt         String?
+  contentMarkdown String
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("HelpArticleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("HelpArticleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("HelpArticlePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([slug])
+  @@index([category])
+  @@index([articleType])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
+}
+
+model FaqItem {
+  id              String          @id @default(cuid())
+  question        String
+  answerMarkdown  String
+  category        String?
+  status          ContentStatus   @default(draft)
+  audience        ContentAudience @default(all_users)
+  countryCode     String?
+  sortOrder       Int             @default(100)
+  createdById     String
+  updatedById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       User            @relation("FaqItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?           @relation("FaqItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy     User?           @relation("FaqItemPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([status])
+  @@index([audience])
+  @@index([countryCode])
+  @@index([sortOrder])
+}
+
+model DataPrivacyRequest {
+  id             String                   @id @default(cuid())
+  userId         String?
+  organizationId String?
+  requestedById  String
+  requestType    DataPrivacyRequestType
+  status         DataPrivacyRequestStatus @default(submitted)
+  countryCode    String?
+  reason         String?
+  adminNotes     String?
+  exportFileId   String?
+  completedById  String?
+  completedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  user           User?                    @relation("DataPrivacyRequestUser", fields: [userId], references: [id], onDelete: SetNull)
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  requestedBy    User                     @relation("DataPrivacyRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  completedBy    User?                    @relation("DataPrivacyRequestCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  exportFile     StorageFile?             @relation(fields: [exportFileId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([requestedById])
+  @@index([requestType])
+  @@index([status])
+  @@index([countryCode])
+  @@index([exportFileId])
+  @@index([createdAt])
+}
+
+model DataRetentionPolicy {
+  id             String                    @id @default(cuid())
+  countryCode    String?
+  dataCategory   DataCategory
+  retentionDays  Int?
+  action         RetentionAction
+  status         DataRetentionPolicyStatus @default(active)
+  notes          String?
+  createdById    String
+  updatedById    String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  createdBy      User                      @relation("DataRetentionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User?                     @relation("DataRetentionPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([countryCode])
+  @@index([dataCategory])
+  @@index([status])
+  @@index([createdById])
+  @@index([updatedById])
+}
+
+model UserActivity {
+  id             String                 @id @default(cuid())
+  userId         String
+  organizationId String?
+  activityType   UserActivityType
+  title          String
+  description    String?
+  entityType     String?
+  entityId       String?
+  metadataJson   Json?
+  visibility     UserActivityVisibility @default(private)
+  createdAt      DateTime               @default(now())
+  deletedAt      DateTime?
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([activityType])
+  @@index([visibility])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model UserPrivacySetting {
+  id                                  String                @id @default(cuid())
+  userId                              String                @unique
+  profileVisibility                   UserProfileVisibility @default(private)
+  activityRetentionDays               Int?
+  marketingEmailsEnabled              Boolean               @default(false)
+  analyticsConsent                    Boolean               @default(false)
+  personalizedRecommendationsEnabled  Boolean               @default(true)
+  createdAt                           DateTime              @default(now())
+  updatedAt                           DateTime              @updatedAt
+  user                                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([profileVisibility])
+  @@index([analyticsConsent])
+  @@index([marketingEmailsEnabled])
+}
+
+model UserLocalizationPreference {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  localeCode         String
+  timezone           String
+  measurementSystem  MeasurementSystem?
+  currencyCode       String?
+  dateFormat         String?
+  timeFormat         String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locale             LocalizationLocale   @relation(fields: [localeCode], references: [localeCode], onDelete: Restrict)
+
+  @@index([localeCode])
+  @@index([currencyCode])
+}
+
+model SellerVerificationItem {
+  id                    String                         @id @default(cuid())
+  verificationProfileId String
+  requirementId         String?
+  requirementType       SellerRequirementType
+  status                SellerVerificationItemStatus   @default(not_started)
+  documentFileId        String?
+  provider              VerificationProvider           @default(manual)
+  providerReferenceId   String?
+  providerStatus        String?
+  submittedAt           DateTime?
+  reviewedAt            DateTime?
+  reviewedById          String?
+  expiresAt             DateTime?
+  rejectionReason       String?
+  metadataJson          Json?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  verificationProfile   SellerVerificationProfile      @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  requirement           SellerVerificationRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  reviewedBy            User?                          @relation("SellerVerificationItemReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([verificationProfileId])
+  @@index([requirementId])
+  @@index([requirementType])
+  @@index([status])
+  @@index([documentFileId])
+}
+
+model SellerAttestation {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  attestationType       AttestationType
+  version               String
+  textSnapshot          String
+  acceptedByUserId      String
+  acceptedAt            DateTime                  @default(now())
+  ipAddress             String?
+  userAgent             String?
+  createdAt             DateTime                  @default(now())
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  acceptedBy            User                      @relation("SellerAttestationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: Cascade)
+  backgroundChecks      SellerBackgroundCheck[]   @relation("BackgroundCheckConsentAttestation")
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([attestationType])
+  @@index([acceptedByUserId])
+}
+
+model SellerBackgroundCheck {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  provider              VerificationProvider      @default(checkr_placeholder)
+  providerCandidateId   String?
+  providerReportId      String?
+  status                BackgroundCheckStatus     @default(not_started)
+  consentAttestationId  String?
+  requestedById         String?
+  requestedAt           DateTime?
+  completedAt           DateTime?
+  resultSummary         String?
+  adverseActionStatus   AdverseActionStatus       @default(none)
+  metadataJson          Json?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  consentAttestation    SellerAttestation?        @relation("BackgroundCheckConsentAttestation", fields: [consentAttestationId], references: [id], onDelete: SetNull)
+  requestedBy           User?                     @relation("SellerBackgroundCheckRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+  @@index([provider])
+}
+
+model KitchenSafetyReview {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  status                KitchenSafetyReviewStatus @default(not_started)
+  reviewedById          String?
+  reviewedAt            DateTime?
+  cleanlinessScore      Int?
+  storageScore          Int?
+  sanitationScore       Int?
+  packagingScore        Int?
+  checklistJson         Json?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("KitchenSafetyReviewReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  photos                KitchenSafetyPhoto[]
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+}
+
+model KitchenSafetyPhoto {
+  id                    String                     @id @default(cuid())
+  kitchenSafetyReviewId String
+  fileId                String
+  category              KitchenSafetyPhotoCategory
+  caption               String?
+  createdAt             DateTime                   @default(now())
+  kitchenSafetyReview   KitchenSafetyReview        @relation(fields: [kitchenSafetyReviewId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenSafetyReviewId])
+  @@index([fileId])
+  @@index([category])
+}
+
+model SellerTrialReview {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  status                SellerTrialReviewStatus   @default(requested)
+  scheduledAt           DateTime?
+  reviewedById          String?
+  dishName              String?
+  tasteScore            Int?
+  packagingScore        Int?
+  presentationScore     Int?
+  notes                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                     @relation("SellerTrialReviewReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([reviewedById])
+}
+
+model KycProviderConfiguration {
+  id                     String             @id @default(cuid())
+  provider               KycProvider
+  displayName            String
+  status                 KycProviderStatus  @default(draft)
+  environment            PaymentEnvironment @default(sandbox)
+  countryCode            String?
+  supportedCountriesJson Json
+  encryptedApiKey        String?
+  encryptedSecret        String?
+  encryptedWebhookSecret String?
+  settingsJson           Json?
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  createdBy              User               @relation("KycProviderConfigurationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy              User?              @relation("KycProviderConfigurationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([provider])
+  @@index([status])
+  @@index([environment])
+  @@index([countryCode])
+}
+
+model IdentityVerification {
+  id                    String                     @id @default(cuid())
+  organizationId        String
+  verificationProfileId String
+  userId                String
+  provider              KycProvider
+  providerSessionId     String?
+  providerStatus        String?
+  status                IdentityVerificationStatus @default(not_started)
+  verificationUrl       String?
+  expiresAt             DateTime?
+  completedAt           DateTime?
+  failureReason         String?
+  metadataJson          Json?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verificationProfile   SellerVerificationProfile  @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  user                  User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([verificationProfileId])
+  @@index([userId])
+  @@index([provider])
+  @@index([providerSessionId])
+  @@index([status])
+}
+
+model KycWebhookEvent {
+  id             String               @id @default(cuid())
+  provider       KycProvider
+  eventId        String
+  eventType      String
+  signatureValid Boolean              @default(false)
+  status         PaymentWebhookStatus @default(received)
+  rawJson        Json
+  processedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime             @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model HomeChefRequest {
@@ -1210,6 +5155,16 @@ model HomeChefRequest {
   genderPreference           GenderPreference               @default(no_preference)
   budgetAmount               Float?
   budgetCurrency             String?
+  paymentRequired            Boolean                        @default(false)
+  paymentStatus              ModulePaymentStatus            @default(not_required)
+  paymentOrderId             String?
+  promotionCode              String?
+  promotionDiscountAmount    Float?
+  platformCreditAppliedAmount Float?
+  quotedAmount               Float?
+  depositAmount              Float?
+  currencyCode               String                         @default("USD")
+  paidAt                     DateTime?
   notes                      String?
   adminNotes                 String?
   assignedChefOrganizationId String?
@@ -1223,11 +5178,15 @@ model HomeChefRequest {
   messages                   HomeChefRequestMessage[]
   statusHistory              HomeChefRequestStatusHistory[]
   chefReviews                ChefReview[]
+  marketplaceReviews         MarketplaceReview[]
 
   @@index([organizationId])
   @@index([countryCode])
   @@index([createdById])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([paymentOrderId])
+  @@index([promotionCode])
   @@index([requestType])
   @@index([requestedDate])
   @@index([mealPlanId])
@@ -1422,4 +5381,141 @@ model YouTubeVideoCandidate {
   @@index([discoveryRunId])
   @@index([recipeId])
   @@index([status])
+}
+
+// ─── Restaurant Fallback ──────────────────────────────────────────────────────
+
+enum RestaurantFallbackSearchStatus {
+  pending
+  completed
+  failed
+}
+
+enum RestaurantProvider {
+  google
+  manual
+}
+
+model RestaurantFallbackSearch {
+  id              String                         @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  createdById     String
+  recipeId        String?
+  mealPlanEntryId String?
+  query           String
+  latitude        Float?
+  longitude       Float?
+  city            String?
+  region          String?
+  status          RestaurantFallbackSearchStatus @default(pending)
+  resultCount     Int                            @default(0)
+  errorMessage    String?
+  createdAt       DateTime                       @default(now())
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User                           @relation("RestaurantSearchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recipe          Recipe?                        @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  results         RestaurantFallbackResult[]
+
+  @@index([organizationId])
+  @@index([countryCode])
+  @@index([recipeId])
+  @@index([status])
+}
+
+model RestaurantFallbackResult {
+  id              String                   @id @default(cuid())
+  searchId        String
+  organizationId  String
+  countryCode     String
+  provider        RestaurantProvider       @default(google)
+  providerPlaceId String?
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  category        String?
+  rating          Float?
+  ratingCount     Int?
+  priceLevel      Int?
+  openNow         Boolean?
+  distanceMeters  Float?
+  mapUrl          String?
+  rawJson         Json?
+  createdAt       DateTime                 @default(now())
+  search          RestaurantFallbackSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+
+  @@index([searchId])
+  @@index([organizationId])
+}
+
+model SavedRestaurant {
+  id              String             @id @default(cuid())
+  organizationId  String
+  countryCode     String
+  provider        RestaurantProvider @default(manual)
+  providerPlaceId String?
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  category        String?
+  rating          Float?
+  ratingCount     Int?
+  priceLevel      Int?
+  openNow         Boolean?
+  mapUrl          String?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([countryCode])
+}
+
+model Location {
+  id              String             @id @default(cuid())
+  organizationId  String?
+  userId          String?
+  entityType      String
+  entityId        String
+  label           String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  region          String?
+  countryCode     String
+  postalCode      String?
+  latitude        Float?
+  longitude       Float?
+  provider        LocationProvider   @default(manual)
+  providerPlaceId String?
+  isPrimary       Boolean            @default(true)
+  visibility      LocationVisibility @default(private)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  organization    Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId, isPrimary])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([countryCode])
+  @@index([entityType, entityId])
+}
+
+model ContactLead {
+  id               String   @id @default(cuid())
+  name             String
+  email            String
+  organizationType String?
+  countryCode      String?
+  message          String
+  status           String   @default("new")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([email])
 }

@@ -30,6 +30,7 @@ export async function updateAdminHomeChefStatusAction(formData: FormData) {
 
     revalidatePath("/admin/home-chef-requests");
     revalidatePath(`/admin/home-chef-requests/${requestId}`);
+    revalidatePath("/chef/requests");
     redirect(`/admin/home-chef-requests/${requestId}?message=Request status updated.`);
   } catch (error) {
     rethrowIfRedirectError(error);
@@ -53,6 +54,7 @@ export async function assignHomeChefRequestAction(formData: FormData) {
 
     revalidatePath("/admin/home-chef-requests");
     revalidatePath(`/admin/home-chef-requests/${requestId}`);
+    revalidatePath("/chef/requests");
     redirect(`/admin/home-chef-requests/${requestId}?message=Chef assignment updated.`);
   } catch (error) {
     rethrowIfRedirectError(error);

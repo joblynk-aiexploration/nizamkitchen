@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { CountryBadge } from "@/components/ui/country-badge";
 import { RoleBadge } from "@/components/ui/role-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { getKnownTimeZonesForCountry } from "@/lib/timezones";
 import { getAdminOrganizationDetail } from "@/server/admin/organizations";
 
 export default async function OrganizationDetailPage({
@@ -33,6 +34,7 @@ export default async function OrganizationDetailPage({
     organization.memberships[0]?.user ??
     null;
   const canMutate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
+  const organizationTimeZones = getKnownTimeZonesForCountry(organization.countryCode, organization.defaultTimezone);
 
   return (
     <AdminShell
@@ -71,7 +73,11 @@ export default async function OrganizationDetailPage({
               </label>
               <label className="text-sm font-medium">
                 Timezone
-                <input name="defaultTimezone" defaultValue={organization.defaultTimezone} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] px-4 py-3" />
+                <select name="defaultTimezone" defaultValue={organization.defaultTimezone} className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3">
+                  {organizationTimeZones.map((timeZone) => (
+                    <option key={timeZone} value={timeZone}>{timeZone}</option>
+                  ))}
+                </select>
               </label>
               <label className="text-sm font-medium">
                 Locale

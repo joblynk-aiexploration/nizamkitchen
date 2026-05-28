@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { AccessDeniedError } from "@/lib/auth";
 import { getCurrentSession } from "@/lib/auth/session";
+import { getActionErrorMessage } from "@/lib/server-action-errors";
 import { buildCountryMutationInput, updateCountry } from "@/server/admin/countries";
 import { auditAccessDenied } from "@/server/audit";
 
@@ -12,7 +13,7 @@ export async function POST(
   const session = await getCurrentSession();
 
   if (!session) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", request.url), { status: 303 });
   }
 
   const { code } = await params;
@@ -23,7 +24,10 @@ export async function POST(
     revalidatePath("/admin/countries");
     revalidatePath(`/admin/countries/${code}`);
     revalidatePath(`/admin/my-countries/${code}`);
-    return NextResponse.redirect(new URL(`/admin/countries/${code}?message=Country updated.`, request.url));
+    return NextResponse.redirect(
+      new URL(`/admin/countries/${code}?message=${encodeURIComponent("Country settings were saved successfully.")}`, request.url),
+      { status: 303 },
+    );
   } catch (error) {
     if (error instanceof AccessDeniedError) {
       await auditAccessDenied({
@@ -32,9 +36,13 @@ export async function POST(
         targetId: code,
         details: { reason: error.code },
       });
-      return NextResponse.redirect(new URL(`/admin/countries/${code}?message=Access denied.`, request.url));
+      return NextResponse.redirect(new URL(`/admin/countries/${code}?message=Access denied.`, request.url), { status: 303 });
     }
 
-    return NextResponse.redirect(new URL(`/admin/countries/${code}?message=Unable to update country.`, request.url));
+    const message = getActionErrorMessage(error, "Unable to update country.");
+    return NextResponse.redirect(
+      new URL(`/admin/countries/${code}?message=${encodeURIComponent(message)}`, request.url),
+      { status: 303 },
+    );
   }
 }

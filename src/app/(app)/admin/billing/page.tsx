@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { getBillingAdminSummary } from "@/server/billing/safe-billing";
+import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -13,68 +13,71 @@ export default async function AdminBillingPage() {
     "platform_admin",
     "support_admin",
   ]);
-  const subscriptions = await prisma.billingSubscription.findMany({
-    include: { organization: true },
-    orderBy: { createdAt: "desc" },
-  });
+
+  const [billingSummary, stripeReadiness] = await Promise.all([
+    getBillingAdminSummary(),
+    getStripePaymentReadiness(),
+  ]);
+  const stripeConfigured = stripeReadiness.configured;
+  const { planCount, subscriptionCount, statusCounts } = billingSummary;
 
   return (
     <AdminShell
       session={session}
-      title="Billing placeholder"
-      description="Review plan placeholders, trial states, billing countries, and invoice/provider readiness before payment integration is added."
+      title="Billing"
+      description="Manage plans, subscriptions, and payment provider readiness."
     >
-      <section className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Plans</h2>
-          <p className="mt-3 text-sm text-[var(--color-muted)]">Starter, Growth, and Enterprise placeholders are ready for a future payment provider.</p>
-        </Card>
-        <Card>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Invoices</h2>
-          <p className="mt-3 text-sm text-[var(--color-muted)]">Invoice storage is intentionally a placeholder until provider integration is selected.</p>
-        </Card>
-        <Card>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Provider</h2>
-          <p className="mt-3 text-sm text-[var(--color-muted)]">Stripe is not integrated in this phase. Provider choice remains open.</p>
-        </Card>
-      </section>
+      {!stripeConfigured && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+          Payments are not fully configured yet. {stripeReadiness.message}
+        </div>
+      )}
 
-      <AdminDataTable
-        data={subscriptions}
-        emptyMessage="No subscription placeholder rows were found."
-        columns={[
-          {
-            key: "organization",
-            header: "Organization",
-            render: (subscription) => (
-              <div>
-                <p className="font-semibold text-[var(--color-ink)]">{subscription.organization.name}</p>
-                <p className="text-[var(--color-muted)]">{subscription.planCode}</p>
-              </div>
-            ),
-          },
-          {
-            key: "billing",
-            header: "Billing",
-            render: (subscription) => (
-              <div>
-                <p>{subscription.currencyCode}</p>
-                <p className="text-[var(--color-muted)]">{subscription.countryCode}</p>
-              </div>
-            ),
-          },
-          {
-            key: "status",
-            header: "Status",
-            render: (subscription) => <StatusBadge value={subscription.status} />,
-          },
-          {
-            key: "provider",
-            header: "Provider",
-            render: (subscription) => <span>{subscription.provider}</span>,
-          },
-        ]}
-      />
+      {!billingSummary.ready && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
+          {billingSummary.message ?? "Billing is not ready yet."}
+        </div>
+      )}
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Active plans</p>
+          <p className="mt-2 text-4xl font-bold text-[var(--color-ink)]">{planCount}</p>
+          <Link href="/admin/billing/plans" className="mt-4 block text-sm font-medium text-[var(--color-primary)] hover:underline">
+            Manage plans →
+          </Link>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total subscriptions</p>
+          <p className="mt-2 text-4xl font-bold text-[var(--color-ink)]">{subscriptionCount}</p>
+          <Link href="/admin/billing/subscriptions" className="mt-4 block text-sm font-medium text-[var(--color-primary)] hover:underline">
+            View subscriptions →
+          </Link>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Provider</p>
+          <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+            {stripeConfigured ? stripeReadiness.providerLabel : "Manual only"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {stripeConfigured
+              ? "Stripe is active for hosted checkout."
+              : "Subscriptions stay manual until Stripe is active in API Management or Payment Gateways."}
+          </p>
+        </Card>
+      </div>
+
+      <Card>
+        <h2 className="font-semibold text-[var(--color-ink)]">Subscriptions by status</h2>
+        <div className="mt-4 divide-y divide-[var(--color-border)]">
+          {(["free", "trialing", "active", "past_due", "unpaid", "cancelled"] as const).map((status) => (
+            <div key={status} className="flex items-center justify-between py-2 text-sm">
+              <span className="capitalize text-[var(--color-muted)]">{status.replace("_", " ")}</span>
+              <span className="font-semibold text-[var(--color-ink)]">{statusCounts[status] ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
     </AdminShell>
   );
 }

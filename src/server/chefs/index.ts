@@ -3,6 +3,7 @@ import {
   ChefVerificationStatus,
   OrganizationType,
   Prisma,
+  SellerType,
   type ChefServiceType,
   type PlatformRole,
   type UserStatus,
@@ -21,7 +22,10 @@ import {
   chefSpecialtySchema,
 } from "@/lib/validation/chefs";
 import { createAuditEvent } from "@/server/audit";
+import { createNotification } from "@/server/notifications/notification-service";
 import { createHomeChefRequest } from "@/server/home-chef";
+import { getSellerVerificationGate } from "@/server/seller-verification-gates";
+import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
 
 const CHEF_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
 const CHEF_READ_ADMIN_ROLES: PlatformRole[] = [...CHEF_ADMIN_ROLES, "auditor"];
@@ -85,7 +89,7 @@ export async function listPublicChefProfiles(filters: {
   if (!enabled) return prisma.chefProfile.findMany({ where: { id: "__disabled__" }, include: { organization: { select: { name: true, countryCode: true } }, services: true, specialtyRecipes: true, availability: true } });
   const serviceType = filters.serviceType as ChefServiceType | undefined;
 
-  return prisma.chefProfile.findMany({
+  const profiles = await prisma.chefProfile.findMany({
     where: {
       status: "active",
       isPublic: true,
@@ -109,13 +113,25 @@ export async function listPublicChefProfiles(filters: {
     },
     orderBy: [{ verificationStatus: "desc" }, { displayName: "asc" }],
   });
+  const visibleProfiles = [];
+  for (const profile of profiles) {
+    const gate = await getSellerVerificationGate({
+      organizationId: profile.organizationId,
+      sellerType: SellerType.chef_business,
+      countryCode: profile.countryCode,
+      region: profile.baseRegion,
+      capability: "public_profile",
+    });
+    if (gate.allowed) visibleProfiles.push(profile);
+  }
+  return visibleProfiles;
 }
 
 export async function getPublicChefProfile(slug: string, organizationId: string | null) {
   const enabled = await canAccessChefMarketplace({ organizationId });
   if (!enabled) return null;
 
-  return prisma.chefProfile.findFirst({
+  const profile = await prisma.chefProfile.findFirst({
     where: {
       slug,
       status: "active",
@@ -123,6 +139,15 @@ export async function getPublicChefProfile(slug: string, organizationId: string 
     },
     ...chefProfileDetailArgs,
   });
+  if (!profile) return null;
+  const gate = await getSellerVerificationGate({
+    organizationId: profile.organizationId,
+    sellerType: SellerType.chef_business,
+    countryCode: profile.countryCode,
+    region: profile.baseRegion,
+    capability: "public_profile",
+  });
+  return gate.allowed ? profile : null;
 }
 
 export async function upsertChefProfile(params: {
@@ -132,6 +157,10 @@ export async function upsertChefProfile(params: {
   input: unknown;
 }) {
   const parsed = chefProfileSchema.parse(params.input);
+  await Promise.all([
+    assertStorageFileBelongsToOrganization(parsed.profilePhotoFileId, params.organizationId),
+    assertStorageFileBelongsToOrganization(parsed.coverPhotoFileId, params.organizationId),
+  ]);
   const existing = await prisma.chefProfile.findUnique({
     where: { organizationId: params.organizationId },
     select: { id: true, slug: true, status: true },
@@ -147,6 +176,8 @@ export async function upsertChefProfile(params: {
       displayName: parsed.displayName,
       bio: parsed.bio,
       profilePhotoUrl: parsed.profilePhotoUrl,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       languages: asJsonArray(parsed.languages),
       specialties: asJsonArray(parsed.specialties),
       yearsExperience: parsed.yearsExperience ?? null,
@@ -167,6 +198,8 @@ export async function upsertChefProfile(params: {
       status: "draft",
       verificationStatus,
       profilePhotoUrl: parsed.profilePhotoUrl,
+      profilePhotoFileId: parsed.profilePhotoFileId ?? null,
+      coverPhotoFileId: parsed.coverPhotoFileId ?? null,
       languages: asJsonArray(parsed.languages),
       specialties: asJsonArray(parsed.specialties),
       yearsExperience: parsed.yearsExperience ?? null,
@@ -189,7 +222,6 @@ export async function upsertChefProfile(params: {
     targetId: profile.id,
     details: { displayName: profile.displayName, verificationStatus: profile.verificationStatus },
   });
-
   return profile;
 }
 
@@ -280,6 +312,39 @@ export async function addChefSpecialty(params: {
   });
 
   return specialty;
+}
+
+export async function addChefVerificationDocument(params: {
+  organizationId: string;
+  countryCode: string;
+  actorUserId: string;
+  documentType: string;
+  fileId: string | null;
+}) {
+  const profile = await getChefProfileForOrganization(params.organizationId);
+  if (!profile) throw new Error("Create a chef profile before uploading verification documents.");
+  await assertStorageFileBelongsToOrganization(params.fileId, params.organizationId);
+  if (!params.fileId) throw new Error("Verification document file is required.");
+
+  const document = await prisma.chefVerificationDocument.create({
+    data: {
+      chefProfileId: profile.id,
+      documentType: params.documentType.trim() || "verification_document",
+      fileId: params.fileId,
+      status: "pending",
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode,
+    action: "verification_document.uploaded",
+    targetType: "chef_verification_document",
+    targetId: document.id,
+  });
+
+  return document;
 }
 
 export async function upsertChefAvailability(params: {
@@ -517,6 +582,23 @@ export async function updateAdminChefProfileStatus(params: {
       newVerificationStatus: profile.verificationStatus,
     },
   });
+
+  if (action === "chef_profile.verified" || action === "chef_profile.approved" || action === "chef_profile.suspended") {
+    await createNotification({
+      organizationId: existing.organizationId,
+      countryCode: existing.countryCode,
+      type: action,
+      title: action === "chef_profile.suspended" ? "Chef profile needs attention" : "Chef profile approved",
+      body:
+        action === "chef_profile.suspended"
+          ? "Your chef profile was suspended by platform support."
+          : "Your chef profile is approved for marketplace visibility when public listing is enabled.",
+      actionUrl: "/chef/profile",
+      priority: action === "chef_profile.suspended" ? "urgent" : "high",
+      emailTemplateKey: action === "chef_profile.suspended" ? "chef_profile_suspended" : "chef_profile_approved",
+      preferenceKey: "homeChefUpdates",
+    });
+  }
 
   return profile;
 }

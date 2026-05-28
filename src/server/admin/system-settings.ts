@@ -1,6 +1,7 @@
 import type { getCurrentSession } from "@/lib/session";
 import { assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_APP_TIME_ZONE } from "@/lib/timezones";
 import { systemSettingUpdateSchema } from "@/lib/validation/admin";
 import { recordAdminAuditLog } from "@/server/audit/audit-service";
 
@@ -16,7 +17,7 @@ const SYSTEM_SETTING_DEFAULTS = [
   {
     key: "platform.support_email",
     label: "Support email",
-    value: "support@nizamkitchen.dev",
+    value: "help@nizamkitchen.dev",
     description: "Primary support inbox for operational workflows.",
   },
   {
@@ -40,7 +41,7 @@ const SYSTEM_SETTING_DEFAULTS = [
   {
     key: "platform.default_timezone",
     label: "Default timezone",
-    value: "America/Chicago",
+    value: DEFAULT_APP_TIME_ZONE,
     description: "Default timezone placeholder.",
   },
   {
@@ -78,6 +79,84 @@ const SYSTEM_SETTING_DEFAULTS = [
     label: "Max members per organization",
     value: "100",
     description: "Placeholder soft cap for tenant membership counts.",
+  },
+  {
+    key: "invoice.company_display_name",
+    label: "Invoice company display name",
+    value: "NizamKitchen",
+    description: "Brand name shown on invoice previews, print views, and PDF downloads.",
+  },
+  {
+    key: "invoice.company_legal_name",
+    label: "Invoice legal company name",
+    value: "NizamKitchen",
+    description: "Legal entity or marketplace operator name shown in the invoice From section.",
+  },
+  {
+    key: "invoice.billing_address",
+    label: "Invoice billing address",
+    value: "Frisco, Texas\nUnited States",
+    description: "Line-separated billing address shown on invoices.",
+  },
+  {
+    key: "invoice.billing_email",
+    label: "Invoice billing email",
+    value: "billing@nizamkitchen.dev",
+    description: "Billing contact email shown on invoices and receipts.",
+  },
+  {
+    key: "invoice.support_phone",
+    label: "Invoice support phone",
+    value: "",
+    description: "Optional support phone shown on invoices when configured.",
+  },
+  {
+    key: "invoice.website",
+    label: "Invoice website",
+    value: "https://nk.friscodawah.org",
+    description: "Public website URL shown in invoice footer and header.",
+  },
+  {
+    key: "invoice.tax_id",
+    label: "Invoice tax ID",
+    value: "",
+    description: "Optional tax or business ID shown only when configured.",
+  },
+  {
+    key: "invoice.accent_color",
+    label: "Invoice accent color",
+    value: "#0f766e",
+    description: "Brand accent color used in generated invoice PDFs.",
+  },
+  {
+    key: "invoice.default_notes",
+    label: "Invoice default notes",
+    value: "Thank you for using NizamKitchen. This document was generated from a secure payment and accounting record.",
+    description: "Default customer-facing note shown on invoice previews and PDFs.",
+  },
+  {
+    key: "invoice.payment_terms",
+    label: "Invoice payment terms",
+    value: "Due on receipt unless otherwise stated.",
+    description: "Default payment terms shown on invoice previews and PDFs.",
+  },
+  {
+    key: "invoice.footer_text",
+    label: "Invoice footer text",
+    value: "This invoice was generated electronically and does not require a signature.",
+    description: "Legal footer text shown on invoice previews and PDFs.",
+  },
+  {
+    key: "invoice.show_zero_discount_row",
+    label: "Show zero discount row",
+    value: "true",
+    description: "Controls whether invoices show a discount row when the discount amount is zero.",
+  },
+  {
+    key: "invoice.show_provider_row",
+    label: "Show provider row",
+    value: "true",
+    description: "Controls whether invoices show payment provider details.",
   },
 ] as const;
 

@@ -62,7 +62,7 @@ export async function getAdminDashboardData(session: Session) {
         organization: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 8,
+      take: 5,
     }),
     prisma.user.findMany({
       where: userWhere,
@@ -118,7 +118,10 @@ export async function getAdminDashboardData(session: Session) {
       orderBy: { updatedAt: "desc" },
     }),
     prisma.billingSubscription.findMany({
-      where: isCountryManager ? { countryCode: { in: assignedCountries } } : {},
+      where: isCountryManager
+        ? { organization: { countryCode: { in: assignedCountries } } }
+        : {},
+      include: { plan: { select: { slug: true, name: true } } },
     }),
   ]);
 

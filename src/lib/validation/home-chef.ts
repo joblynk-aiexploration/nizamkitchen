@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFormattedPhoneNumber } from "@/lib/phone";
 
 const requestTypeValues = [
   "recipe",
@@ -59,7 +60,7 @@ const homeChefRequestBaseSchema = z.object({
     city: nullableString(120).optional(),
     region: nullableString(120).optional(),
     postalCode: nullableString(40).optional(),
-    phone: nullableString(40).optional(),
+    phone: nullableString(40).optional().refine(isFormattedPhoneNumber, "Phone number must include a country code and a 10 digit number."),
     preferredLanguage: nullableString(80).optional(),
     genderPreference: z.enum(genderPreferenceValues).default("no_preference"),
     budgetAmount: nullableMoney.optional(),

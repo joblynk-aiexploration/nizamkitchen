@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { paginatedQuery } from "@/lib/pagination";
 import { slugify } from "@/lib/slug";
 import type { SessionLike } from "@/lib/auth";
 import { assertPlatformRole, assertMembershipAccess, FULL_PLATFORM_ADMIN_ROLES } from "@/lib/auth";
 import { recordAdminAuditLog } from "@/server/audit/audit-service";
 import { isRecipeVisibleToOrganization } from "@/lib/recipe-utils";
-import type { RecipeDifficulty, SpiceLevel, RecipeVisibility, RecipeSourceType } from "@prisma/client";
+import { Prisma, type RecipeDifficulty, type SpiceLevel, type RecipeVisibility, type RecipeSourceType } from "@prisma/client";
 
 // Exclude recipes that were created as QA/test placeholders.
 // These slugs and name patterns should never appear in production user-facing queries.
@@ -62,29 +63,71 @@ export async function listRecipes(params: {
 }) {
   const { organizationId, countryCode, cuisineId, difficulty, spiceLevel, search, publishedOnly } = params;
 
+  const where = recipeListWhere({ organizationId, countryCode, cuisineId, difficulty, spiceLevel, search, publishedOnly });
+
   return prisma.recipe.findMany({
-    where: {
-      ...qaExcludeFilter(),
-      ...(publishedOnly ? { isPublished: true } : {}),
-      ...(cuisineId ? { cuisineId } : {}),
-      ...(difficulty ? { difficulty } : {}),
-      ...(spiceLevel ? { spiceLevel } : {}),
-      ...(countryCode ? { OR: [{ countryCode: null }, { countryCode }] } : {}),
-      ...(search
-        ? { name: { contains: search, mode: "insensitive" as const } }
-        : {}),
-      ...(organizationId
-        ? {
-            OR: [
-              { visibility: "global", isPublished: true },
-              { visibility: "organization", organizationId, isPublished: true },
-            ],
-          }
-        : {}),
-    },
+    where,
     include: { cuisine: true },
     orderBy: { name: "asc" },
   });
+}
+
+export async function listRecipesPage(params: Parameters<typeof listRecipes>[0] & {
+  page?: string | string[] | number;
+  pageSize?: string | string[] | number;
+}) {
+  const where = recipeListWhere(params);
+
+  return paginatedQuery(
+    prisma.recipe.count({ where }),
+    ({ skip, take }) =>
+      prisma.recipe.findMany({
+        where,
+        include: { cuisine: true },
+        orderBy: { name: "asc" },
+        skip,
+        take,
+      }),
+    { page: params.page, pageSize: params.pageSize },
+  );
+}
+
+function recipeListWhere(params: {
+  organizationId?: string | null;
+  countryCode?: string;
+  cuisineId?: string;
+  difficulty?: RecipeDifficulty;
+  spiceLevel?: SpiceLevel;
+  search?: string;
+  publishedOnly?: boolean;
+}): Prisma.RecipeWhereInput {
+  const { organizationId, countryCode, cuisineId, difficulty, spiceLevel, search, publishedOnly } = params;
+  const andFilters: Prisma.RecipeWhereInput[] = [];
+
+  if (countryCode) {
+    andFilters.push({ OR: [{ countryCode: null }, { countryCode }] });
+  }
+
+  if (organizationId) {
+    andFilters.push({
+      OR: [
+        { visibility: "global", isPublished: true },
+        { visibility: "organization", organizationId, isPublished: true },
+      ],
+    });
+  }
+
+  return {
+    ...qaExcludeFilter(),
+    ...(publishedOnly ? { isPublished: true } : {}),
+    ...(cuisineId ? { cuisineId } : {}),
+    ...(difficulty ? { difficulty } : {}),
+    ...(spiceLevel ? { spiceLevel } : {}),
+    ...(search
+      ? { name: { contains: search, mode: "insensitive" as const } }
+      : {}),
+    ...(andFilters.length ? { AND: andFilters } : {}),
+  };
 }
 
 export async function getRecipeById(id: string) {
