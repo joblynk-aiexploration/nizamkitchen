@@ -12,9 +12,6 @@ services:
       DEPLOYMENT_ENVIRONMENT: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      DATABASE_URL: ${DATABASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      APP_URL: ${APP_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -42,9 +39,7 @@ services:
       - ${ENV_FILE:-.env.production}
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      APP_URL: ${APP_URL}
+      DEPLOYMENT_ENVIRONMENT: production
     command: ["npm", "run", "db:deploy"]
     depends_on:
       postgres:

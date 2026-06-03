@@ -57,7 +57,7 @@ export async function handleStripeWebhook(params: { rawBody: string; signature?:
       severity: "critical",
       metadataJson: { eventId: event.id, eventType: event.type, provider: "stripe" },
     });
-    throw error;
+    return { status: "failed" as const, eventId: event.id };
   }
 }
 

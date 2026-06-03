@@ -20,6 +20,13 @@ Configure Stripe to send webhooks to:
 https://YOUR_APP_URL/api/payments/stripe/webhook
 ```
 
+The legacy endpoint below is also supported so older Stripe Dashboard
+configurations keep working after upgrades:
+
+```text
+https://YOUR_APP_URL/api/stripe/webhook
+```
+
 Required event coverage:
 
 - `checkout.session.completed`

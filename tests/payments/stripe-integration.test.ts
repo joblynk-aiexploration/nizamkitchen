@@ -46,10 +46,12 @@ vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/server/audit", () => ({ createAuditEvent: vi.fn() }));
 vi.mock("@/server/email/email-service", () => ({ sendTemplateEmail: vi.fn() }));
 vi.mock("@/server/notifications/notification-service", () => ({ createAdminNotification: vi.fn(), createNotification: vi.fn() }));
+vi.mock("@/server/observability/system-alerts", () => ({ createSystemAlertForFailure: vi.fn() }));
 
 import { createAuditEvent } from "@/server/audit";
 import { sendTemplateEmail } from "@/server/email/email-service";
 import { createNotification } from "@/server/notifications/notification-service";
+import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { encryptGatewayCredential } from "@/server/payments/credentials";
 import {
   createStripeConnectOnboarding,
@@ -454,6 +456,23 @@ describe("Stripe payment gateway integration", () => {
       idempotencyKey: "payment.success:payment-order-1",
     }));
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "payment_order.paid" }));
+  });
+
+  it("acknowledges verified webhook events after recording internal processing failures", async () => {
+    stripeClient.webhooks.constructEvent.mockReturnValue({ id: "evt_processing_failed", type: "payment_intent.succeeded", data: { object: { id: "pi_failed", metadata: { paymentOrderId: "payment-order-1" } } } });
+    mockPrisma.paymentWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.paymentOrder.update.mockRejectedValueOnce(new Error("database write failed"));
+
+    const result = await handleStripeWebhook({ rawBody: "{}", signature: "sig" });
+
+    expect(result).toEqual({ status: "failed", eventId: "evt_processing_failed" });
+    expect(mockPrisma.paymentWebhookEvent.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "failed", errorMessage: "database write failed" }),
+    }));
+    expect(createSystemAlertForFailure).toHaveBeenCalledWith(expect.objectContaining({
+      type: "stripe_webhook_failure",
+      metadataJson: expect.objectContaining({ eventId: "evt_processing_failed", provider: "stripe" }),
+    }));
   });
 
   it("activates subscription from Stripe checkout.session.completed webhook", async () => {
