@@ -5,6 +5,11 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     env_file:
       - ${ENV_FILE:-.env.production}
     environment:
@@ -12,9 +17,6 @@ services:
       DEPLOYMENT_ENVIRONMENT: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      DATABASE_URL: ${DATABASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      APP_URL: ${APP_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -38,13 +40,16 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     env_file:
       - ${ENV_FILE:-.env.production}
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      APP_URL: ${APP_URL}
+      DEPLOYMENT_ENVIRONMENT: production
     command: ["npm", "run", "db:deploy"]
     depends_on:
       postgres:
@@ -53,6 +58,11 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-nizamkitchen}
       POSTGRES_USER: ${POSTGRES_USER:-nizamkitchen}
@@ -68,6 +78,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data

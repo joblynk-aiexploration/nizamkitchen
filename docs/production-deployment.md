@@ -1,70 +1,93 @@
 # Production Deployment
 
-This guide prepares NizamKitchen for a Docker-based VPS or EC2-style deployment. It intentionally keeps the target flexible: a single server today, a managed database or container orchestrator later.
+This guide covers a Docker-based VPS or EC2-style deployment for NizamKitchen.
 
-## Stack
+## Production Stack
 
-- Next.js app running from the production Docker image.
-- PostgreSQL 16 with a persistent Docker volume or managed PostgreSQL.
-- Redis for cache/queue placeholders.
-- Persistent `app_uploads` volume for private upload/storage placeholders.
-- nginx as the public reverse proxy.
-- HTTPS through Cloudflare proxy mode or certbot/Let's Encrypt on the server.
+- Next.js app container
+- PostgreSQL 16
+- Redis
+- S3-compatible object storage
+- nginx reverse proxy
+- HTTPS via Cloudflare or certbot
 
 ## Required Environment Variables
 
-Create `.env.production` directly on the server. Do not commit it.
-
 ```bash
 NODE_ENV=production
-DEPLOYMENT_ENVIRONMENT=production
 APP_URL=https://app.example.com
-DATABASE_URL=postgresql://nizamkitchen:REPLACE_ME@postgres:5432/nizamkitchen?schema=public
-POSTGRES_DB=nizamkitchen
-POSTGRES_USER=nizamkitchen
-POSTGRES_PASSWORD=REPLACE_ME_WITH_A_LONG_RANDOM_PASSWORD
-SESSION_SECRET=REPLACE_ME_WITH_32_PLUS_RANDOM_CHARACTERS
+DATABASE_URL="<postgres connection string>"
+# set the session secret in the ignored production env file
 ```
 
-`DATABASE_URL`, `SESSION_SECRET`, `APP_URL`, and `NODE_ENV=production` are required for a real production runtime. `SESSION_SECRET` must be at least 32 characters.
-
-## Optional Environment Variables
+For the current NizamKitchen production domain, `APP_URL` must be:
 
 ```bash
-REDIS_URL=redis://redis:6379
-MAPTILER_API_KEY=
-NEXT_PUBLIC_MAPTILER_API_KEY=
-MAPTILER_RESTAURANT_DISCOVERY_ENABLED=false
-YOUTUBE_DATA_API_KEY=
-YOUTUBE_DISCOVERY_ENABLED=false
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
-EMAIL_FROM=noreply@example.com
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
+APP_URL="<https://nk.friscodawah.org>"
 ```
 
-Missing optional keys must show setup/disabled states rather than crashing the app. Server-only keys such as `MAPTILER_API_KEY`, `YOUTUBE_DATA_API_KEY`, SMTP credentials, and Stripe placeholders must never be exposed to browser bundles.
+Google OAuth must use this exact production redirect URI in Google Cloud Console:
 
-## First-Time Server Setup
+```text
+https://nk.friscodawah.org/api/auth/oauth/google/callback
+```
+
+## Common Optional Environment Variables
+
+Configure optional integration values in the ignored production env file or a managed secret store. Do not paste real values into Git-tracked files.
+
+| Setting | Purpose |
+| --- | --- |
+| `REDIS_URL` | Redis connection string. |
+| `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION` | S3-compatible storage location. |
+| `OBJECT_STORAGE_ACCESS_KEY` and the matching storage secret value | S3-compatible storage credentials. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and the matching SMTP password value | Outbound email provider. |
+| `EMAIL_FROM` | Default sender email address. |
+| Google Maps, Places, and Geocoding key settings | Google location services. |
+| `YOUTUBE_DISCOVERY_ENABLED` and the YouTube server key setting | YouTube discovery and curation. |
+| Encryption key setting | Field-level credential encryption. |
+| `ERROR_TRACKING_DSN`, `ERROR_TRACKING_ENABLED` | Error tracking provider integration. |
+| `DEPLOYMENT_ENVIRONMENT` | Deployment environment label. |
+
+Do not commit production env files. Keep them only on the server or in a managed secret store.
+
+## Deployment Steps
 
 1. Install Docker Engine and Docker Compose plugin.
-2. Clone the repository on the server.
-3. Create `.env.production` from the variables above.
-4. Point DNS at the server.
-5. Configure nginx and HTTPS before sending real users to the app.
-6. Run `./scripts/ops/deploy.sh`.
+2. Configure a container registry such as GitHub Container Registry, Docker Hub, or AWS ECR.
+3. Create `.env.production` with the production values above.
+4. Build the image outside production and push an immutable tag.
+5. Pull the image on the production server.
+6. Run production migrations.
+7. Start the app container.
+8. Verify `/api/health` and the admin system status pages.
 
-The deploy script builds the image, starts PostgreSQL/Redis, runs `prisma migrate deploy`, starts the app, and calls `/api/health`.
+The EC2 host should not build images during normal deployments. Building on the server can exhaust disk, memory, and swap.
 
-## Deployment Commands
+## Commands
 
-Build and deploy:
+Deploy:
 
 ```bash
 ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml ./scripts/ops/deploy.sh
+```
+
+Preferred registry-based deployment:
+
+```bash
+IMAGE=ghcr.io/joblynk-aiexploration/nizamkitchen:sha-$(git rev-parse --short HEAD) \
+PROD_HOST=ubuntu@ec2-18-119-205-193.us-east-2.compute.amazonaws.com \
+SSH_KEY="/path/to/key.pem" \
+APP_URL=https://nk.friscodawah.org \
+./scripts/ops/deploy-production.sh
+```
+
+Pull and restart from the server:
+
+```bash
+NIZAMKITCHEN_IMAGE=ghcr.io/joblynk-aiexploration/nizamkitchen:sha-abc123 \
+APP_URL=https://nk.friscodawah.org \
+./scripts/ops/pull-and-restart.sh
 ```
 
 Run migrations only:
@@ -73,144 +96,50 @@ Run migrations only:
 ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml ./scripts/ops/run-migrations.sh
 ```
 
-Check health:
+Health check:
 
 ```bash
 APP_URL=https://app.example.com ./scripts/ops/health-check.sh
 ```
 
-Manual compose commands:
+Server resource check:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml build
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d postgres redis
-docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d app
+APP_URL=https://nk.friscodawah.org ./scripts/ops/server-health.sh
 ```
 
-## Prisma Migrations
+See [deployment-pipeline.md](./deployment-pipeline.md) for registry, rollback, and cleanup guidance.
 
-Production migrations must use:
+## Prisma and Seed Strategy
 
-```bash
-npm run db:deploy
-```
+- Use `npx prisma migrate deploy` in production.
+- Do not run `prisma migrate dev` in production.
+- Do not run destructive or demo-oriented seed workflows in production.
+- If you need initial production data, create a reviewed production-safe seed path first.
 
-In Docker production, use the `migrate` service or `scripts/ops/run-migrations.sh`. Do not run `prisma migrate dev` in production.
+## Health Endpoints
 
-Before applying migrations:
-
-- Take a database backup.
-- Confirm the app image was built from the intended Git commit.
-- Review migration SQL if the migration is risky.
-- Run migrations before routing traffic to the new app container.
-
-Rollback plan:
-
-- Prefer forward-fix migrations for schema changes.
-- If rollback is unavoidable, stop app traffic, restore the verified backup, redeploy the previous image, and run health checks.
-
-## Seed Strategy
-
-Do not run destructive demo seed scripts automatically in production.
-
-Recommended approach:
-
-- Local development can use `npm run db:seed`.
-- Production should start with migrations only.
-- If an initial production owner or country catalog is needed, create a separate reviewed production-safe seed script before launch.
-- Always back up before any production data import.
-
-## Health Check
-
-`GET /api/health` returns safe JSON only:
-
-- app identity and environment label
-- database reachability
-- Prisma migration table reachability
-- Prisma client health label
-- uptime and app version
-- observability placeholder snapshot
-- timestamp
-
-It does not return secrets, connection strings, API keys, stack traces, or user data. If the database or migration table is unreachable, it returns HTTP `503`.
-
-Additional endpoints remain available for operators:
-
+Available operational endpoints:
+- `/api/health`
 - `/api/health/db`
-- `/api/health/redis`
 - `/api/health/storage`
+- `/api/health/payments`
+- `/api/health/integrations`
 
-## nginx Reverse Proxy
+These endpoints must return safe JSON only and must not expose connection strings, secrets, raw stack traces, or provider credentials.
 
-Example nginx server block:
+## Production Safety Notes
 
-```nginx
-server {
-  listen 80;
-  server_name app.example.com;
+- Secure cookies require HTTPS in production.
+- Payment, storage, and KYC credentials must remain server-side only.
+- Optional integrations must fail gracefully when not configured.
+- Demo login shortcuts, uploaded files, and local-only env files must never be committed.
+- Legacy video-analysis automation is not part of the production platform.
 
-  client_max_body_size 25m;
+## Manual Launch Checklist
 
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
-```
-
-Use Cloudflare HTTPS in front of nginx or install certbot and redirect port 80 to 443.
-
-## HTTPS Options
-
-Cloudflare:
-
-- Put the domain behind Cloudflare.
-- Use Full or Full Strict SSL mode.
-- Keep origin firewall rules tight.
-
-certbot:
-
-```bash
-sudo certbot --nginx -d app.example.com
-sudo certbot renew --dry-run
-```
-
-## Backups
-
-See `docs/production-backups.md`.
-
-Short version:
-
-- Back up PostgreSQL before every production migration.
-- Store backups outside Git.
-- Encrypt and restrict access to backups.
-- Test restores on a non-production database.
-
-## Security Checklist
-
-- `NODE_ENV=production` is set.
-- `SESSION_SECRET` is strong and not committed.
-- Secure cookies are active over HTTPS.
-- nginx or Cloudflare sits in front of the Node process.
-- `.env.production` exists only on the server.
-- Demo login shortcuts are not present in committed code.
-- Server-only API keys are not prefixed with `NEXT_PUBLIC_`.
-- Optional MapTiler/YouTube/SMTP/Stripe keys can be missing without crashing.
-- `/api/health` exposes no secrets.
-
-## What Remains Manual
-
-- Provisioning the VPS/EC2 host.
-- Creating `.env.production`.
-- DNS setup.
-- Cloudflare/certbot HTTPS setup.
-- Registry push/pull credentials if using GHCR/ECR.
-- Production-safe initial admin creation if the demo seed is not acceptable.
-- Backup scheduling in cron or the cloud provider.
+- Confirm DNS, nginx, and HTTPS are configured.
+- Confirm PostgreSQL backups are working before migrations.
+- Confirm S3/object storage is reachable and tested.
+- Confirm SMTP, Stripe, PayPal, and KYC providers are either configured or intentionally disabled.
+- Run lint, type-check, tests, build, and E2E before cutting over traffic.
