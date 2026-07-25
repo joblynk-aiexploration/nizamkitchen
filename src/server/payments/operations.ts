@@ -2,6 +2,7 @@ import { PaymentProvider, Prisma, type PlatformRole, type UserStatus } from "@pr
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { lockPaidHomeChefRequestsForPaymentOrder } from "@/server/home-chef/home-chef-booking-lock-service";
 
 type PaymentAdminSession = {
   user: { id: string; email: string; status: UserStatus; platformRole: PlatformRole | null };
@@ -164,6 +165,9 @@ export async function syncModulePaymentStatus(paymentOrderId: string, status: "p
     prisma.foodOrder.updateMany({ where: { paymentOrderId }, data }),
     prisma.homeChefRequest.updateMany({ where: { paymentOrderId }, data }),
   ]);
+  if (status === "paid") {
+    await lockPaidHomeChefRequestsForPaymentOrder(paymentOrderId);
+  }
 }
 
 export async function exportPaymentsCsv(session: PaymentAdminSession, type: "transactions" | "refunds" | "disputes" | "payouts" | "commissions") {

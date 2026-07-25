@@ -1,39 +1,64 @@
-# NizamKitchen Payments
+# Payments
 
-NizamKitchen uses a provider-agnostic payment layer. Product modules create a `PaymentOrder`; gateway adapters create hosted checkout sessions or provider orders; webhooks are the trusted source for final payment state.
+NizamKitchen uses a provider-agnostic payment layer with admin-controlled gateway configuration.
 
-## Supported flows
+## Current Capabilities
 
-- Food orders: Stripe Checkout or PayPal checkout can collect payment for menu order requests.
-- Home chef requests: admins can quote a full amount or deposit, then households can pay through configured gateways.
-- Billing subscriptions: Stripe subscription checkout is supported through admin-configured Stripe Price IDs.
-- Seller payouts: Stripe Connect onboarding is available for home catering, restaurant, and chef business organizations.
-- Manual/offline payments: admins can reconcile cash, bank transfer, or direct seller payments when enabled.
+- Stripe hosted checkout for supported flows
+- PayPal checkout for supported flows
+- Stripe subscriptions
+- Stripe Connect payout onboarding for supported seller types
+- Manual/offline payment support where policy allows
+- Webhook storage and idempotent processing
+- Refund, dispute, commission, and payout operations pages
 
-## Production safety rules
+## Core Admin Pages
 
-- NizamKitchen never stores raw card numbers, CVV, or custom card forms.
-- Gateway secret keys are stored encrypted with `ENCRYPTION_KEY`.
-- Only masked credential previews are shown after save.
-- Amounts, taxes, platform commission, and seller amounts are calculated server-side.
-- Clients cannot mark payments paid, choose provider secrets, or set seller payout amounts.
-- Stripe and PayPal webhooks are signature-verified and stored by provider event ID for idempotency.
+- `/admin/payments`
+- `/admin/payments/gateways`
+- `/admin/payments/configurations`
+- `/admin/payments/operations`
+- `/admin/payments/transactions`
+- `/admin/payments/refunds`
+- `/admin/payments/disputes`
+- `/admin/payments/payouts`
+- `/admin/payments/commissions`
+- `/admin/payments/webhooks`
 
-## Operations pages
+## Security Rules
 
-- `/admin/payments`: payment system overview.
-- `/admin/payments/gateways`: provider registry and encrypted credential setup.
-- `/admin/payments/configurations`: country/currency controls and commission settings.
-- `/admin/payments/operations`: gross volume, fees, refunds, disputes, payouts, and failed events.
-- `/admin/payments/transactions`: all payment orders and transaction detail.
-- `/admin/payments/refunds`: refund records.
-- `/admin/payments/disputes`: dispute tracking.
-- `/admin/payments/payouts`: seller payout records.
-- `/admin/payments/commissions`: seller gross, platform commission, refunds, and seller net.
-- `/admin/payments/webhooks`: safe webhook status list without raw secret data.
+- No raw card numbers are stored.
+- No CVV is stored.
+- Secret gateway credentials are encrypted with `ENCRYPTION_KEY`.
+- Admin users only see masked previews after save.
+- Amounts, commissions, and seller payouts are calculated server-side.
+- Webhook events are the trusted source for final provider state.
 
-## Limitations
+## Environment and Setup
 
-- PayPal marketplace payouts are not implemented; PayPal checkout is captured server-side, and seller settlement may require manual operations.
-- Direct Google Pay token processing is disabled. Google Pay is exposed only through supported hosted gateways such as Stripe Checkout when available.
-- Provider dispute evidence upload is tracked manually for now.
+Common payment-related variables:
+
+```bash
+ENCRYPTION_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+```
+
+The app must stay stable if payment credentials are missing. Missing gateways should show setup or disabled states, not runtime crashes.
+
+## What Is Still Placeholder
+
+- Some future gateway adapters are shells only.
+- Direct Google Pay token processing is not enabled.
+- Certain dispute evidence and manual reconciliation actions still require operator review.
+- Country-specific payout behavior may still require admin setup before live marketplace checkout is allowed.
+
+## Launch Checklist
+
+- Confirm `ENCRYPTION_KEY` is set.
+- Configure live or sandbox gateways from the admin panel.
+- Verify webhook endpoints and signatures.
+- Verify payout onboarding requirements for seller types.
+- Verify refunds and admin-only payment operations are permission-checked.

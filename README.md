@@ -1,112 +1,139 @@
-# NizamKitchen SaaS Foundation
+# NizamKitchen
 
-Initial enterprise-grade SaaS foundation for NizamKitchen. This phase intentionally focuses on platform infrastructure only and excludes recipe, grocery, chef marketplace, restaurant fallback, maps, YouTube, and ordering modules.
+NizamKitchen helps Hyderabadi households plan meals, generate groceries, cook with real recipes and videos, hire home chefs, browse home catering sellers, and order from restaurant partners.
 
 ## Stack
 
-- Next.js 16 App Router
-- TypeScript with strict mode
-- Tailwind CSS
-- PostgreSQL + Prisma ORM
-- Zod validation
-- Custom email/password auth with HTTP-only session cookies
-- Multi-tenant and country-aware access controls
+| Layer | Technology |
+| --- | --- |
+| Framework | Next.js 16 App Router, React 19, TypeScript |
+| Database | PostgreSQL + Prisma |
+| Auth | Custom email/password + HTTP-only session cookies |
+| Storage | S3-compatible object storage with local MinIO fallback |
+| Payments | Provider-agnostic gateway layer with Stripe and PayPal support |
+| Email | SMTP with graceful placeholder mode |
+| Testing | Vitest + Playwright |
+| Local infra | Docker Compose for PostgreSQL, Redis, MinIO, Mailpit |
 
-## What is included
+## Local Setup
 
-- Custom register, login, logout, and current-session helpers
-- Tenant-safe organization scoping utilities
-- Platform role and organization role guards
-- Country registry, country assignments, and country configs
-- Audit logs, feature flags, billing placeholders, API key placeholders, storage file placeholders, email log placeholders, and system settings
-- Public, protected, and platform admin route structure
-- Health endpoints at `/api/health`, `/api/health/db`, `/api/health/redis`, and `/api/health/storage`
-- Seed data for demo users, organizations, countries, and flags
-- Docker assets for PostgreSQL, Redis, MinIO, and Mailpit
-- CI validation workflow and deployment documentation
+Prerequisites:
+- Node.js 22+
+- Docker Desktop or another Docker daemon for local services
 
-## Quick start
+Commands:
 
-1. Copy `.env.example` to `.env`.
-2. Install dependencies with `npm install`.
-3. Start the full local stack with `npm run docker:up`.
-4. Create the database schema with `npm run db:migrate`.
-5. Seed demo data with `npm run db:seed`.
-6. Open `http://localhost:3000`.
+```bash
+npm install
+cp .env.example .env
+npm run docker:up
+npx prisma generate
+npx prisma migrate dev
+npx prisma db seed
+npm run dev
+```
 
-## Environment variables
+Open `http://localhost:3000`.
 
-- Core runtime values are documented in `.env.example`.
-- Infrastructure placeholders include PostgreSQL, Redis, object storage, SMTP, logging, and observability settings.
-- Full reference: [Environment Variables](docs/environment-variables.md)
+Local service ports:
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+- MinIO API: `localhost:9000`
+- MinIO console: `localhost:9001`
+- Mailpit SMTP: `localhost:1025`
+- Mailpit UI: `localhost:8025`
 
-## Database setup
+## Required Environment Variables
 
-1. Confirm `DATABASE_URL` points to PostgreSQL.
-2. Run `npm run db:generate`.
-3. Run `npm run db:migrate`.
-4. Run `npm run db:seed`.
-5. Use `npm run db:deploy` for production releases only.
+These are required for a real app runtime:
 
-## Docker setup
+```bash
+DATABASE_URL=
+SESSION_SECRET=
+APP_URL=
+NODE_ENV=
+```
 
-- Local stack: `npm run docker:up`
-- Local shutdown: `npm run docker:down`
-- Local services include the app, PostgreSQL, Redis, MinIO, and Mailpit.
-- Production example stack: `docker-compose.prod.example.yml`
+Additional commonly used variables:
 
-## Demo credentials
+```bash
+REDIS_URL=
+OBJECT_STORAGE_ENDPOINT=
+OBJECT_STORAGE_BUCKET=
+OBJECT_STORAGE_REGION=
+OBJECT_STORAGE_ACCESS_KEY=
+OBJECT_STORAGE_SECRET_KEY=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM=
+GOOGLE_MAPS_BROWSER_API_KEY=
+GOOGLE_MAPS_SERVER_API_KEY=
+GOOGLE_PLACES_SERVER_API_KEY=
+GOOGLE_GEOCODING_API_KEY=
+YOUTUBE_DATA_API_KEY=
+YOUTUBE_DISCOVERY_ENABLED=
+ENCRYPTION_KEY=
+ERROR_TRACKING_DSN=
+ERROR_TRACKING_ENABLED=
+DEPLOYMENT_ENVIRONMENT=
+```
 
-- `owner@nizamkitchen.dev` / `Password123!`
-- `admin@nizamkitchen.dev` / `Password123!`
-- `country@nizamkitchen.dev` / `Password123!`
-- `household@nizamkitchen.dev` / `Password123!`
-- `chef@nizamkitchen.dev` / `Password123!`
-- `restaurant@nizamkitchen.dev` / `Password123!`
+Use [`.env.example`](/Users/rm/projects/nizamkitchen/.env.example) as the source of truth for local placeholders.
 
-## Scripts
+## Local Demo Accounts
 
-- `npm run dev`
-- `npm run build`
-- `npm run start`
-- `npm run lint`
-- `npm run type-check`
-- `npm run test`
-- `npm run db:generate`
-- `npm run db:migrate`
-- `npm run db:deploy`
-- `npm run db:status`
-- `npm run db:seed`
-- `npm run docker:up`
-- `npm run docker:down`
+Local seed data creates the current five role-based demo accounts:
 
-## Deployment docs
+| Role | Purpose |
+| --- | --- |
+| Platform owner | Full platform control |
+| Household | Customer and family workflows |
+| Chef staff | Assigned home chef requests only |
+| Home catering staff | Own catering profile, menu, and orders |
+| Restaurant owner | Own restaurant profile, menu, and orders |
 
-- [Infrastructure](docs/infrastructure.md)
-- [Deployment](docs/deployment.md)
-- [Environment Variables](docs/environment-variables.md)
-- [Database Migrations](docs/database-migrations.md)
-- [Backup And Restore](docs/backup-restore.md)
-- [Security Notes](docs/security.md)
+Use your ignored local environment or the protected local login panel for demo credentials. Do not document, commit, or reuse local demo passwords in production.
 
-## Security notes
+## Quality Checks
 
-- Tenant isolation is enforced server-side.
-- Platform admin access is separated from organization access.
-- Sensitive denied-access events are audit logged.
-- Session cookies are HTTP-only and secure in production.
+```bash
+npx prisma generate
+npx prisma validate
+npm run lint
+npm run type-check
+npm run test
+npm run build
+npm run test:e2e
+```
 
-## Deployment notes
+Notes:
+- `npm run test` currently passes with the full Vitest suite.
+- `npm run test:e2e` requires PostgreSQL to be running and seeded.
 
-- The current deployment target is flexible enough for a single VPS now and AWS ECS/Fargate later.
-- Production database migrations must use `prisma migrate deploy`.
-- Do not commit secrets; keep production credentials in environment-specific secret stores.
+## Production Setup
 
-## Architecture notes
+Use the dedicated deployment guides:
+- [docs/production-deployment.md](/Users/rm/projects/nizamkitchen/docs/production-deployment.md)
+- [docs/payments.md](/Users/rm/projects/nizamkitchen/docs/payments.md)
+- [docs/storage.md](/Users/rm/projects/nizamkitchen/docs/storage.md)
+- [docs/seller-verification.md](/Users/rm/projects/nizamkitchen/docs/seller-verification.md)
+- [docs/operations.md](/Users/rm/projects/nizamkitchen/docs/operations.md)
+- [docs/known-limitations.md](/Users/rm/projects/nizamkitchen/docs/known-limitations.md)
 
-- Every tenant-owned model includes `organizationId`.
-- Country-aware models include `countryCode`.
-- All API handlers validate input with Zod.
-- Auth and permission checks are enforced server-side.
-- Audit events are recorded for important actions and denied access attempts.
-- Future product modules should use the helpers in `src/lib/tenant.ts` and `src/lib/permissions.ts`.
+## Security Notes
+
+- Never commit `.env.local`, `.env.production`, uploaded files, provider secrets, or encryption keys.
+- Session cookies are HTTP-only and should only be used behind HTTPS in production.
+- Payment, storage, and KYC credentials are server-side only and must never be exposed in browser config.
+- Legacy video-analysis automation has been intentionally removed and is not part of this codebase.
+
+## Launch Checklist
+
+- Confirm PostgreSQL, Redis, SMTP, and object storage are reachable.
+- Set all production secrets outside Git.
+- Run `npx prisma generate` and `npx prisma validate`.
+- Run `npm run lint`, `npm run type-check`, `npm run test`, `npm run build`, and `npm run test:e2e`.
+- Seed only local/demo environments; do not run demo seed destructively in production.
+- Review feature flags, payment gateway status, storage status, and seller verification policy before launch.

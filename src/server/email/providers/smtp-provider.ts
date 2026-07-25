@@ -37,14 +37,15 @@ export async function resolveEmailProvider(countryCode?: string | null): Promise
       const failures: string[] = [];
 
       for (const provider of providers) {
+        const timeoutMs = input.timeoutMs ?? 20_000;
         const transport = nodemailer.createTransport({
           host: provider.host,
           port: provider.port,
           secure: provider.secure,
           auth: provider.username && provider.password ? { user: provider.username, pass: provider.password } : undefined,
-          connectionTimeout: 10_000,
-          greetingTimeout: 10_000,
-          socketTimeout: 20_000,
+          connectionTimeout: Math.min(10_000, timeoutMs),
+          greetingTimeout: Math.min(10_000, timeoutMs),
+          socketTimeout: timeoutMs,
         });
 
         try {

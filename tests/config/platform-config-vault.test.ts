@@ -470,6 +470,7 @@ describe("platform configuration vault", () => {
       "google_oauth",
       "facebook_oauth",
       "google_analytics",
+      "secure_privacy",
       "google_search_console",
       "google_recaptcha",
       "google_adsense",

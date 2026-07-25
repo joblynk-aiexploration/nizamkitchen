@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SeoScope } from "@prisma/client";
@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { requireMembership } from "@/lib/auth/session";
-import { formatTotalTime, formatQuantity, groupIngredientsBySection } from "@/lib/recipe-utils";
-import { getRecipeById } from "@/server/recipes";
+import { formatTotalTime, formatQuantity, groupIngredientsBySection, isRecipeVisibleToOrganization } from "@/lib/recipe-utils";
+import { findHouseholdRecipeCopy, getRecipeById, getRecipeWithSourceById } from "@/server/recipes";
 import { FULL_PLATFORM_ADMIN_ROLES, hasPlatformRole } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { VideoReferenceCard } from "@/components/video/video-reference-card";
+import { FormMessage } from "@/components/ui/form-message";
 import { favoriteRecipeAction } from "@/app/(app)/household/actions";
 import {
   canAccessFamilyProfiles,
@@ -58,20 +60,24 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function RecipeDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ message?: string }>;
 }) {
   const session = await requireMembership();
   const { id } = await params;
-  const recipe = await getRecipeById(id);
+  const { message } = await searchParams;
+  const recipe = await getRecipeWithSourceById(id);
 
-  if (!recipe || !recipe.isPublished) {
+  const orgId = session.activeOrganization.id;
+  const isAdmin = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES);
+
+  if (!recipe || !recipe.isPublished || (!isAdmin && !isRecipeVisibleToOrganization(recipe, orgId))) {
     notFound();
   }
 
-  const orgId = session.activeOrganization.id;
-  const canEdit = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES) ||
-    (recipe.organizationId === orgId);
+  const canEdit = isAdmin || recipe.organizationId === orgId;
 
   const [youtubeEnabled, restaurantFallbackEnabled] = await Promise.all([
     isFeatureEnabled("youtube_references", orgId),
@@ -94,7 +100,19 @@ export default async function RecipeDetailPage({
 
   const sections = groupIngredientsBySection(recipe.ingredients);
 
-  const isAdmin = hasPlatformRole(session.user.platformRole, FULL_PLATFORM_ADMIN_ROLES);
+  async function addToMyRecipes() {
+    "use server";
+    const { requireMembership: getSession } = await import("@/lib/auth/session");
+    const { copyRecipeToMyRecipes } = await import("@/server/recipes");
+    const sess = await getSession();
+    const copy = await copyRecipeToMyRecipes({
+      session: sess,
+      recipeId: id,
+      organizationId: sess.activeOrganization.id,
+      countryCode: sess.activeOrganization.countryCode,
+    });
+    redirect(withAnalyticsEvent(`/recipes/${copy.id}/edit?message=${encodeURIComponent("Recipe copied to My Recipes. You can customize your household version here.")}`, "add_to_my_recipes"));
+  }
 
   const allYoutubeRefs = recipe.mediaRefs
     .filter((r) => r.type === "youtube")
@@ -109,6 +127,9 @@ export default async function RecipeDetailPage({
   const primaryRef = youtubeRefs.find((r) => r.isPrimary) ?? youtubeRefs[0] ?? null;
 
   const showHouseholdTools = familyProfilesEnabled && session.activeOrganization.organizationType === "household";
+  const existingHouseholdCopy = showHouseholdTools && recipe.isGlobal
+    ? await findHouseholdRecipeCopy({ organizationId: orgId, sourceRecipeId: recipe.id })
+    : null;
   const showRecipeProviderRequest =
     isHouseholdRequestOrganization(session.activeOrganization.organizationType) &&
     (homeChefsEnabled || homeCateringEnabled);
@@ -138,6 +159,8 @@ export default async function RecipeDetailPage({
         }
       />
 
+      {message && <FormMessage message={message} />}
+
       <div className="flex flex-wrap gap-2">
         <Badge tone="neutral">{DIFFICULTY_LABELS[recipe.difficulty]}</Badge>
         <Badge tone="warning">{SPICE_LABELS[recipe.spiceLevel]}</Badge>
@@ -146,6 +169,8 @@ export default async function RecipeDetailPage({
         <Badge tone="neutral">Total: {formatTotalTime(recipe)}</Badge>
         <Badge tone="neutral">{recipe.servings} {recipe.servingUnit}s</Badge>
         {recipe.isGlobal && <Badge tone="info">global recipe</Badge>}
+        {recipe.sourceRecipeId && <Badge tone="success">my recipe</Badge>}
+        {recipe.sourceRecipe && <Badge tone="neutral">customized from {recipe.sourceRecipe.name}</Badge>}
         {recipe.countryCode && <Badge tone="info">{recipe.countryCode}</Badge>}
         {recipe.dietaryTags.map(({ dietaryTag }) => (
           <Badge key={dietaryTag.id} tone="success">{dietaryTag.name}</Badge>
@@ -162,6 +187,21 @@ export default async function RecipeDetailPage({
             <Button type="submit" variant={favorite ? "secondary" : "primary"}>
               {favorite ? "Favorited" : "Favorite"}
             </Button>
+          </form>
+        )}
+        {showHouseholdTools && recipe.isGlobal && existingHouseholdCopy && (
+          <>
+            <Button asChild variant="secondary">
+              <Link href={`/recipes/${existingHouseholdCopy.id}`}>Open My Recipe</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href={`/recipes/${existingHouseholdCopy.id}/edit`}>Edit My Recipe</Link>
+            </Button>
+          </>
+        )}
+        {showHouseholdTools && recipe.isGlobal && !existingHouseholdCopy && (
+          <form action={addToMyRecipes}>
+            <Button type="submit">Add to My Recipes</Button>
           </form>
         )}
         {showRecipeProviderRequest && (

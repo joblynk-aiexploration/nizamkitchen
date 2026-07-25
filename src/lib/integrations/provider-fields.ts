@@ -196,6 +196,20 @@ export const providerFormRegistry: Record<IntegrationProvider, ProviderFormDefin
       { kind: "setting", key: "debugMode", label: "Debug mode", type: "select", advanced: true, options: booleanOptions() },
     ],
   },
+  secure_privacy: {
+    provider: "secure_privacy",
+    category: "consent",
+    displayName: "Secure Privacy CMP",
+    description: "Secure Privacy cookie banner and consent mode controls.",
+    setupGuide: "Paste the Secure Privacy script URL from Secure Privacy. Keep Google Analytics configured separately under Google Analytics.",
+    testDescription: "Validate the script URL and consent-mode settings.",
+    fields: [
+      { kind: "setting", key: "scriptUrl", label: "Script URL", type: "url", required: true, placeholder: "https://app.secureprivacy.ai/script/6a265d6522609752e3d645f1.js", helpText: "Public Secure Privacy script URL. The script loads only when this integration is enabled." },
+      { kind: "setting", key: "consentModeEnabled", label: "Consent Mode enabled", type: "select", required: true, options: booleanOptions(), placeholder: "true" },
+      { kind: "setting", key: "googleAnalyticsConsentEnabled", label: "Google Analytics consent enabled", type: "select", required: true, options: booleanOptions(), placeholder: "true" },
+      { kind: "setting", key: "googleAnalyticsIntegrationEnabled", label: "Google Analytics integration legacy alias", type: "select", advanced: true, options: booleanOptions(), placeholder: "true" },
+    ],
+  },
   google_search_console: {
     provider: "google_search_console",
     category: "seo",

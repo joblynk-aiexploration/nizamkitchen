@@ -130,6 +130,13 @@ describe("social auth service", () => {
     });
   });
 
+  it("wires visible social providers into the public login page", async () => {
+    const loginPage = await fs.readFile("src/app/(public)/login/page.tsx", "utf8");
+
+    expect(loginPage).toContain('listVisibleSocialAuthProvidersSafe("login")');
+    expect(loginPage).toContain("<SocialAuthButtons");
+  });
+
   it("shows social auth buttons and marks unconfigured/disabled providers clearly", async () => {
     vi.mocked(getActiveIntegration)
       .mockResolvedValueOnce({
@@ -595,6 +602,57 @@ describe("social auth service", () => {
       userId: "user-social",
       planId: "plan-family-plus",
     }));
+  });
+
+  it("skips Stripe checkout after social onboarding when a free plan was selected", async () => {
+    const country = {
+      countryCode: "US",
+      currencyCode: "USD",
+      defaultTimezone: "America/Chicago",
+      defaultLocale: "en-US",
+      measurementSystem: "imperial",
+      isActive: true,
+    };
+    const user = {
+      id: "user-social",
+      email: "family@example.test",
+      fullName: "Family User",
+      platformRole: null,
+      status: "active",
+    };
+    const organization = {
+      id: "org-social",
+      countryCode: "US",
+    };
+    const tx = {
+      user: { update: vi.fn(async () => user) },
+      organization: { create: vi.fn(async () => organization) },
+      membership: { create: vi.fn() },
+      householdProfile: { create: vi.fn() },
+      chefProfile: { create: vi.fn() },
+      homeCateringProfile: { create: vi.fn() },
+    };
+
+    mockPrisma.country.findUnique.mockResolvedValue(country);
+    mockPrisma.$transaction.mockImplementation(async (callback) => callback(tx));
+    mockPrisma.session.update.mockResolvedValue({ id: "session-1" });
+    vi.mocked(getActiveBillingPlanBySlug).mockResolvedValue({
+      id: "plan-household-free",
+      priceAmount: 0,
+    } as never);
+
+    const destination = await completeSocialOnboarding({
+      userId: "user-social",
+      sessionId: "session-1",
+      fullName: "Family User",
+      accountType: "household",
+      organizationName: "Family Kitchen",
+      countryCode: "US",
+      selectedPlanSlug: "household-free",
+    });
+
+    expect(destination).toBe("/household/preferences?message=Your+free+account+is+ready.+Welcome+to+NizamKitchen.&analytics_event=sign_up");
+    expect(createStripeSubscriptionCheckout).not.toHaveBeenCalled();
   });
 
   it("rejects invalid callback state", async () => {

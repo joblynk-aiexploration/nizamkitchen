@@ -1,5 +1,6 @@
 import type { getCurrentSession } from "@/lib/session";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
+import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import {
   featureFlagCreateSchema,
@@ -9,6 +10,16 @@ import { recordAdminAuditLog } from "@/server/audit/audit-service";
 import { createAdminNotification } from "@/server/notifications/notification-service";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
+
+const REQUIRED_GLOBAL_FEATURE_FLAGS = [
+  {
+    key: COOKIE_PRIVACY_CONSENT_FEATURE_FLAG,
+    name: "Cookie privacy consent and analytics",
+    description:
+      "Launch control for Secure Privacy CMP, Google Consent Mode, Google Analytics, and public tracking scripts. Disable during launch if analytics is not needed yet.",
+    enabled: true,
+  },
+] as const;
 
 export async function listAdminFeatureFlags(session: Session) {
   assertPlatformRole(session.user.platformRole, [
@@ -20,6 +31,10 @@ export async function listAdminFeatureFlags(session: Session) {
   ]);
   const isCountryManager = session.user.platformRole === "country_manager";
   const assignedCountries = session.countryAssignments.map((assignment) => assignment.countryCode);
+
+  if (session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin") {
+    await ensureRequiredGlobalFeatureFlags();
+  }
 
   return prisma.featureFlag.findMany({
     where: isCountryManager
@@ -35,6 +50,37 @@ export async function listAdminFeatureFlags(session: Session) {
     },
     orderBy: [{ key: "asc" }, { countryCode: "asc" }],
   });
+}
+
+async function ensureRequiredGlobalFeatureFlags() {
+  for (const flag of REQUIRED_GLOBAL_FEATURE_FLAGS) {
+    const existing = await prisma.featureFlag.findFirst({
+      where: { key: flag.key, organizationId: null, countryCode: null },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.featureFlag.update({
+        where: { id: existing.id },
+        data: {
+          name: flag.name,
+          description: flag.description,
+        },
+      });
+      continue;
+    }
+
+    await prisma.featureFlag.create({
+      data: {
+        key: flag.key,
+        name: flag.name,
+        description: flag.description,
+        enabled: flag.enabled,
+        organizationId: null,
+        countryCode: null,
+      },
+    });
+  }
 }
 
 export async function createFeatureFlag(session: Session, input: unknown) {

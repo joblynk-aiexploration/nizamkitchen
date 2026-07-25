@@ -1,4 +1,6 @@
 import Script from "next/script";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { SecurePrivacyConsentBridge } from "@/components/privacy/secure-privacy-consent-bridge";
 import { getGooglePlatformPublicConfig } from "@/server/seo/seo-service";
 
 export async function GooglePlatformScripts() {
@@ -6,23 +8,23 @@ export async function GooglePlatformScripts() {
 
   if (!config) return null;
 
-  const renderAnalytics = config.analyticsEnabled && !config.analyticsConsentRequired && config.analyticsMeasurementId;
+  const analyticsMeasurementId =
+    config.analyticsEnabled && config.analyticsMeasurementId
+      ? config.analyticsMeasurementId
+      : null;
   const renderAdsense = config.adsenseEnabled && config.adsensePublisherId;
+  const analyticsRequiresConsent =
+    config.analyticsConsentRequired ||
+    (config.consentManagementEnabled && config.consentModeEnabled && config.cmpAnalyticsIntegrationEnabled);
 
   return (
     <>
-      {renderAnalytics ? (
-        <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${config.analyticsMeasurementId}`} strategy="afterInteractive" />
-          <Script id="nizamkitchen-google-analytics" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${config.analyticsMeasurementId}', { anonymize_ip: true });
-            `}
-          </Script>
-        </>
+      <SecurePrivacyConsentBridge
+        enabled={config.consentManagementEnabled}
+        consentModeEnabled={config.consentModeEnabled}
+      />
+      {analyticsMeasurementId ? (
+        <GoogleAnalytics measurementId={analyticsMeasurementId} requiresConsent={analyticsRequiresConsent} />
       ) : null}
       {renderAdsense ? (
         <Script

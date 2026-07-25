@@ -3,16 +3,20 @@ import { assertHealthyPage } from "./helpers";
 
 const expectedFooterLinks = [
   "/features",
+  "/marketplace",
   "/pricing",
   "/for-households",
-  "/for-chefs",
-  "/for-restaurants",
+  "/marketplace/chefs",
+  "/marketplace/caterers",
+  "/marketplace/restaurants",
+  "/marketplace/dishes",
   "/about",
   "/contact",
   "/help",
   "/faq",
   "/terms",
   "/privacy",
+  "/cookie-policy",
   "/legal/seller-agreement",
   "/legal/food-safety",
 ];

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -15,7 +17,14 @@ const { mockPrisma, recordAdminAuditLog } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    ingredientRequest: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     recipe: {
+      count: vi.fn(),
       findFirst: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -25,11 +34,17 @@ const { mockPrisma, recordAdminAuditLog } = vi.hoisted(() => ({
     },
     recipeIngredient: {
       deleteMany: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     recipeStep: {
       deleteMany: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     unit: {
       findUnique: vi.fn(),
@@ -42,6 +57,7 @@ const { mockPrisma, recordAdminAuditLog } = vi.hoisted(() => ({
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
   recordAdminAuditLog: vi.fn(),
 }));
@@ -57,8 +73,19 @@ import { convertUnit, isSafeConversionPossible } from "../../src/lib/units";
 import { matchIngredientByAlias } from "../../src/lib/ingredients";
 import { isRecipeVisibleToOrganization } from "../../src/lib/recipe-utils";
 import { AccessDeniedError } from "../../src/lib/auth";
+import { filterIngredientOptions, getIngredientDisplayName } from "../../src/components/recipes/ingredient-select";
 import { createIngredient } from "../../src/server/ingredients";
-import { createRecipe, listRecipes } from "../../src/server/recipes";
+import {
+  approveIngredientRequest,
+  createIngredientRequest,
+  createRecipe,
+  listRecipes,
+  listRecipesPage,
+  rejectIngredientRequest,
+  updateRecipe,
+  updateRecipeIngredient,
+  updateRecipeStep,
+} from "../../src/server/recipes";
 import type { Unit, UnitConversion, Ingredient } from "@prisma/client";
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
@@ -347,6 +374,101 @@ describe("ingredient alias matching", () => {
   });
 });
 
+describe("canonical ingredient search display", () => {
+  const ingredientSearchOptions = [
+    { id: "ing-onion", name: "Onion", canonicalName: "Onion", category: "vegetable" as const, aliases: [{ alias: "pyaaz" }, { alias: "pyaz" }, { alias: "onions" }] },
+    { id: "ing-yogurt", name: "Yogurt", canonicalName: "Yogurt", category: "dairy" as const, aliases: [{ alias: "dahi" }] },
+    { id: "ing-tamarind", name: "Tamarind", canonicalName: "Tamarind", category: "condiment" as const, aliases: [{ alias: "imli" }] },
+    { id: "ing-turmeric", name: "Turmeric Powder", canonicalName: "Turmeric Powder", category: "spice" as const, aliases: [{ alias: "haldi" }] },
+    { id: "ing-chili", name: "Red Chili Powder", canonicalName: "Red Chili Powder", category: "spice" as const, aliases: [{ alias: "lal mirch" }] },
+    { id: "ing-ggp", name: "Ginger Garlic Paste", canonicalName: "Ginger Garlic Paste", category: "condiment" as const, aliases: [{ alias: "adrak lehsun" }] },
+    { id: "ing-cashews", name: "Cashews", canonicalName: "Cashews", category: "nut" as const, aliases: [{ alias: "kaju" }] },
+    { id: "ing-coriander", name: "Coriander Leaves", canonicalName: "Coriander Leaves", category: "herb" as const, aliases: [{ alias: "hara dhania" }] },
+    { id: "ing-fried-onions", name: "Fried Onions", canonicalName: "Fried Onions", category: "condiment" as const, aliases: [{ alias: "birista" }] },
+    { id: "ing-jaggery", name: "Jaggery", canonicalName: "Jaggery", category: "sweetener" as const, aliases: [{ alias: "gud" }] },
+  ];
+
+  it.each([
+    ["pyaaz", "Onion"],
+    ["pyaz", "Onion"],
+    ["onion", "Onion"],
+    ["onions", "Onion"],
+    ["dahi", "Yogurt"],
+    ["imli", "Tamarind"],
+    ["haldi", "Turmeric Powder"],
+    ["lal mirch", "Red Chili Powder"],
+    ["adrak lehsun", "Ginger Garlic Paste"],
+    ["kaju", "Cashews"],
+    ["hara dhania", "Coriander Leaves"],
+    ["birista", "Fried Onions"],
+    ["gud", "Jaggery"],
+  ])("shows canonical ingredient name for alias search %s", (query, expectedName) => {
+    const results = filterIngredientOptions(ingredientSearchOptions, query);
+
+    expect(results[0]).toEqual(expect.objectContaining({
+      id: expect.stringMatching(/^ing-/),
+      displayName: expectedName,
+      canonicalName: expectedName,
+    }));
+    expect(getIngredientDisplayName(results[0])).toBe(expectedName);
+    if (query.toLowerCase() !== expectedName.toLowerCase()) {
+      expect(results[0].displayName.toLowerCase()).not.toBe(query.toLowerCase());
+    }
+  });
+
+  it("keeps alias text as helper metadata instead of the main label", () => {
+    const [result] = filterIngredientOptions(ingredientSearchOptions, "pyaaz");
+
+    expect(result.displayName).toBe("Onion");
+    expect(result.matchedAlias).toBe("pyaaz");
+  });
+
+  it("saves recipe ingredients by canonical ingredient id instead of alias text", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.recipe.findUniqueOrThrow.mockResolvedValue({
+      id: "recipe-org-1",
+      organizationId: orgA,
+      visibility: "private",
+      isGlobal: false,
+    });
+    mockPrisma.recipeIngredient.findFirst.mockResolvedValue({ id: "ri-1" });
+    mockPrisma.ingredient.findFirst.mockResolvedValue({ id: "ing-onion", name: "Onion", canonicalName: "Onion" });
+    mockPrisma.unit.findUnique.mockResolvedValue({ id: "unit-piece" });
+    mockPrisma.recipeIngredient.update.mockResolvedValue({});
+
+    await updateRecipeIngredient(session as never, {
+      recipeId: "recipe-org-1",
+      recipeIngredientId: "ri-1",
+      ingredientId: "ing-onion",
+      quantity: 2,
+      unitId: "unit-piece",
+      preparationNote: "searched as pyaaz",
+      section: "Main",
+      isOptional: false,
+    });
+
+    expect(mockPrisma.ingredient.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: "ing-onion",
+      }),
+    }));
+    expect(mockPrisma.recipeIngredient.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        ingredientId: "ing-onion",
+        preparationNote: "searched as pyaaz",
+      }),
+    }));
+  });
+
+  it("keeps admin ingredient pages canonical-first with aliases separate", () => {
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/admin/ingredients/page.tsx"), "utf8");
+
+    expect(page).toContain("i.canonicalName");
+    expect(page).toContain("Aliases");
+    expect(page).toContain("i.aliases.slice");
+  });
+});
+
 // ─── Recipe visibility ────────────────────────────────────────────────────────
 
 describe("recipe visibility", () => {
@@ -374,10 +496,15 @@ describe("recipe visibility", () => {
     )).toBe(false);
   });
 
-  it("private recipe is never visible to any organization", () => {
+  it("private recipe is visible to its owning organization only", () => {
     expect(isRecipeVisibleToOrganization(
       { visibility: "private", organizationId: orgA, isPublished: true },
       orgA,
+    )).toBe(true);
+
+    expect(isRecipeVisibleToOrganization(
+      { visibility: "private", organizationId: orgA, isPublished: true },
+      orgB,
     )).toBe(false);
   });
 
@@ -502,6 +629,92 @@ describe("recipe admin library access control", () => {
   });
 });
 
+describe("recipe form UI", () => {
+  it("uses a dropdown for serving units on new and edit recipe pages", () => {
+    const component = fs.readFileSync(path.join(process.cwd(), "src/components/recipes/serving-unit-select.tsx"), "utf8");
+    const newPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/new/page.tsx"), "utf8");
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/[id]/edit/page.tsx"), "utf8");
+
+    expect(component).toContain("<select");
+    expect(component).toContain('name="servingUnit"');
+    expect(component).toContain('value: "serving"');
+    expect(component).toContain('value: "tray"');
+    expect(component).toContain('value: "family pack"');
+    expect(newPage).toContain("<ServingUnitSelect");
+    expect(editPage).toContain("<ServingUnitSelect");
+    expect(newPage).not.toContain('placeholder="serving, tray, family pack"');
+  });
+
+  it("routes household edits of global recipes through a My Recipes copy", () => {
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/[id]/edit/page.tsx"), "utf8");
+
+    expect(editPage).toContain("copyRecipeToMyRecipes");
+    expect(editPage).toContain("You are editing your My Recipes copy");
+    expect(editPage).toContain("The global recipe stays unchanged");
+    expect(editPage).toContain("redirect(`/recipes/${copy.id}/edit");
+    expect(editPage).toContain('eyebrow={isMyRecipe ? "My Recipes" : recipe.cuisine.name}');
+    expect(editPage).toContain("Edit My Recipe:");
+    expect(editPage).toContain("Back to My Recipes");
+  });
+
+  it("uses a professional canonical ingredient builder on recipe edit", () => {
+    const editor = fs.readFileSync(path.join(process.cwd(), "src/components/recipes/recipe-ingredients-editor.tsx"), "utf8");
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/[id]/edit/page.tsx"), "utf8");
+
+    expect(editor).toContain("Ingredient Builder");
+    expect(editor).toContain("Build grocery-ready ingredients");
+    expect(editor).toContain("<IngredientSelect");
+    expect(editor).toContain("<UnitSelect");
+    expect(editor).toContain("Save ingredient");
+    expect(editor).toContain("Move up");
+    expect(editor).toContain("Move down");
+    expect(editor).toContain("Duplicate ingredient warning");
+    expect(editor).toContain("Can&apos;t find this ingredient?");
+    expect(editPage).toContain("updateRecipeIngredient");
+    expect(editPage).toContain("deleteRecipeIngredient");
+    expect(editPage).toContain("moveRecipeIngredient");
+  });
+
+  it("minimizes the long recipe edit page with collapsible section panels", () => {
+    const section = fs.readFileSync(path.join(process.cwd(), "src/components/recipes/recipe-edit-section.tsx"), "utf8");
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/[id]/edit/page.tsx"), "utf8");
+
+    expect(section).toContain("aria-expanded={open}");
+    expect(section).toContain("setOpen");
+    expect(section).toContain("ChevronDown");
+    expect(editPage).toContain("<RecipeEditSection");
+    expect(editPage).toContain('eyebrow="Recipe details"');
+    expect(editPage).toContain('eyebrow="Ingredients"');
+    expect(editPage).toContain('eyebrow="Cooking steps"');
+    expect(editPage).toContain('eyebrow="Videos"');
+    expect(editPage).not.toContain("defaultOpen");
+  });
+
+  it("uses an editable step builder on recipe edit", () => {
+    const editor = fs.readFileSync(path.join(process.cwd(), "src/components/recipes/recipe-steps-editor.tsx"), "utf8");
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/[id]/edit/page.tsx"), "utf8");
+
+    expect(editor).toContain("Step Builder");
+    expect(editor).toContain("Update step");
+    expect(editor).toContain("Remove step");
+    expect(editor).toContain("Move up");
+    expect(editor).toContain("Move down");
+    expect(editPage).toContain("<RecipeStepsEditor");
+    expect(editPage).toContain("updateRecipeStep");
+    expect(editPage).toContain("deleteRecipeStep");
+    expect(editPage).toContain("moveRecipeStep");
+  });
+
+  it("keeps the main recipes page scoped to global templates, not My Recipes copies", () => {
+    const recipesPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/recipes/page.tsx"), "utf8");
+
+    expect(recipesPage).toContain('scope: "global_templates"');
+    expect(recipesPage).toContain("Global Recipe Templates");
+    expect(recipesPage).toContain("Global template");
+    expect(recipesPage).not.toContain("my recipe");
+  });
+});
+
 describe("tenant isolation for organization recipes", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -519,6 +732,7 @@ describe("tenant isolation for organization recipes", () => {
             OR: [
               { visibility: "global", isPublished: true },
               { visibility: "organization", organizationId: orgA, isPublished: true },
+              { visibility: "private", organizationId: orgA, isPublished: true },
             ],
           }),
         ]),
@@ -529,5 +743,253 @@ describe("tenant isolation for organization recipes", () => {
         ]),
       }),
     }));
+  });
+
+  it("listRecipesPage can scope the public recipe page to global templates only", async () => {
+    mockPrisma.recipe.count.mockResolvedValue(0);
+    mockPrisma.recipe.findMany.mockResolvedValue([]);
+
+    await listRecipesPage({
+      organizationId: orgA,
+      publishedOnly: true,
+      scope: "global_templates",
+    });
+
+    const countQuery = mockPrisma.recipe.count.mock.calls[0]?.[0];
+    const findQuery = mockPrisma.recipe.findMany.mock.calls[0]?.[0];
+
+    expect(countQuery).toEqual(expect.objectContaining({
+      where: expect.objectContaining({
+        isPublished: true,
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            organizationId: null,
+            visibility: "global",
+            isPublished: true,
+          }),
+        ]),
+      }),
+    }));
+    expect(findQuery).toEqual(expect.objectContaining({
+      where: countQuery.where,
+    }));
+  });
+
+  it("prevents household recipe updates from becoming global recipes", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.recipe.findUniqueOrThrow.mockResolvedValue({
+      id: "recipe-org-1",
+      organizationId: orgA,
+      visibility: "private",
+      isGlobal: false,
+    });
+
+    await expect(
+      updateRecipe(session as never, "recipe-org-1", {
+        name: "Household Biryani",
+        visibility: "global",
+      }),
+    ).rejects.toThrow("My Recipes");
+
+    expect(mockPrisma.recipe.update).not.toHaveBeenCalled();
+  });
+
+  it("updates household recipe ingredients with canonical ingredient and unit records", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.recipe.findUniqueOrThrow.mockResolvedValue({
+      id: "recipe-org-1",
+      organizationId: orgA,
+      visibility: "private",
+      isGlobal: false,
+    });
+    mockPrisma.recipeIngredient.findFirst.mockResolvedValue({ id: "ri-1" });
+    mockPrisma.ingredient.findFirst.mockResolvedValue({ id: "ing-onion" });
+    mockPrisma.unit.findUnique.mockResolvedValue({ id: "unit-gram" });
+    mockPrisma.recipeIngredient.update.mockResolvedValue({});
+
+    await updateRecipeIngredient(session as never, {
+      recipeId: "recipe-org-1",
+      recipeIngredientId: "ri-1",
+      ingredientId: "ing-onion",
+      quantity: 2,
+      unitId: "unit-gram",
+      preparationNote: "sliced",
+      section: "Main",
+      isOptional: false,
+    });
+
+    expect(mockPrisma.recipeIngredient.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "ri-1" },
+      data: expect.objectContaining({
+        ingredientId: "ing-onion",
+        quantity: 2,
+        unitId: "unit-gram",
+      }),
+    }));
+  });
+
+  it("prevents household users from editing ingredients on global recipes", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.recipe.findUniqueOrThrow.mockResolvedValue({
+      id: "recipe-global-1",
+      organizationId: null,
+      visibility: "global",
+      isGlobal: true,
+    });
+
+    await expect(
+      updateRecipeIngredient(session as never, {
+        recipeId: "recipe-global-1",
+        recipeIngredientId: "ri-1",
+        ingredientId: "ing-onion",
+        quantity: 1,
+        unitId: "unit-gram",
+      }),
+    ).rejects.toThrow(AccessDeniedError);
+
+    expect(mockPrisma.recipeIngredient.update).not.toHaveBeenCalled();
+  });
+
+  it("updates household recipe steps without changing global recipes", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.recipe.findUniqueOrThrow.mockResolvedValue({
+      id: "recipe-org-1",
+      organizationId: orgA,
+      visibility: "private",
+      isGlobal: false,
+    });
+    mockPrisma.recipeStep.findFirst.mockResolvedValue({ id: "step-1" });
+    mockPrisma.recipeStep.update.mockResolvedValue({});
+
+    await updateRecipeStep(session as never, {
+      recipeId: "recipe-org-1",
+      stepId: "step-1",
+      title: "Temper spices",
+      instruction: "Heat oil and bloom the spices.",
+      durationMinutes: 3,
+      tips: "Keep the heat gentle.",
+    });
+
+    expect(mockPrisma.recipeStep.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "step-1" },
+      data: expect.objectContaining({
+        title: "Temper spices",
+        instruction: "Heat oil and bloom the spices.",
+        durationMinutes: 3,
+      }),
+    }));
+  });
+});
+
+describe("household ingredient requests", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("creates an org-scoped canonical ingredient request", async () => {
+    const session = makeOrgMemberSession(orgA);
+    mockPrisma.ingredientRequest.create.mockResolvedValue({
+      id: "request-1",
+      organizationId: orgA,
+      requestedById: session.user.id,
+      requestedName: "Dried rose petals",
+      suggestedCategory: "herb",
+      notes: null,
+      status: "pending",
+      reviewedById: null,
+      reviewedAt: null,
+      createdIngredientId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await createIngredientRequest({
+      session: session as never,
+      organizationId: orgA,
+      requestedName: " Dried rose petals ",
+      suggestedCategory: "herb",
+    });
+
+    expect(mockPrisma.ingredientRequest.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        organizationId: orgA,
+        requestedById: session.user.id,
+        requestedName: "Dried rose petals",
+        suggestedCategory: "herb",
+      }),
+    });
+  });
+
+  it("platform admin can approve a request into a canonical ingredient", async () => {
+    const session = makePlatformAdminSession();
+    mockPrisma.ingredientRequest.findUnique.mockResolvedValue({
+      id: "request-1",
+      organizationId: orgA,
+      requestedById: "user-member",
+      requestedName: "Dried rose petals",
+      suggestedCategory: "herb",
+      notes: null,
+      status: "pending",
+      reviewedById: null,
+      reviewedAt: null,
+      createdIngredientId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mockPrisma.ingredient.create.mockResolvedValue(makeIngredient({ id: "ing-rose", name: "Dried rose petals", canonicalName: "Dried rose petals", category: "herb" }));
+    mockPrisma.ingredientRequest.update.mockResolvedValue({});
+
+    await approveIngredientRequest({
+      session: session as never,
+      requestId: "request-1",
+      category: "herb",
+    });
+
+    expect(mockPrisma.ingredient.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: "Dried rose petals",
+        canonicalName: "Dried rose petals",
+        category: "herb",
+        isGlobal: true,
+      }),
+    });
+    expect(mockPrisma.ingredientRequest.update).toHaveBeenCalledWith({
+      where: { id: "request-1" },
+      data: expect.objectContaining({
+        status: "approved",
+        reviewedById: session.user.id,
+        createdIngredientId: "ing-rose",
+      }),
+    });
+  });
+
+  it("platform admin can reject a pending request", async () => {
+    const session = makePlatformAdminSession();
+    mockPrisma.ingredientRequest.findUnique.mockResolvedValue({
+      id: "request-2",
+      organizationId: orgA,
+      requestedById: "user-member",
+      requestedName: "Unknown masala",
+      suggestedCategory: null,
+      notes: null,
+      status: "pending",
+      reviewedById: null,
+      reviewedAt: null,
+      createdIngredientId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mockPrisma.ingredientRequest.update.mockResolvedValue({});
+
+    await rejectIngredientRequest({
+      session: session as never,
+      requestId: "request-2",
+    });
+
+    expect(mockPrisma.ingredientRequest.update).toHaveBeenCalledWith({
+      where: { id: "request-2" },
+      data: expect.objectContaining({
+        status: "rejected",
+        reviewedById: session.user.id,
+      }),
+    });
   });
 });

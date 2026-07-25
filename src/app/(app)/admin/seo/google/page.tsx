@@ -11,6 +11,7 @@ import { SeoTabs } from "../_components";
 const googleProviders = [
   IntegrationProvider.google_search_console,
   IntegrationProvider.google_analytics,
+  IntegrationProvider.secure_privacy,
   IntegrationProvider.google_recaptcha,
   IntegrationProvider.google_adsense,
 ];
@@ -24,6 +25,30 @@ export default async function SeoGooglePage() {
     listPlatformIntegrations(session),
   ]);
   const rows = googleProviders.map((provider) => integrations.find((integration) => integration.provider === provider) ?? null);
+  const analyticsIntegration = rows[googleProviders.indexOf(IntegrationProvider.google_analytics)];
+  const securePrivacyIntegration = rows[googleProviders.indexOf(IntegrationProvider.secure_privacy)];
+  const analyticsStatus = !analyticsIntegration
+    ? "Not configured"
+    : analyticsIntegration.status === "disabled"
+      ? "Disabled"
+      : config.analyticsEnabled && config.analyticsConsentRequired
+        ? "Configured, consent required"
+        : config.analyticsEnabled
+          ? "Enabled"
+          : "Configured, missing Measurement ID";
+  const analyticsUpdatedAt = analyticsIntegration?.updatedAt
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(analyticsIntegration.updatedAt)
+    : "Not updated yet";
+  const securePrivacyStatus = !securePrivacyIntegration
+    ? "Not configured"
+    : securePrivacyIntegration.status === "active"
+      ? "Enabled"
+      : securePrivacyIntegration.status === "disabled"
+        ? "Disabled"
+        : "Configured";
+  const securePrivacyUpdatedAt = securePrivacyIntegration?.updatedAt
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(securePrivacyIntegration.updatedAt)
+    : "Not updated yet";
 
   return (
     <AdminShell
@@ -33,9 +58,10 @@ export default async function SeoGooglePage() {
       actions={<Button asChild><Link href="/admin/apis/categories">Open API Management</Link></Button>}
     >
       <SeoTabs active="/admin/seo/google" />
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-5">
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Search Console</p><p className="mt-3 text-sm font-semibold">{config.searchConsoleVerification ? "Verification meta enabled" : "Not configured"}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Analytics</p><p className="mt-3 text-sm font-semibold">{config.analyticsEnabled ? "Tag enabled" : "Disabled"}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Analytics</p><p className="mt-3 text-sm font-semibold">{analyticsStatus}</p><p className="mt-1 text-xs text-slate-500">Last updated: {analyticsUpdatedAt}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Secure Privacy CMP</p><p className="mt-3 text-sm font-semibold">{securePrivacyStatus}</p><p className="mt-1 text-xs text-slate-500">Last updated: {securePrivacyUpdatedAt}</p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">AdSense</p><p className="mt-3 text-sm font-semibold">{config.adsenseEnabled ? "Public script enabled" : "Disabled"}</p></Card>
         <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Consent</p><p className="mt-3 text-sm font-semibold">{config.analyticsConsentRequired ? "Required" : "Not required"}</p></Card>
       </section>

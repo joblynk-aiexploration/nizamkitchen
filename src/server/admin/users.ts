@@ -10,6 +10,24 @@ import { recordAdminAuditLog } from "@/server/audit/audit-service";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 
+const deletedUserEmailSuffixes = ["@nizamkitchen.deleted", "@nizamkitchen.invalid"];
+
+function hiddenDeletedUserWhere(): Prisma.UserWhereInput {
+  return {
+    NOT: deletedUserEmailSuffixes.map((suffix) => ({
+      email: { endsWith: suffix, mode: "insensitive" },
+    })),
+  };
+}
+
+function isHiddenDeletedUser(user: { email: string; fullName?: string | null; status?: string | null; platformRole?: PlatformRole | null }) {
+  const email = user.email.toLowerCase();
+  return (
+    deletedUserEmailSuffixes.some((suffix) => email.endsWith(suffix)) ||
+    (email.startsWith("deleted-") && user.fullName === "Deleted User" && user.status === "disabled" && user.platformRole === null)
+  );
+}
+
 export async function listAdminUsers(
   session: Session,
   filters: {
@@ -69,25 +87,30 @@ export async function listAdminUsers(
       }
     : {};
 
+  const andConditions: Prisma.UserWhereInput[] = [hiddenDeletedUserWhere()];
+  if (Object.keys(countryCondition).length) andConditions.push(countryCondition);
+  if (Object.keys(filteredCountryCondition).length) andConditions.push(filteredCountryCondition);
+  if (filters.search) {
+    andConditions.push({
+      OR: [
+        { email: { contains: filters.search, mode: "insensitive" as const } },
+        { fullName: { contains: filters.search, mode: "insensitive" as const } },
+      ],
+    });
+  }
+
   const where: Prisma.UserWhereInput = {
-      ...countryCondition,
-      ...filteredCountryCondition,
-      platformRole: filters.platformRole
-        ? (filters.platformRole as PlatformRole)
-        : undefined,
-      memberships: filters.organizationId
-        ? {
-            some: {
-              organizationId: filters.organizationId,
-            },
-          }
-        : undefined,
-      OR: filters.search
-        ? [
-            { email: { contains: filters.search, mode: "insensitive" as const } },
-            { fullName: { contains: filters.search, mode: "insensitive" as const } },
-          ]
-        : undefined,
+    AND: andConditions,
+    platformRole: filters.platformRole
+      ? (filters.platformRole as PlatformRole)
+      : undefined,
+    memberships: filters.organizationId
+      ? {
+          some: {
+            organizationId: filters.organizationId,
+          },
+        }
+      : undefined,
   };
 
   return paginatedQuery(
@@ -169,7 +192,7 @@ export async function getAdminUserDetail(session: Session, id: string) {
     },
   });
 
-  if (!user) {
+  if (!user || isHiddenDeletedUser(user)) {
     throw new Error("User not found.");
   }
 

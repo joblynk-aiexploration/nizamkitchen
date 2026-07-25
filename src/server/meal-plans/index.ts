@@ -1,5 +1,6 @@
 import { Prisma, type MealPlan, type PlatformRole, type SpiceLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { SessionLike } from "@/lib/auth";
 import { hasPlatformRole, PLATFORM_ADMIN_ROLES } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { paginatedQuery } from "@/lib/pagination";
@@ -17,6 +18,7 @@ import {
 } from "@/lib/validation/meal-plans";
 import { createAuditEvent } from "@/server/audit";
 import { generateGroceryList } from "@/server/grocery";
+import { copyRecipeToMyRecipes } from "@/server/recipes";
 
 const mealPlanListArgs = Prisma.validator<Prisma.MealPlanDefaultArgs>()({
   include: {
@@ -212,19 +214,31 @@ function getDayKey(date: Date) {
   return date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }).toLowerCase();
 }
 
-async function ensureRecipeAccessible(recipeId: string, organizationId: string) {
+async function ensureMyRecipeAccessible(recipeId: string, organizationId: string) {
   const recipe = await prisma.recipe.findFirst({
     where: {
       id: recipeId,
-      OR: [
-        { organizationId },
-        { organizationId: null, isPublished: true, visibility: "global" },
-      ],
+      organizationId,
+      isPublished: true,
     },
   });
 
   if (!recipe) {
-    throw new Error("Recipe is not available for this organization.");
+    const globalRecipe = await prisma.recipe.findFirst({
+      where: {
+        id: recipeId,
+        organizationId: null,
+        isPublished: true,
+        visibility: "global",
+      },
+      select: { id: true },
+    });
+
+    if (globalRecipe) {
+      throw new Error("Add this recipe to My Recipes before using it in a meal plan.");
+    }
+
+    throw new Error("Recipe is not available for this household.");
   }
 
   return recipe;
@@ -271,6 +285,7 @@ async function getMealPlanEntryScoped(entryId: string, organizationId: string) {
       mealPlanDay: { mealPlan: { organizationId } },
     },
     include: {
+      recipe: true,
       mealPlanDay: {
         include: {
           mealPlan: true,
@@ -407,23 +422,20 @@ export async function createReadyMadeMealPlan(params: {
   const recipes = await prisma.recipe.findMany({
     where: {
       isPublished: true,
-      OR: [
-        { organizationId: params.organizationId },
-        { organizationId: null, visibility: "global" },
-      ],
+      organizationId: params.organizationId,
     },
     include: {
       cuisine: true,
       dietaryTags: { include: { dietaryTag: true } },
       ingredients: { include: { ingredient: true } },
     },
-    orderBy: [{ isGlobal: "desc" }, { name: "asc" }],
+    orderBy: { name: "asc" },
   });
 
   const safeRecipes = recipes.filter((recipe) => !recipeMatchesRestrictions(recipe, parsed.restrictions));
   const availableRecipes = safeRecipes.length > 0 ? safeRecipes : recipes;
   if (!availableRecipes.length) {
-    throw new Error("Publish recipes before creating a ready-made meal plan.");
+    throw new Error("Add recipes to My Recipes before creating a ready-made meal plan.");
   }
   const recipeById = new Map(availableRecipes.map((recipe) => [recipe.id, recipe]));
   const weekdayPreferences = parsed.weekdayPreferences.filter((preference) => recipeById.has(preference.recipeId));
@@ -752,7 +764,7 @@ export async function addMealPlanEntry(params: {
   const day = await getMealPlanDayScoped(parsed.mealPlanDayId, params.organizationId);
 
   if (parsed.recipeId) {
-    await ensureRecipeAccessible(parsed.recipeId, params.organizationId);
+    await ensureMyRecipeAccessible(parsed.recipeId, params.organizationId);
   }
 
   const entry = await prisma.mealPlanEntry.create({
@@ -801,8 +813,8 @@ export async function updateMealPlanEntry(params: {
   const existing = await getMealPlanEntryScoped(params.entryId, params.organizationId);
 
   const recipeId = parsed.recipeId !== undefined ? parsed.recipeId ?? null : existing.recipeId;
-  if (recipeId) {
-    await ensureRecipeAccessible(recipeId, params.organizationId);
+  if (parsed.recipeId !== undefined && recipeId) {
+    await ensureMyRecipeAccessible(recipeId, params.organizationId);
   }
 
   const customMealName =
@@ -842,6 +854,53 @@ export async function updateMealPlanEntry(params: {
   });
 
   return entry;
+}
+
+export async function replaceLegacyGlobalMealPlanEntryWithMyRecipe(params: {
+  session: SessionLike;
+  entryId: string;
+  organizationId: string;
+  actorUserId: string;
+  countryCode?: string | null;
+}) {
+  const existing = await getMealPlanEntryScoped(params.entryId, params.organizationId);
+  if (!existing.recipeId || !existing.recipe) {
+    throw new Error("This meal entry is not linked to a recipe.");
+  }
+  if (existing.recipe.organizationId === params.organizationId) {
+    return existing;
+  }
+  if (existing.recipe.organizationId !== null || existing.recipe.visibility !== "global" || !existing.recipe.isPublished) {
+    throw new Error("This recipe cannot be copied into My Recipes.");
+  }
+
+  const copy = await copyRecipeToMyRecipes({
+    session: params.session,
+    recipeId: existing.recipeId,
+    organizationId: params.organizationId,
+    countryCode: params.countryCode,
+  });
+
+  const updated = await prisma.mealPlanEntry.update({
+    where: { id: params.entryId },
+    data: { recipeId: copy.id },
+  });
+
+  await createAuditEvent({
+    actorUserId: params.actorUserId,
+    organizationId: params.organizationId,
+    countryCode: existing.mealPlanDay.mealPlan.countryCode,
+    action: "meal_plan_entry.recipe_copied_to_my_recipes",
+    targetType: "meal_plan_entry",
+    targetId: params.entryId,
+    details: {
+      mealPlanId: existing.mealPlanDay.mealPlan.id,
+      sourceRecipeId: existing.recipeId,
+      copiedRecipeId: copy.id,
+    },
+  });
+
+  return updated;
 }
 
 export async function deleteMealPlanEntry(params: {

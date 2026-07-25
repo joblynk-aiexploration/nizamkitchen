@@ -28,6 +28,8 @@ export async function savePrivacySettingsAction(formData: FormData) {
     activityRetentionDays: formData.get("activityRetentionDays"),
     marketingEmailsEnabled: formData.get("marketingEmailsEnabled"),
     analyticsConsent: formData.get("analyticsConsent"),
+    marketingCookiesConsent: formData.get("marketingCookiesConsent"),
+    functionalCookiesConsent: formData.get("functionalCookiesConsent"),
     personalizedRecommendationsEnabled: formData.get("personalizedRecommendationsEnabled"),
   });
   revalidatePath("/privacy-center");

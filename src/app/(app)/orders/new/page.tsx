@@ -44,9 +44,9 @@ export default async function NewFoodOrderPage({
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Manual order request"
+        eyebrow="Order request"
         title="Request this dish"
-        description="Submit an inquiry to the seller. Payment and final confirmation happen directly with the seller for now."
+        description="Submit the request, then continue to secure checkout when the menu item has a payable price."
       />
       <FoodOrderRequestForm
         action={createFoodOrderAction}

@@ -18,7 +18,7 @@ export function DataTable<T>({
   emptyMessage: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-[var(--color-border)]">
+    <div className="overflow-x-auto rounded-3xl border border-[var(--color-border)]">
       <div
         className="hidden border-b border-[var(--color-border)] bg-slate-50 px-6 py-3 md:grid"
         style={{ gridTemplateColumns: columns.map((column) => column.width ?? "minmax(0, 1fr)").join(" ") }}

@@ -3,6 +3,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ManageCookiePreferencesButton } from "@/components/privacy/manage-cookie-preferences-button";
 import { getOrCreateUserPrivacySetting } from "@/server/privacy/privacy-service";
 import { savePrivacySettingsAction } from "../../privacy/actions";
 
@@ -17,7 +18,7 @@ export default async function PrivacyCenterSettingsPage() {
       <PageHeader
         eyebrow="Privacy center"
         title="Privacy settings"
-        description="Control profile visibility, communications, analytics consent, activity retention preference, and personalization."
+        description="Control profile visibility, communications, cookie preferences, analytics consent, activity retention preference, and personalization."
         actions={<Button asChild variant="secondary"><Link href="/privacy-center">Back</Link></Button>}
       />
       <Card>
@@ -44,10 +45,15 @@ export default async function PrivacyCenterSettingsPage() {
           </label>
           <div className="grid gap-3">
             <Checkbox name="marketingEmailsEnabled" label="Allow marketing emails" defaultChecked={settings.marketingEmailsEnabled} />
-            <Checkbox name="analyticsConsent" label="Allow analytics measurement" defaultChecked={settings.analyticsConsent} />
+            <Checkbox name="analyticsConsent" label="Allow analytics cookies and measurement" defaultChecked={settings.analyticsConsent} />
+            <Checkbox name="marketingCookiesConsent" label="Allow marketing and advertising cookies" defaultChecked={settings.marketingCookiesConsent} />
+            <Checkbox name="functionalCookiesConsent" label="Allow functional preference cookies" defaultChecked={settings.functionalCookiesConsent} />
             <Checkbox name="personalizedRecommendationsEnabled" label="Allow personalized recommendations" defaultChecked={settings.personalizedRecommendationsEnabled} />
           </div>
-          <Button type="submit">Save privacy settings</Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit">Save privacy settings</Button>
+            <ManageCookiePreferencesButton className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] transition hover:bg-emerald-50" />
+          </div>
         </form>
       </Card>
     </div>

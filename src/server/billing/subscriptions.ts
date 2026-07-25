@@ -130,3 +130,58 @@ export async function updateSubscriptionStatus(
 
   return subscription;
 }
+
+export async function changeSubscriptionPlan(
+  session: Session,
+  subscriptionId: string,
+  planId: string,
+) {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
+
+  const [existing, nextPlan] = await Promise.all([
+    prisma.billingSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true },
+    }),
+    prisma.billingPlan.findUnique({ where: { id: planId } }),
+  ]);
+
+  if (!existing) throw new Error("Subscription not found.");
+  if (!nextPlan) throw new Error("Pricing plan not found.");
+  if (nextPlan.status !== "active") throw new Error("Only active pricing plans can be assigned.");
+
+  const nextStatus: BillingSubscriptionStatus =
+    Number(nextPlan.priceAmount) === 0
+      ? "free"
+      : existing.status === "cancelled" || existing.status === "free"
+        ? "active"
+        : existing.status;
+
+  const subscription = await prisma.billingSubscription.update({
+    where: { id: subscriptionId },
+    data: {
+      planId: nextPlan.id,
+      status: nextStatus,
+      cancelAtPeriodEnd: false,
+    },
+    include: { plan: true },
+  });
+
+  await createAuditEvent({
+    actorUserId: session.user.id,
+    action: "billing_subscription.plan_changed",
+    targetType: "billing_subscription",
+    targetId: subscriptionId,
+    organizationId: subscription.organizationId,
+    details: {
+      previousPlanSlug: existing.plan.slug,
+      newPlanSlug: nextPlan.slug,
+      previousStatus: existing.status,
+      newStatus: subscription.status,
+      provider: subscription.provider,
+      providerSubscriptionId: subscription.providerSubscriptionId,
+    },
+  });
+
+  return subscription;
+}

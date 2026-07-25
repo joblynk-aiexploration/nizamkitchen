@@ -61,6 +61,10 @@ export const avoidedIngredientCreateSchema = z.object({
 
 export const favoriteRecipeSchema = z.object({
   recipeId: z.string().min(1),
+  recipientUserId: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.string().min(1).nullable(),
+  ).optional(),
   targetServings: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
     z.number().int().min(1, "Enter at least 1 serving.").max(100, "Serving count must be 100 or less.").optional(),

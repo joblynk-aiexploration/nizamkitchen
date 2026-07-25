@@ -29,6 +29,9 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled, createHomeChefRequest } 
     homeChefRequest: {
       update: vi.fn(),
     },
+    homeChefRequestOffer: {
+      create: vi.fn(),
+    },
     sellerVerificationPolicy: { findMany: vi.fn() },
     sellerVerificationProfile: { findUnique: vi.fn() },
     sellerPayoutAccount: { findFirst: vi.fn() },
@@ -172,6 +175,7 @@ describe("home chef marketplace", () => {
   });
 
   it("requesting a specific chef creates an assigned request", async () => {
+    const deadline = new Date("2026-05-23T21:00:00.000Z");
     isFeatureEnabled.mockResolvedValue(true);
     mockPrisma.chefProfile.findFirst.mockResolvedValue({
       id: "chef-profile-1",
@@ -182,8 +186,19 @@ describe("home chef marketplace", () => {
       status: "active",
       isPublic: true,
     });
-    createHomeChefRequest.mockResolvedValue({ id: "request-1", status: "submitted" });
-    mockPrisma.homeChefRequest.update.mockResolvedValue({ id: "request-1", assignedChefOrganizationId: "chef-org-1" });
+    createHomeChefRequest.mockResolvedValue({
+      id: "request-1",
+      status: "submitted",
+      acceptanceDeadlineAt: deadline,
+      currencyCode: "USD",
+    });
+    mockPrisma.homeChefRequestOffer.create.mockResolvedValue({ id: "offer-1", status: "pending" });
+    mockPrisma.homeChefRequest.update.mockResolvedValue({
+      id: "request-1",
+      assignedChefOrganizationId: "chef-org-1",
+      assignedChefProfileId: "chef-profile-1",
+      currentOfferId: "offer-1",
+    });
 
     await requestSpecificChef({
       householdOrganizationId: "household-1",
@@ -200,9 +215,28 @@ describe("home chef marketplace", () => {
     });
 
     expect(createHomeChefRequest).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "household-1" }));
+    expect(mockPrisma.homeChefRequestOffer.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          homeChefRequestId: "request-1",
+          chefProfileId: "chef-profile-1",
+          offeredById: "user-1",
+          status: "pending",
+          offerType: "direct",
+          responseDeadlineAt: deadline,
+          currencyCode: "USD",
+        }),
+      }),
+    );
     expect(mockPrisma.homeChefRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ assignedChefOrganizationId: "chef-org-1", status: "reviewing" }),
+        data: expect.objectContaining({
+          assignedChefOrganizationId: "chef-org-1",
+          assignedChefProfileId: "chef-profile-1",
+          currentOfferId: "offer-1",
+          matchingStatus: "offered",
+          status: "reviewing",
+        }),
       }),
     );
   });

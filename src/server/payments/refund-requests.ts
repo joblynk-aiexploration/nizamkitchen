@@ -1,6 +1,7 @@
 import { Prisma, type PaymentOrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { listCheckoutQuoteLinesByPaymentOrderIds } from "@/server/pricing/checkout-quote-workflow";
 
 type MemberPaymentSession = {
   user: { id: string };
@@ -41,9 +42,14 @@ export async function listRefundablePaymentOrders(session: MemberPaymentSession)
     orderBy: { paidAt: "desc" },
     take: 50,
   });
+  const quoteLinesByPaymentOrderId = await listCheckoutQuoteLinesByPaymentOrderIds(orders.map((order) => order.id));
 
   return orders
-    .map((order) => ({ ...order, remainingRefundAmount: refundRemainingAmount(order) }))
+    .map((order) => ({
+      ...order,
+      checkoutQuoteLines: quoteLinesByPaymentOrderId.get(order.id) ?? [],
+      remainingRefundAmount: refundRemainingAmount(order),
+    }))
     .filter((order) => order.remainingRefundAmount > 0);
 }
 

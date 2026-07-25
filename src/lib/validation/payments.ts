@@ -66,6 +66,7 @@ export const paymentOrderCreateSchema = z.object({
   moduleEntityId: z.string().min(1),
   provider: z.nativeEnum(PaymentProvider).default(PaymentProvider.manual),
   gatewayId: z.string().optional(),
+  checkoutQuoteId: z.string().optional(),
   amount: z.number().positive(),
   currencyCode: z.string().trim().length(3).toUpperCase(),
   idempotencyKey: z.string().trim().min(8).max(160),

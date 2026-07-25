@@ -1,4 +1,4 @@
-import type { AccountingDocument, PaymentOrder } from "@prisma/client";
+import type { AccountingDocument, CheckoutQuoteLine, PaymentOrder } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type InvoiceDocument = AccountingDocument & {
@@ -11,6 +11,7 @@ export type InvoiceDocument = AccountingDocument & {
   };
   customerOrganizationName?: string | null;
   sellerOrganizationName?: string | null;
+  checkoutQuoteLines?: CheckoutQuoteLine[];
 };
 
 export type InvoiceBrandingSettings = {
@@ -137,6 +138,23 @@ export function sourceLabel(module: string) {
 }
 
 export function buildInvoiceLines(document: InvoiceDocument) {
+  const quoteLines = customerVisibleDocumentQuoteLines(document.checkoutQuoteLines ?? []);
+  if (quoteLines.length) {
+    return quoteLines.map((line) => {
+      const amount = Number(line.amount ?? 0);
+      const isDiscount = line.lineType === "discount" || amount < 0;
+      return {
+        description: line.label,
+        details: line.description ?? invoiceStatusLabel(line.lineType),
+        quantity: 1,
+        unitPrice: isDiscount ? 0 : amount,
+        taxFee: line.lineType === "tax" ? amount : 0,
+        discount: isDiscount ? Math.abs(amount) : 0,
+        amount,
+      };
+    }) satisfies InvoiceLineItem[];
+  }
+
   const tax = Number(document.taxAmount ?? 0);
   const discount = Number(document.paymentOrder.discountAmount ?? 0);
   const platformCredit = Number(document.paymentOrder.platformCreditAmount ?? 0);
@@ -153,6 +171,19 @@ export function buildInvoiceLines(document: InvoiceDocument) {
       amount: Number(document.totalAmount ?? 0),
     },
   ] satisfies InvoiceLineItem[];
+}
+
+function customerVisibleDocumentQuoteLines(lines: CheckoutQuoteLine[]) {
+  return [...lines]
+    .filter((line) => {
+      const metadata = line.metadataJson;
+      const internal = metadata && typeof metadata === "object" && !Array.isArray(metadata) && "internal" in metadata
+        ? (metadata as Record<string, unknown>).internal === true
+        : false;
+      return !internal && line.lineType !== "commission" && line.lineType !== "payout" && line.lineType !== "total";
+    })
+    .filter((line) => Number(line.amount ?? 0) !== 0)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function invoiceStatusLabel(value: string | null | undefined) {

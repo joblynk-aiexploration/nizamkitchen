@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { UsCityStateSelects } from "@/components/location/us-city-state-selects";
 import { ProfileCompletionCard, ProfileHeader, VerificationBadge, initialsFromName } from "@/components/profiles/profile-components";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -76,19 +77,19 @@ export default async function ChefProfilePage({
           <h2 className="text-lg font-semibold text-[var(--color-ink)]">Profile details</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput label="Display name" name="displayName" defaultValue={profile?.displayName ?? ""} required />
-            <ImageUploadField label="Profile photo" name="profilePhotoFileId" module="home_chefs" purpose="business_profile_photo" visibility="public" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.profilePhotoFileId ?? null} />
-            <BusinessCoverUploader label="Cover photo" name="coverPhotoFileId" module="home_chefs" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.coverPhotoFileId ?? null} />
             <TextInput label="Legacy profile photo URL fallback" name="profilePhotoUrl" defaultValue={profile?.profilePhotoUrl ?? ""} />
+            <ImageUploadField className="min-h-[86px]" label="Profile photo" name="profilePhotoFileId" module="home_chefs" purpose="business_profile_photo" visibility="public" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.profilePhotoFileId ?? null} />
+            <BusinessCoverUploader className="min-h-[86px]" label="Cover photo" name="coverPhotoFileId" module="home_chefs" entityType="chef_profile" entityId={profile?.id} defaultFileId={profile?.coverPhotoFileId ?? null} />
             <TextInput label="Languages" name="languages" defaultValue={Array.isArray(profile?.languages) ? profile.languages.join(", ") : ""} hint="Comma-separated, e.g. English, Urdu, Hindi" />
             <TextInput label="Specialties" name="specialties" defaultValue={Array.isArray(profile?.specialties) ? profile.specialties.join(", ") : ""} hint="Comma-separated dish/service specialties" />
             <TextInput label="Years experience" name="yearsExperience" type="number" min={0} defaultValue={profile?.yearsExperience ?? ""} />
             <TextInput label="Service radius km" name="serviceRadiusKm" type="number" min={0} defaultValue={profile?.serviceRadiusKm ?? ""} />
-            <TextInput label="Base city" name="baseCity" defaultValue={profile?.baseCity ?? ""} />
-            <TextInput label="Base region" name="baseRegion" defaultValue={profile?.baseRegion ?? ""} />
-            <TextInput label="Postal code" name="postalCode" defaultValue={profile?.postalCode ?? ""} />
+            <UsCityStateSelects defaultCity={profile?.baseCity} defaultState={profile?.baseRegion} />
+            <TextInput label="Zip code" name="postalCode" defaultValue={profile?.postalCode ?? ""} />
             <PhoneNumberInput
               defaultValue={profile?.phone}
               defaultCountryCode={phoneOptions.find((option) => option.countryCode === session.activeOrganization.countryCode)?.phoneCountryCode}
+              defaultCountryIso={session.activeOrganization.countryCode}
               options={phoneOptions}
             />
             <TextInput label="Email" name="email" type="email" defaultValue={profile?.email ?? ""} />

@@ -5,11 +5,14 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isMarketingTemplate, TRANSACTIONAL_EMAIL_CATEGORIES } from "./email-events";
+import { ENTERPRISE_EMAIL_TEMPLATES, isMarketingTemplate, TRANSACTIONAL_EMAIL_CATEGORIES } from "./email-events";
 import { renderEmailTemplateContent } from "./email-renderer";
 import { getActiveEmailTemplate, toJsonValue } from "./email-template-service";
 import type { SendEmailInput } from "./email-types";
 import { resolveEmailProvider } from "./providers/smtp-provider";
+
+const TEST_EMAIL_RECIPIENT = "learnasurah@gmail.com";
+const BULK_TEST_EMAIL_CONCURRENCY = 6;
 
 export async function sendTemplateEmail(input: SendEmailInput) {
   const template = await getActiveEmailTemplate(input);
@@ -25,7 +28,7 @@ export async function sendTemplateEmail(input: SendEmailInput) {
 
   const suppression = await getSuppression(input.to, category);
   if (suppression) {
-    return recordLog(input, {
+    const log = await recordLog(input, {
       category,
       subject: template.subject,
       status: EmailDeliveryStatus.suppressed,
@@ -34,11 +37,12 @@ export async function sendTemplateEmail(input: SendEmailInput) {
       errorMessage: "Recipient is suppressed for this category.",
       metadata: { ...input.metadata, suppressionId: suppression.id, idempotencyKey: input.idempotencyKey },
     });
+    return { sent: false, reason: "Recipient is suppressed for this category.", logId: log.id };
   }
 
   const preferenceResult = input.recipientUserId ? await emailPreferenceAllows(input.recipientUserId, category, template.templateKey) : { allowed: true };
   if (!preferenceResult.allowed) {
-    return recordLog(input, {
+    const log = await recordLog(input, {
       category,
       subject: template.subject,
       status: EmailDeliveryStatus.skipped,
@@ -47,6 +51,7 @@ export async function sendTemplateEmail(input: SendEmailInput) {
       errorMessage: preferenceResult.reason,
       metadata: { ...input.metadata, idempotencyKey: input.idempotencyKey },
     });
+    return { sent: false, reason: preferenceResult.reason ?? "Email preference is disabled.", logId: log.id };
   }
 
   const rendered = renderEmailTemplateContent(template, {
@@ -63,6 +68,7 @@ export async function sendTemplateEmail(input: SendEmailInput) {
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
+    timeoutMs: input.deliveryTimeoutMs,
   });
 
   const status = result.sent
@@ -90,6 +96,59 @@ export async function sendTemplateEmail(input: SendEmailInput) {
   });
 
   return { sent: result.sent, logId: log.id, reason: result.errorMessage ?? null };
+}
+
+export async function sendAllSystemTemplateTestEmails(input: {
+  requestedById: string;
+  recipientEmail?: string;
+  countryCode?: string | null;
+}) {
+  const recipientEmail = input.recipientEmail?.trim() || TEST_EMAIL_RECIPIENT;
+  const batchId = `email-template-test:${input.requestedById}:${Date.now()}`;
+  const results = await mapWithConcurrency(ENTERPRISE_EMAIL_TEMPLATES, BULK_TEST_EMAIL_CONCURRENCY, async (template) => {
+    try {
+      return await sendTemplateEmail({
+        to: recipientEmail,
+        templateKey: template.templateKey,
+        countryCode: input.countryCode ?? null,
+        variables: buildSystemTemplateTestVariables(template.templateKey),
+        metadata: {
+          source: "admin_all_template_test_send",
+          requestedById: input.requestedById,
+          batchId,
+          templateName: template.name,
+          templateCategory: template.category,
+        },
+        idempotencyKey: `${batchId}:${template.templateKey}`,
+        deliveryTimeoutMs: 8_000,
+      });
+    } catch (error) {
+      return {
+        sent: false,
+        reason: error instanceof Error ? error.message : "Template test send failed.",
+        logId: null,
+      };
+    }
+  });
+
+  const sent = results.filter((result) => result.sent).length;
+  const skipped = results.length - sent;
+  return {
+    batchId,
+    recipientEmail,
+    total: results.length,
+    sent,
+    skipped,
+  };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    const chunk = items.slice(index, index + concurrency);
+    results.push(...await Promise.all(chunk.map((item) => mapper(item))));
+  }
+  return results;
 }
 
 export async function ensureEmailPreference(userId: string) {
@@ -258,4 +317,72 @@ function actionUrlFromVariables(variables: Record<string, unknown>) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return undefined;
+}
+
+function buildSystemTemplateTestVariables(templateKey: string): Record<string, unknown> {
+  const appUrl = "https://nk.friscodawah.org";
+  return {
+    appName: "NizamKitchen",
+    userName: "NizamKitchen Test Recipient",
+    userEmail: TEST_EMAIL_RECIPIENT,
+    organizationName: "Nizam Family Kitchen",
+    supportEmail: "help@nizamkitchen.dev",
+    appUrl,
+    dashboardUrl: `${appUrl}/dashboard`,
+    currentYear: new Date().getFullYear(),
+    privacyUrl: `${appUrl}/privacy`,
+    termsUrl: `${appUrl}/terms`,
+    notificationPreferencesUrl: `${appUrl}/settings/notifications`,
+    verifyUrl: `${appUrl}/api/auth/oauth/google/start`,
+    resetUrl: `${appUrl}/reset-password?token=test-preview-token`,
+    expiresInMinutes: "45",
+    orderNumber: "NK-TEST-1001",
+    orderStatus: "accepted",
+    sellerName: "Nizam Home Catering",
+    customerName: "Nizam Family Kitchen",
+    orderUrl: `${appUrl}/orders/test-order`,
+    requestedDate: "June 2, 2026 at 6:00 PM America/Chicago",
+    fulfillmentType: "delivery",
+    totalAmount: "59.99",
+    currencyCode: "USD",
+    requestTitle: "Friday Hyderabadi dinner",
+    requestStatus: "scheduled",
+    chefName: "Nizam Independent Home Chef",
+    householdName: "Nizam Family Kitchen",
+    requestUrl: `${appUrl}/home-chef/requests/test-request`,
+    scheduledDate: "June 7, 2026 at 5:30 PM America/Chicago",
+    quoteAmount: "180.00 USD",
+    paymentAmount: "59.99",
+    receiptUrl: `${appUrl}/billing/receipts/test-receipt`,
+    invoiceUrl: `${appUrl}/billing/invoices/test-invoice`,
+    paymentStatus: "paid",
+    refundAmount: "15.00",
+    documentName: "Food handler certificate",
+    verificationStatus: "approved",
+    rejectionReason: "The uploaded document is expired in this test scenario.",
+    verificationUrl: `${appUrl}/catering/verification`,
+    expiryDate: "July 31, 2026",
+    ticketNumber: "TKT-TEST-1001",
+    ticketTitle: "Template test support request",
+    ticketStatus: "open",
+    ticketUrl: `${appUrl}/support/tickets/test-ticket`,
+    alertTitle: "Template test alert",
+    alertSeverity: "warning",
+    alertUrl: `${appUrl}/admin/system/alerts/test-alert`,
+    integrationName: "SMTP",
+    shareUrl: `${appUrl}/share/grocery-lists/test-share`,
+    primaryActionLabel: actionLabelForTestTemplate(templateKey),
+  };
+}
+
+function actionLabelForTestTemplate(templateKey: string) {
+  if (templateKey.startsWith("auth.password")) return "Review account security";
+  if (templateKey.startsWith("order.") || templateKey.includes(".order_")) return "View order";
+  if (templateKey.startsWith("home_chef.") || templateKey.startsWith("chef_staff.")) return "View request";
+  if (templateKey.startsWith("support.") || templateKey.startsWith("complaint.")) return "View ticket";
+  if (templateKey.startsWith("verification.") || templateKey.includes("profile_")) return "View verification";
+  if (templateKey.startsWith("invoice.")) return "View invoice";
+  if (templateKey.startsWith("receipt.")) return "View receipt";
+  if (templateKey.startsWith("admin.") || templateKey.startsWith("storage.configuration")) return "View alert";
+  return "View details";
 }

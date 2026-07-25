@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { IngredientSelect } from "@/components/recipes/ingredient-select";
 import { requireMembership } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { listIngredients } from "@/server/ingredients";
 import { canAccessFamilyProfiles, listAvoidedIngredients } from "@/server/household";
 import { addAvoidedIngredientAction, deleteAvoidedIngredientAction } from "../actions";
 import { ComingSoonFamilyProfiles, HouseholdNav, NonHouseholdState } from "../_components";
@@ -21,7 +22,7 @@ export default async function AvoidedIngredientsPage({ searchParams }: { searchP
 
   const [items, ingredients] = await Promise.all([
     listAvoidedIngredients(org.id),
-    prisma.ingredient.findMany({ where: { isActive: true, OR: [{ organizationId: org.id }, { organizationId: null }] }, orderBy: { name: "asc" }, take: 200 }),
+    listIngredients({ organizationId: org.id }),
   ]);
 
   return (
@@ -30,17 +31,13 @@ export default async function AvoidedIngredientsPage({ searchParams }: { searchP
       <HouseholdNav />
       <FormMessage message={message} />
       <Card>
-        <form action={addAvoidedIngredientAction} className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <select name="ingredientId" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-            <option value="">Custom ingredient name</option>
-            {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
-          </select>
-          <input name="ingredientName" required placeholder="Ingredient name" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
+        <form action={addAvoidedIngredientAction} className="grid gap-4 md:grid-cols-[1.5fr_1fr_auto]">
+          <IngredientSelect ingredients={ingredients} selectedNameInputName="ingredientName" />
           <select name="severity" defaultValue="avoid" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
             <option value="preference">Preference</option><option value="avoid">Avoid</option><option value="strict">Strict</option>
           </select>
           <Button type="submit">Add</Button>
-          <input name="reason" placeholder="Reason or note (optional)" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm md:col-span-4" />
+          <input name="reason" placeholder="Reason or note (optional)" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm md:col-span-3" />
         </form>
       </Card>
       <div className="space-y-3">

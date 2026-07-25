@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { OrganizationType } from "@prisma/client";
+import { MeasurementSystem, OrganizationType } from "@prisma/client";
 import { hashPassword } from "@/lib/auth/password";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, getClientIpFromHeaders } from "@/lib/security";
 import { createSession, getRequestMetadata } from "@/lib/session";
@@ -29,12 +30,27 @@ const redirectAfterRegister: Record<string, string> = {
   restaurant: "/restaurant",
 };
 
+const FREE_ACCOUNT_READY_MESSAGE = "Your free account is ready. Welcome to NizamKitchen.";
+const PLAN_UNAVAILABLE_MESSAGE = "Your account is ready, but that pricing plan is no longer available. You can choose another plan from Billing when you are ready.";
+const CHECKOUT_UNAVAILABLE_MESSAGE = "Your account is ready. We could not open secure checkout right now, but you can continue and choose a paid plan from Billing anytime.";
+
+function measurementSystemForSignup(country: { countryCode: string; measurementSystem: MeasurementSystem }) {
+  return country.countryCode === "US" ? MeasurementSystem.imperial : country.measurementSystem;
+}
+
 export function getPostRegisterDestination(accountType: string, platformRole?: string | null) {
   if (platformRole === "platform_owner" || platformRole === "platform_admin") {
     return "/admin";
   }
 
   return redirectAfterRegister[accountType] ?? "/dashboard";
+}
+
+function destinationWithMessage(destination: string, message: string, baseUrl: string) {
+  const url = new URL(destination, baseUrl);
+  url.searchParams.set("message", message);
+  url.searchParams.set("analytics_event", "sign_up");
+  return url;
 }
 
 export async function POST(request: Request) {
@@ -119,6 +135,7 @@ export async function POST(request: Request) {
   const passwordHash = await hashPassword(parsed.data.password);
   const slug = `${slugify(parsed.data.organizationName)}-${Math.random().toString(36).slice(2, 8)}`;
   const organizationType = orgTypeMap[parsed.data.accountType] ?? OrganizationType.household;
+  const signupMeasurementSystem = measurementSystemForSignup(country);
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
@@ -139,7 +156,7 @@ export async function POST(request: Request) {
         currencyCode: country.currencyCode,
         defaultTimezone: country.defaultTimezone,
         defaultLocale: country.defaultLocale,
-        measurementSystem: country.measurementSystem,
+        measurementSystem: signupMeasurementSystem,
       },
     });
 
@@ -162,7 +179,7 @@ export async function POST(request: Request) {
           defaultHouseholdSize: size,
           defaultServings: size,
           defaultSpiceLevel: parsed.data.spiceLevel ?? "medium",
-          preferredMeasurementSystem: country.measurementSystem,
+          preferredMeasurementSystem: signupMeasurementSystem,
           preferredCuisineIds: parsed.data.cuisineIds ?? [],
           cookingSkillLevel: "beginner",
           weeklyCookingDays: [],
@@ -254,12 +271,18 @@ export async function POST(request: Request) {
 
   const destination = getPostRegisterDestination(parsed.data.accountType, result.user.platformRole);
   const selectedPlanSlug = parsed.data.selectedPlanSlug?.trim();
-  if (selectedPlanSlug && selectedPlanSlug !== "free") {
+  if (selectedPlanSlug === "free") {
+    return NextResponse.redirect(destinationWithMessage(destination, FREE_ACCOUNT_READY_MESSAGE, request.url));
+  }
+  if (selectedPlanSlug) {
     const plan = await getActiveBillingPlanBySlug(selectedPlanSlug);
-    if (!plan || Number(plan.priceAmount) <= 0) {
+    if (!plan) {
       return NextResponse.redirect(
-        new URL(`/billing/plans?message=${encodeURIComponent("Your account was created, but the selected pricing plan was not found. Please choose a plan to continue.")}`, request.url),
+        new URL(`/billing/plans?message=${encodeURIComponent(PLAN_UNAVAILABLE_MESSAGE)}`, request.url),
       );
+    }
+    if (Number(plan.priceAmount) <= 0) {
+      return NextResponse.redirect(destinationWithMessage(destination, FREE_ACCOUNT_READY_MESSAGE, request.url));
     }
 
     try {
@@ -277,8 +300,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.redirect(
-      new URL(`/billing/plans?message=${encodeURIComponent("Your account was created. Payment checkout could not start, so please choose your plan again from Billing.")}`, request.url),
+      new URL(`/billing/plans?message=${encodeURIComponent(CHECKOUT_UNAVAILABLE_MESSAGE)}`, request.url),
     );
   }
-  return NextResponse.redirect(new URL(destination, request.url));
+  return NextResponse.redirect(new URL(withAnalyticsEvent(destination, "sign_up"), request.url));
 }

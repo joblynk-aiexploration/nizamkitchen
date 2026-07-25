@@ -8,11 +8,13 @@ import {
   type PlatformRole,
   type UserStatus,
 } from "@prisma/client";
+import type { SessionLike } from "@/lib/auth";
 import { assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { dishTemplateSchema, menuTemplateSchema } from "@/lib/validation/templates";
 import { createAuditEvent } from "@/server/audit";
+import { copyRecipeToMyRecipes } from "@/server/recipes";
 
 const TEMPLATE_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin"];
 const TEMPLATE_READ_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"];
@@ -34,7 +36,7 @@ const menuTemplateInclude = {
     orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
     include: {
       dishTemplate: { include: { cuisine: true, ingredients: { orderBy: { displayOrder: "asc" } } } },
-      recipe: { select: { id: true, name: true, slug: true } },
+      recipe: { select: { id: true, name: true, slug: true, organizationId: true, visibility: true, isPublished: true } },
     },
   },
 } satisfies Prisma.MenuTemplateInclude;
@@ -389,6 +391,7 @@ export async function listAvailableMenuTemplates(location: TemplateLocation & { 
 }
 
 export async function applyMenuTemplateToMealPlan(params: {
+  session: SessionLike;
   templateId: string;
   organizationId: string;
   countryCode: string;
@@ -410,6 +413,35 @@ export async function applyMenuTemplateToMealPlan(params: {
     date.setUTCDate(date.getUTCDate() + index);
     return date;
   });
+  const itemEntries = await Promise.all(template.items.map(async (item) => {
+    let recipeId = item.recipeId;
+
+    if (item.recipe) {
+      if (item.recipe.organizationId === params.organizationId && item.recipe.isPublished) {
+        recipeId = item.recipe.id;
+      } else if (item.recipe.organizationId === null && item.recipe.visibility === "global" && item.recipe.isPublished) {
+        const copy = await copyRecipeToMyRecipes({
+          session: params.session,
+          recipeId: item.recipe.id,
+          organizationId: params.organizationId,
+          countryCode: params.countryCode,
+        });
+        recipeId = copy.id;
+      } else {
+        recipeId = null;
+      }
+    }
+
+    return {
+      dayOffset: item.dayOffset ?? 0,
+      recipeId,
+      customMealName: recipeId ? null : item.nameSnapshot,
+      mealType: item.mealSlot ?? "dinner",
+      targetServings: Math.max(1, Math.round(item.quantity ?? params.householdSize)),
+      notes: item.dishTemplate ? `Dish template: ${item.dishTemplate.name}` : null,
+      displayOrder: item.displayOrder,
+    };
+  }));
   const plan = await prisma.mealPlan.create({
     data: {
       organizationId: params.organizationId,
@@ -426,14 +458,14 @@ export async function applyMenuTemplateToMealPlan(params: {
           date,
           dayLabel: date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }),
           entries: {
-            create: template.items
-              .filter((item) => (item.dayOffset ?? 0) === dayOffset)
+            create: itemEntries
+              .filter((item) => item.dayOffset === dayOffset)
               .map((item) => ({
                 recipeId: item.recipeId,
-                customMealName: item.recipeId ? null : item.nameSnapshot,
-                mealType: item.mealSlot ?? "dinner",
-                targetServings: Math.max(1, Math.round(item.quantity ?? params.householdSize)),
-                notes: item.dishTemplate ? `Dish template: ${item.dishTemplate.name}` : null,
+                customMealName: item.customMealName,
+                mealType: item.mealType,
+                targetServings: item.targetServings,
+                notes: item.notes,
                 displayOrder: item.displayOrder,
               })),
           },

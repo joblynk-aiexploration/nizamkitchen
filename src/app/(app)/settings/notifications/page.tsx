@@ -6,35 +6,9 @@ import { requireUser } from "@/lib/auth/session";
 import { ensureEmailPreference } from "@/server/email/email-service";
 import { getNotificationPreference } from "@/server/notifications/notification-service";
 import { updateNotificationPreferenceAction } from "./actions";
+import { visibleEmailPreferenceFields, visibleNotificationPreferenceFields } from "./preference-fields";
 
 export const dynamic = "force-dynamic";
-
-const fields = [
-  ["emailEnabled", "Email notifications", "Send operational emails when the provider is configured."],
-  ["inAppEnabled", "In-app notifications", "Show notifications in the NizamKitchen inbox."],
-  ["homeChefUpdates", "Home chef updates", "Request submission, assignment, and status changes."],
-  ["chefRequestMessages", "Chef request messages", "New household/admin messages on chef requests."],
-  ["groceryReminders", "Grocery reminders", "Grocery list sharing and future reminder workflows."],
-  ["mealPlanReminders", "Meal plan reminders", "Future meal-plan reminders and weekly planning nudges."],
-  ["adminAlerts", "Admin alerts", "Operational alerts for platform admins and support."],
-  ["marketingEmails", "Marketing emails", "Promotional emails. Disabled by default."],
-] as const;
-
-const emailFields = [
-  ["transactionalEnabled", "Transactional and security email", "Account, legal, payment, support, and security messages."],
-  ["marketingEnabled", "Marketing email", "Promotions, referrals, credits, and optional campaign messages."],
-  ["mealPlanningEmails", "Meal planning email", "Meal plan reminders and weekly planning messages."],
-  ["groceryEmails", "Grocery email", "Grocery list sharing, reminders, and checklist messages."],
-  ["orderEmails", "Order email", "Order submissions, status changes, pickup, delivery, and messages."],
-  ["homeChefEmails", "Home chef email", "Home chef request, quote, assignment, and schedule messages."],
-  ["sellerEmails", "Seller email", "Catering, restaurant, menu, order, and profile messages."],
-  ["paymentEmails", "Payment and billing email", "Payments, invoices, receipts, refunds, subscriptions, and payouts."],
-  ["verificationEmails", "Verification email", "Seller verification, KYC, documents, and safety review messages."],
-  ["supportEmails", "Support email", "Support ticket creation, replies, and status changes."],
-  ["reviewEmails", "Review email", "Review requests, reports, and moderation updates."],
-  ["promotionEmails", "Promotion email", "Promotion, credit, referral, and loyalty messages."],
-  ["adminAlertEmails", "Admin alert email", "Operational alerts for platform roles."],
-] as const;
 
 export default async function NotificationSettingsPage({
   searchParams,
@@ -47,6 +21,13 @@ export default async function NotificationSettingsPage({
     getNotificationPreference(session.user.id),
     ensureEmailPreference(session.user.id),
   ]);
+  const visibilityContext = {
+    platformRole: session.user.platformRole,
+    organizationType: session.activeOrganization?.organizationType,
+    membershipRole: session.activeMembership?.role,
+  };
+  const fields = visibleNotificationPreferenceFields(visibilityContext);
+  const emailFields = visibleEmailPreferenceFields(visibilityContext);
 
   return (
     <div className="space-y-6">

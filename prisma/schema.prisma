@@ -247,6 +247,7 @@ enum IntegrationProvider {
   google_oauth
   facebook_oauth
   google_analytics
+  secure_privacy
   google_search_console
   google_recaptcha
   google_adsense
@@ -270,6 +271,7 @@ enum IntegrationCategory {
   maps
   auth
   analytics
+  consent
   seo
   ads
   storage
@@ -324,128 +326,138 @@ enum OAuthProvider {
 }
 
 model User {
-  id                               String                         @id @default(cuid())
-  email                            String                         @unique
-  passwordHash                     String
-  fullName                         String
-  status                           UserStatus                     @default(active)
-  platformRole                     PlatformRole?
-  profilePhotoFileId               String?
-  coverPhotoFileId                 String?
-  headline                         String?
-  bio                              String?
-  location                         String?
-  locationText                     String?
-  phone                            String?
-  religion                         String?
-  preferredLanguage                String?
-  publicProfileEnabled             Boolean                        @default(false)
-  preferredLocale                  String?                        @default("en-US")
-  preferredTimezone                String?                        @default("America/Chicago")
-  lastLoginAt                      DateTime?
-  createdAt                        DateTime                       @default(now())
-  updatedAt                        DateTime                       @updatedAt
-  sessions                         Session[]
-  passwordResetTokens              PasswordResetToken[]
-  memberships                      Membership[]
-  countryAssignments               CountryAssignment[]
-  auditLogs                        AuditLog[]
-  emailLogs                        EmailLog[]
-  emailTemplatesCreated            EmailTemplate[]                 @relation("EmailTemplateCreatedBy")
-  emailTemplatesUpdated            EmailTemplate[]                 @relation("EmailTemplateUpdatedBy")
-  emailPreference                  EmailPreference?
-  emailSuppressionsCreated         EmailSuppression[]              @relation("EmailSuppressionCreatedBy")
-  apiKeys                          ApiKey[]
-  groceryLists                     GroceryList[]
-  groceryListShares                GroceryListShare[]             @relation("GroceryListShareCreatedBy")
-  groceryListExports               GroceryListExport[]            @relation("GroceryListExportCreatedBy")
-  createdMealPlans                 MealPlan[]                     @relation("MealPlanCreatedBy")
-  discoveryRuns                    YouTubeDiscoveryRun[]          @relation("DiscoveryRunRequestedBy")
-  reviewedCandidates               YouTubeVideoCandidate[]        @relation("CandidateReviewedBy")
-  favoriteRecipesCreated           FavoriteRecipe[]               @relation("FavoriteRecipeCreatedBy")
-  homeChefRequestsCreated          HomeChefRequest[]              @relation("HomeChefRequestCreatedBy")
-  homeChefMessagesSent             HomeChefRequestMessage[]       @relation("HomeChefRequestMessageSender")
-  homeChefStatusChanges            HomeChefRequestStatusHistory[] @relation("HomeChefRequestStatusChangedBy")
-  chefReviews                      ChefReview[]
-  restaurantFallbackSearches       RestaurantFallbackSearch[]     @relation("RestaurantSearchCreatedBy")
-  notifications                    Notification[]
-  notificationPreference           NotificationPreference?
-  localizationPreference           UserLocalizationPreference?
-  supportTicketsCreated            SupportTicket[]                @relation("SupportTicketCreatedBy")
-  supportTicketsAssigned           SupportTicket[]                @relation("SupportTicketAssignedTo")
-  supportTicketComments            SupportTicketComment[]
-  foodOrders                       FoodOrder[]                    @relation("FoodOrderCustomerUser")
-  foodOrderMessages                FoodOrderMessage[]             @relation("FoodOrderMessageSender")
-  foodOrderStatusChanges           FoodOrderStatusHistory[]       @relation("FoodOrderStatusChangedBy")
-  foodOrderFulfillmentEvents       FoodOrderFulfillmentEvent[]    @relation("FoodOrderFulfillmentEventActor")
-  marketplaceReviewsWritten        MarketplaceReview[]            @relation("MarketplaceReviewReviewer")
-  marketplaceReviewSellerReplies   MarketplaceReview[]            @relation("MarketplaceReviewSellerReplyBy")
-  marketplaceReviewsModerated      MarketplaceReview[]            @relation("MarketplaceReviewModeratedBy")
-  marketplaceReviewReportsCreated  MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReporter")
-  marketplaceReviewReportsReviewed MarketplaceReviewReport[]      @relation("MarketplaceReviewReportReviewedBy")
-  trustComplaintsCreated           TrustComplaint[]               @relation("TrustComplaintReporter")
-  trustComplaintsReviewed          TrustComplaint[]               @relation("TrustComplaintReviewedBy")
-  storageConfigurationsCreated     StorageConfiguration[]         @relation("StorageConfigurationCreatedBy")
-  storageConfigurationsUpdated     StorageConfiguration[]         @relation("StorageConfigurationUpdatedBy")
-  storageFilesUploaded             StorageFile[]                  @relation("StorageFileUploadedBy")
-  storageFileAccessLogs            StorageFileAccessLog[]
-  storageFileVersions              StorageFileVersion[]           @relation("StorageFileVersionCreatedBy")
-  reviewedSellerProfiles           SellerVerificationProfile[]    @relation("SellerVerificationProfileReviewedBy")
-  reviewedVerificationItems        SellerVerificationItem[]       @relation("SellerVerificationItemReviewedBy")
-  reviewedFoodSafetyCertificates   FoodSafetyCertificate[]        @relation("FoodSafetyCertificateReviewedBy")
-  reviewedSellerPermits            SellerPermit[]                 @relation("SellerPermitReviewedBy")
-  acceptedSellerAttestations       SellerAttestation[]            @relation("SellerAttestationAcceptedBy")
-  requestedBackgroundChecks        SellerBackgroundCheck[]        @relation("SellerBackgroundCheckRequestedBy")
-  reviewedKitchenSafety            KitchenSafetyReview[]          @relation("KitchenSafetyReviewReviewedBy")
-  reviewedSellerTrials             SellerTrialReview[]            @relation("SellerTrialReviewReviewedBy")
-  kycProviderConfigurationsCreated KycProviderConfiguration[]     @relation("KycProviderConfigurationCreatedBy")
-  kycProviderConfigurationsUpdated KycProviderConfiguration[]     @relation("KycProviderConfigurationUpdatedBy")
-  identityVerifications            IdentityVerification[]
-  sellerVerificationOverrides      SellerVerificationOverride[]   @relation("SellerVerificationOverrideGrantedBy")
-  permissionOverrides              UserPermissionOverride[]        @relation("UserPermissionOverrideUser")
-  permissionOverridesCreated       UserPermissionOverride[]        @relation("UserPermissionOverrideCreatedBy")
-  resolvedSystemAlerts             SystemAlert[]                  @relation("SystemAlertResolvedBy")
-  marketplacePoliciesCreated       MarketplacePolicy[]             @relation("MarketplacePolicyCreatedBy")
-  marketplacePoliciesUpdated       MarketplacePolicy[]             @relation("MarketplacePolicyUpdatedBy")
-  marketplacePolicyOverrides       MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideUser")
-  marketplacePolicyOverridesCreated MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideCreatedBy")
-  marketplacePolicyOverridesRevoked MarketplacePolicyOverride[]     @relation("MarketplacePolicyOverrideRevokedBy")
-  marketplacePolicyLogs            MarketplacePolicyEvaluationLog[]
-  legalDocumentsCreated            LegalDocument[]                  @relation("LegalDocumentCreatedBy")
-  legalDocumentsPublished          LegalDocument[]                  @relation("LegalDocumentPublishedBy")
-  legalDocumentAcceptances         LegalDocumentAcceptance[]
-  legalConsentEvents               LegalConsentEvent[]
-  dataPrivacyRequests              DataPrivacyRequest[]             @relation("DataPrivacyRequestUser")
-  dataPrivacyRequestsCreated       DataPrivacyRequest[]             @relation("DataPrivacyRequestRequestedBy")
-  dataPrivacyRequestsCompleted     DataPrivacyRequest[]             @relation("DataPrivacyRequestCompletedBy")
-  dataRetentionPoliciesCreated     DataRetentionPolicy[]            @relation("DataRetentionPolicyCreatedBy")
-  dataRetentionPoliciesUpdated     DataRetentionPolicy[]            @relation("DataRetentionPolicyUpdatedBy")
-  platformIntegrationsCreated      PlatformIntegration[]            @relation("PlatformIntegrationCreatedBy")
-  platformIntegrationsUpdated      PlatformIntegration[]            @relation("PlatformIntegrationUpdatedBy")
-  platformIntegrationCredentialsCreated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialCreatedBy")
-  platformIntegrationCredentialsUpdated PlatformIntegrationCredential[] @relation("PlatformIntegrationCredentialUpdatedBy")
-  platformIntegrationTests         PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
-  oauthAccounts                    OAuthAccount[]
-  userActivities                   UserActivity[]
-  privacySetting                   UserPrivacySetting?
-  dishTemplatesCreated             DishTemplate[]                   @relation("DishTemplateCreatedBy")
-  dishTemplatesUpdated             DishTemplate[]                   @relation("DishTemplateUpdatedBy")
-  menuTemplatesCreated             MenuTemplate[]                   @relation("MenuTemplateCreatedBy")
-  menuTemplatesUpdated             MenuTemplate[]                   @relation("MenuTemplateUpdatedBy")
-  seoSettingsCreated               SeoSetting[]                     @relation("SeoSettingCreatedBy")
-  seoSettingsUpdated               SeoSetting[]                     @relation("SeoSettingUpdatedBy")
-  locations                        Location[]
-  promotionsCreated                Promotion[]                      @relation("PromotionCreatedBy")
-  promotionsUpdated                Promotion[]                      @relation("PromotionUpdatedBy")
-  cmsPagesCreated                  CmsPage[]                        @relation("CmsPageCreatedBy")
-  cmsPagesUpdated                  CmsPage[]                        @relation("CmsPageUpdatedBy")
-  cmsPagesPublished                CmsPage[]                        @relation("CmsPagePublishedBy")
-  helpArticlesCreated              HelpArticle[]                    @relation("HelpArticleCreatedBy")
-  helpArticlesUpdated              HelpArticle[]                    @relation("HelpArticleUpdatedBy")
-  helpArticlesPublished            HelpArticle[]                    @relation("HelpArticlePublishedBy")
-  faqsCreated                      FaqItem[]                        @relation("FaqItemCreatedBy")
-  faqsUpdated                      FaqItem[]                        @relation("FaqItemUpdatedBy")
-  faqsPublished                    FaqItem[]                        @relation("FaqItemPublishedBy")
+  id                                    String                           @id @default(cuid())
+  email                                 String                           @unique
+  passwordHash                          String
+  fullName                              String
+  status                                UserStatus                       @default(active)
+  platformRole                          PlatformRole?
+  profilePhotoFileId                    String?
+  coverPhotoFileId                      String?
+  headline                              String?
+  bio                                   String?
+  location                              String?
+  locationText                          String?
+  phone                                 String?
+  religion                              String?
+  preferredLanguage                     String?
+  publicProfileEnabled                  Boolean                          @default(false)
+  preferredLocale                       String?                          @default("en-US")
+  preferredTimezone                     String?                          @default("America/Chicago")
+  lastLoginAt                           DateTime?
+  createdAt                             DateTime                         @default(now())
+  updatedAt                             DateTime                         @updatedAt
+  sessions                              Session[]
+  passwordResetTokens                   PasswordResetToken[]
+  memberships                           Membership[]
+  countryAssignments                    CountryAssignment[]
+  auditLogs                             AuditLog[]
+  emailLogs                             EmailLog[]
+  emailTemplatesCreated                 EmailTemplate[]                  @relation("EmailTemplateCreatedBy")
+  emailTemplatesUpdated                 EmailTemplate[]                  @relation("EmailTemplateUpdatedBy")
+  emailPreference                       EmailPreference?
+  emailSuppressionsCreated              EmailSuppression[]               @relation("EmailSuppressionCreatedBy")
+  apiKeys                               ApiKey[]
+  groceryLists                          GroceryList[]
+  groceryListShares                     GroceryListShare[]               @relation("GroceryListShareCreatedBy")
+  groceryListExports                    GroceryListExport[]              @relation("GroceryListExportCreatedBy")
+  createdMealPlans                      MealPlan[]                       @relation("MealPlanCreatedBy")
+  discoveryRuns                         YouTubeDiscoveryRun[]            @relation("DiscoveryRunRequestedBy")
+  reviewedCandidates                    YouTubeVideoCandidate[]          @relation("CandidateReviewedBy")
+  favoriteRecipesCreated                FavoriteRecipe[]                 @relation("FavoriteRecipeCreatedBy")
+  favoriteRecipesReceived               FavoriteRecipe[]                 @relation("FavoriteRecipeRecipient")
+  homeChefRequestsCreated               HomeChefRequest[]                @relation("HomeChefRequestCreatedBy")
+  homeChefMessagesSent                  HomeChefRequestMessage[]         @relation("HomeChefRequestMessageSender")
+  homeChefStatusChanges                 HomeChefRequestStatusHistory[]   @relation("HomeChefRequestStatusChangedBy")
+  homeChefAcceptancePoliciesCreated     HomeChefAcceptancePolicy[]       @relation("HomeChefAcceptancePolicyCreatedBy")
+  homeChefAcceptancePoliciesUpdated     HomeChefAcceptancePolicy[]       @relation("HomeChefAcceptancePolicyUpdatedBy")
+  homeChefOffersCreated                 HomeChefRequestOffer[]           @relation("HomeChefRequestOfferOfferedBy")
+  homeChefPrivacyPoliciesCreated        HomeChefPrivacyPolicy[]          @relation("HomeChefPrivacyPolicyCreatedBy")
+  homeChefPrivacyPoliciesUpdated        HomeChefPrivacyPolicy[]          @relation("HomeChefPrivacyPolicyUpdatedBy")
+  homeChefBookingLocks                  HomeChefRequest[]                @relation("HomeChefRequestBookingLockedBy")
+  homeChefAccessGrants                  HomeChefRequestAccessGrant[]     @relation("HomeChefAccessGrantUser")
+  homeChefAccessGrantsCreated           HomeChefRequestAccessGrant[]     @relation("HomeChefAccessGrantCreatedBy")
+  contactProxySessionsHousehold         ContactProxySession[]            @relation("ContactProxySessionHouseholdUser")
+  chefReviews                           ChefReview[]
+  restaurantFallbackSearches            RestaurantFallbackSearch[]       @relation("RestaurantSearchCreatedBy")
+  notifications                         Notification[]
+  notificationPreference                NotificationPreference?
+  localizationPreference                UserLocalizationPreference?
+  supportTicketsCreated                 SupportTicket[]                  @relation("SupportTicketCreatedBy")
+  supportTicketsAssigned                SupportTicket[]                  @relation("SupportTicketAssignedTo")
+  supportTicketComments                 SupportTicketComment[]
+  foodOrders                            FoodOrder[]                      @relation("FoodOrderCustomerUser")
+  foodOrderMessages                     FoodOrderMessage[]               @relation("FoodOrderMessageSender")
+  foodOrderStatusChanges                FoodOrderStatusHistory[]         @relation("FoodOrderStatusChangedBy")
+  foodOrderFulfillmentEvents            FoodOrderFulfillmentEvent[]      @relation("FoodOrderFulfillmentEventActor")
+  marketplaceReviewsWritten             MarketplaceReview[]              @relation("MarketplaceReviewReviewer")
+  marketplaceReviewSellerReplies        MarketplaceReview[]              @relation("MarketplaceReviewSellerReplyBy")
+  marketplaceReviewsModerated           MarketplaceReview[]              @relation("MarketplaceReviewModeratedBy")
+  marketplaceReviewReportsCreated       MarketplaceReviewReport[]        @relation("MarketplaceReviewReportReporter")
+  marketplaceReviewReportsReviewed      MarketplaceReviewReport[]        @relation("MarketplaceReviewReportReviewedBy")
+  trustComplaintsCreated                TrustComplaint[]                 @relation("TrustComplaintReporter")
+  trustComplaintsReviewed               TrustComplaint[]                 @relation("TrustComplaintReviewedBy")
+  storageConfigurationsCreated          StorageConfiguration[]           @relation("StorageConfigurationCreatedBy")
+  storageConfigurationsUpdated          StorageConfiguration[]           @relation("StorageConfigurationUpdatedBy")
+  storageFilesUploaded                  StorageFile[]                    @relation("StorageFileUploadedBy")
+  storageFileAccessLogs                 StorageFileAccessLog[]
+  storageFileVersions                   StorageFileVersion[]             @relation("StorageFileVersionCreatedBy")
+  reviewedSellerProfiles                SellerVerificationProfile[]      @relation("SellerVerificationProfileReviewedBy")
+  reviewedVerificationItems             SellerVerificationItem[]         @relation("SellerVerificationItemReviewedBy")
+  reviewedFoodSafetyCertificates        FoodSafetyCertificate[]          @relation("FoodSafetyCertificateReviewedBy")
+  reviewedSellerPermits                 SellerPermit[]                   @relation("SellerPermitReviewedBy")
+  acceptedSellerAttestations            SellerAttestation[]              @relation("SellerAttestationAcceptedBy")
+  requestedBackgroundChecks             SellerBackgroundCheck[]          @relation("SellerBackgroundCheckRequestedBy")
+  reviewedKitchenSafety                 KitchenSafetyReview[]            @relation("KitchenSafetyReviewReviewedBy")
+  reviewedSellerTrials                  SellerTrialReview[]              @relation("SellerTrialReviewReviewedBy")
+  kycProviderConfigurationsCreated      KycProviderConfiguration[]       @relation("KycProviderConfigurationCreatedBy")
+  kycProviderConfigurationsUpdated      KycProviderConfiguration[]       @relation("KycProviderConfigurationUpdatedBy")
+  identityVerifications                 IdentityVerification[]
+  sellerVerificationOverrides           SellerVerificationOverride[]     @relation("SellerVerificationOverrideGrantedBy")
+  permissionOverrides                   UserPermissionOverride[]         @relation("UserPermissionOverrideUser")
+  permissionOverridesCreated            UserPermissionOverride[]         @relation("UserPermissionOverrideCreatedBy")
+  resolvedSystemAlerts                  SystemAlert[]                    @relation("SystemAlertResolvedBy")
+  marketplacePoliciesCreated            MarketplacePolicy[]              @relation("MarketplacePolicyCreatedBy")
+  marketplacePoliciesUpdated            MarketplacePolicy[]              @relation("MarketplacePolicyUpdatedBy")
+  marketplacePolicyOverrides            MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideUser")
+  marketplacePolicyOverridesCreated     MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideCreatedBy")
+  marketplacePolicyOverridesRevoked     MarketplacePolicyOverride[]      @relation("MarketplacePolicyOverrideRevokedBy")
+  marketplacePolicyLogs                 MarketplacePolicyEvaluationLog[]
+  legalDocumentsCreated                 LegalDocument[]                  @relation("LegalDocumentCreatedBy")
+  legalDocumentsPublished               LegalDocument[]                  @relation("LegalDocumentPublishedBy")
+  legalDocumentAcceptances              LegalDocumentAcceptance[]
+  legalConsentEvents                    LegalConsentEvent[]
+  dataPrivacyRequests                   DataPrivacyRequest[]             @relation("DataPrivacyRequestUser")
+  dataPrivacyRequestsCreated            DataPrivacyRequest[]             @relation("DataPrivacyRequestRequestedBy")
+  dataPrivacyRequestsCompleted          DataPrivacyRequest[]             @relation("DataPrivacyRequestCompletedBy")
+  dataRetentionPoliciesCreated          DataRetentionPolicy[]            @relation("DataRetentionPolicyCreatedBy")
+  dataRetentionPoliciesUpdated          DataRetentionPolicy[]            @relation("DataRetentionPolicyUpdatedBy")
+  platformIntegrationsCreated           PlatformIntegration[]            @relation("PlatformIntegrationCreatedBy")
+  platformIntegrationsUpdated           PlatformIntegration[]            @relation("PlatformIntegrationUpdatedBy")
+  platformIntegrationCredentialsCreated PlatformIntegrationCredential[]  @relation("PlatformIntegrationCredentialCreatedBy")
+  platformIntegrationCredentialsUpdated PlatformIntegrationCredential[]  @relation("PlatformIntegrationCredentialUpdatedBy")
+  platformIntegrationTests              PlatformIntegrationTestLog[]     @relation("PlatformIntegrationTestedBy")
+  oauthAccounts                         OAuthAccount[]
+  userActivities                        UserActivity[]
+  privacySetting                        UserPrivacySetting?
+  dishTemplatesCreated                  DishTemplate[]                   @relation("DishTemplateCreatedBy")
+  dishTemplatesUpdated                  DishTemplate[]                   @relation("DishTemplateUpdatedBy")
+  menuTemplatesCreated                  MenuTemplate[]                   @relation("MenuTemplateCreatedBy")
+  menuTemplatesUpdated                  MenuTemplate[]                   @relation("MenuTemplateUpdatedBy")
+  seoSettingsCreated                    SeoSetting[]                     @relation("SeoSettingCreatedBy")
+  seoSettingsUpdated                    SeoSetting[]                     @relation("SeoSettingUpdatedBy")
+  locations                             Location[]
+  promotionsCreated                     Promotion[]                      @relation("PromotionCreatedBy")
+  promotionsUpdated                     Promotion[]                      @relation("PromotionUpdatedBy")
+  cmsPagesCreated                       CmsPage[]                        @relation("CmsPageCreatedBy")
+  cmsPagesUpdated                       CmsPage[]                        @relation("CmsPageUpdatedBy")
+  cmsPagesPublished                     CmsPage[]                        @relation("CmsPagePublishedBy")
+  helpArticlesCreated                   HelpArticle[]                    @relation("HelpArticleCreatedBy")
+  helpArticlesUpdated                   HelpArticle[]                    @relation("HelpArticleUpdatedBy")
+  helpArticlesPublished                 HelpArticle[]                    @relation("HelpArticlePublishedBy")
+  faqsCreated                           FaqItem[]                        @relation("FaqItemCreatedBy")
+  faqsUpdated                           FaqItem[]                        @relation("FaqItemUpdatedBy")
+  faqsPublished                         FaqItem[]                        @relation("FaqItemPublishedBy")
 }
 
 model Session {
@@ -467,16 +479,16 @@ model Session {
 }
 
 model PasswordResetToken {
-  id          String    @id @default(cuid())
-  userId      String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  usedAt      DateTime?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -507,93 +519,93 @@ model OAuthAccount {
 }
 
 model Organization {
-  id                         String                       @id @default(cuid())
-  name                       String
-  slug                       String                       @unique
-  organizationType           OrganizationType
-  status                     OrganizationStatus           @default(active)
-  organizationId             String                       @unique
-  countryCode                String
-  currencyCode               String
-  logoFileId                 String?
-  coverPhotoFileId           String?
-  defaultTimezone            String
-  defaultLocale              String
-  measurementSystem          MeasurementSystem
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @updatedAt
-  memberships                Membership[]
-  country                    Country                      @relation(fields: [countryCode], references: [countryCode])
-  sessions                   Session[]
-  auditLogs                  AuditLog[]
-  featureFlags               FeatureFlag[]
-  billingSubscriptions       BillingSubscription[]
-  apiKeys                    ApiKey[]
-  storageFiles               StorageFile[]
-  emailLogs                  EmailLog[]
-  countryConfigs             CountryConfig[]
-  groceryLists               GroceryList[]
-  groceryListShares          GroceryListShare[]
-  groceryListExports         GroceryListExport[]
-  mealPlans                  MealPlan[]
-  mealPlanPreference         MealPlanPreference?
-  householdProfile           HouseholdProfile?
-  homeCateringProfile        HomeCateringProfile?
-  menus                      Menu[]
-  menuItems                  MenuItem[]
-  householdPreferences       HouseholdPreference[]
-  preferredCuisines          HouseholdPreferredCuisine[]
-  avoidedIngredients         AvoidedIngredient[]
-  favoriteRecipes            FavoriteRecipe[]
-  pantryItems                HouseholdPantryItem[]
-  shoppingPreference         HouseholdShoppingPreference?
-  chefProfile                ChefProfile?
-  homeChefRequests           HomeChefRequest[]            @relation("HomeChefRequestOrganization")
-  assignedChefRequests       HomeChefRequest[]            @relation("HomeChefRequestAssignedChefOrganization")
-  chefReviews                ChefReview[]
-  restaurantFallbackSearches RestaurantFallbackSearch[]
-  savedRestaurants           SavedRestaurant[]
-  notifications              Notification[]
-  supportTickets             SupportTicket[]
-  foodOrders                 FoodOrder[]                  @relation("FoodOrderTenantOrganization")
-  customerFoodOrders         FoodOrder[]                  @relation("FoodOrderCustomerOrganization")
-  sellerFoodOrders           FoodOrder[]                  @relation("FoodOrderSellerOrganization")
-  marketplaceReviewsWritten  MarketplaceReview[]          @relation("MarketplaceReviewCustomerOrganization")
-  marketplaceReviewsReceived MarketplaceReview[]          @relation("MarketplaceReviewSellerOrganization")
-  marketplaceReviewReports   MarketplaceReviewReport[]
-  trustComplaintsReporter    TrustComplaint[]             @relation("TrustComplaintReporterOrganization")
-  trustComplaintsSeller      TrustComplaint[]             @relation("TrustComplaintSellerOrganization")
-  fulfillmentPickupLocations FulfillmentPickupLocation[]
-  fulfillmentDeliveryZones   FulfillmentDeliveryZone[]
-  fulfillmentTimeSlots       FulfillmentTimeSlot[]
-  fulfillmentEvents          FoodOrderFulfillmentEvent[]
-  businessSocialLinks        BusinessSocialLink[]
-  paymentGateways            PaymentGateway[]
-  paymentOrders              PaymentOrder[]
-  paymentTransactions        PaymentTransaction[]
-  paymentRefunds             PaymentRefund[]
-  paymentDisputes            PaymentDispute[]
-  accountingDocuments        AccountingDocument[]
-  sellerSettlementReports    SellerSettlementReport[]
-  sellerPayoutAccounts       SellerPayoutAccount[]
-  sellerPayouts              SellerPayout[]
-  sellerVerificationProfile  SellerVerificationProfile?
-  foodSafetyCertificates     FoodSafetyCertificate[]
-  sellerPermits              SellerPermit[]
-  sellerAttestations         SellerAttestation[]
-  sellerBackgroundChecks     SellerBackgroundCheck[]
-  kitchenSafetyReviews       KitchenSafetyReview[]
-  sellerTrialReviews         SellerTrialReview[]
-  identityVerifications      IdentityVerification[]
+  id                          String                           @id @default(cuid())
+  name                        String
+  slug                        String                           @unique
+  organizationType            OrganizationType
+  status                      OrganizationStatus               @default(active)
+  organizationId              String                           @unique
+  countryCode                 String
+  currencyCode                String
+  logoFileId                  String?
+  coverPhotoFileId            String?
+  defaultTimezone             String
+  defaultLocale               String
+  measurementSystem           MeasurementSystem
+  createdAt                   DateTime                         @default(now())
+  updatedAt                   DateTime                         @updatedAt
+  memberships                 Membership[]
+  country                     Country                          @relation(fields: [countryCode], references: [countryCode])
+  sessions                    Session[]
+  auditLogs                   AuditLog[]
+  featureFlags                FeatureFlag[]
+  billingSubscriptions        BillingSubscription[]
+  apiKeys                     ApiKey[]
+  storageFiles                StorageFile[]
+  emailLogs                   EmailLog[]
+  countryConfigs              CountryConfig[]
+  groceryLists                GroceryList[]
+  groceryListShares           GroceryListShare[]
+  groceryListExports          GroceryListExport[]
+  mealPlans                   MealPlan[]
+  mealPlanPreference          MealPlanPreference?
+  householdProfile            HouseholdProfile?
+  homeCateringProfile         HomeCateringProfile?
+  menus                       Menu[]
+  menuItems                   MenuItem[]
+  householdPreferences        HouseholdPreference[]
+  preferredCuisines           HouseholdPreferredCuisine[]
+  avoidedIngredients          AvoidedIngredient[]
+  favoriteRecipes             FavoriteRecipe[]
+  pantryItems                 HouseholdPantryItem[]
+  shoppingPreference          HouseholdShoppingPreference?
+  chefProfile                 ChefProfile?
+  homeChefRequests            HomeChefRequest[]                @relation("HomeChefRequestOrganization")
+  assignedChefRequests        HomeChefRequest[]                @relation("HomeChefRequestAssignedChefOrganization")
+  chefReviews                 ChefReview[]
+  restaurantFallbackSearches  RestaurantFallbackSearch[]
+  savedRestaurants            SavedRestaurant[]
+  notifications               Notification[]
+  supportTickets              SupportTicket[]
+  foodOrders                  FoodOrder[]                      @relation("FoodOrderTenantOrganization")
+  customerFoodOrders          FoodOrder[]                      @relation("FoodOrderCustomerOrganization")
+  sellerFoodOrders            FoodOrder[]                      @relation("FoodOrderSellerOrganization")
+  marketplaceReviewsWritten   MarketplaceReview[]              @relation("MarketplaceReviewCustomerOrganization")
+  marketplaceReviewsReceived  MarketplaceReview[]              @relation("MarketplaceReviewSellerOrganization")
+  marketplaceReviewReports    MarketplaceReviewReport[]
+  trustComplaintsReporter     TrustComplaint[]                 @relation("TrustComplaintReporterOrganization")
+  trustComplaintsSeller       TrustComplaint[]                 @relation("TrustComplaintSellerOrganization")
+  fulfillmentPickupLocations  FulfillmentPickupLocation[]
+  fulfillmentDeliveryZones    FulfillmentDeliveryZone[]
+  fulfillmentTimeSlots        FulfillmentTimeSlot[]
+  fulfillmentEvents           FoodOrderFulfillmentEvent[]
+  businessSocialLinks         BusinessSocialLink[]
+  paymentGateways             PaymentGateway[]
+  paymentOrders               PaymentOrder[]
+  paymentTransactions         PaymentTransaction[]
+  paymentRefunds              PaymentRefund[]
+  paymentDisputes             PaymentDispute[]
+  accountingDocuments         AccountingDocument[]
+  sellerSettlementReports     SellerSettlementReport[]
+  sellerPayoutAccounts        SellerPayoutAccount[]
+  sellerPayouts               SellerPayout[]
+  sellerVerificationProfile   SellerVerificationProfile?
+  foodSafetyCertificates      FoodSafetyCertificate[]
+  sellerPermits               SellerPermit[]
+  sellerAttestations          SellerAttestation[]
+  sellerBackgroundChecks      SellerBackgroundCheck[]
+  kitchenSafetyReviews        KitchenSafetyReview[]
+  sellerTrialReviews          SellerTrialReview[]
+  identityVerifications       IdentityVerification[]
   sellerVerificationOverrides SellerVerificationOverride[]
-  marketplacePolicyOverrides MarketplacePolicyOverride[]
-  marketplacePolicyLogs      MarketplacePolicyEvaluationLog[]
-  legalDocumentAcceptances   LegalDocumentAcceptance[]
-  legalConsentEvents         LegalConsentEvent[]
-  dataPrivacyRequests        DataPrivacyRequest[]
-  userActivities             UserActivity[]
-  locations                  Location[]
-  sellerPromotions           Promotion[]                 @relation("SellerPromotions")
+  marketplacePolicyOverrides  MarketplacePolicyOverride[]
+  marketplacePolicyLogs       MarketplacePolicyEvaluationLog[]
+  legalDocumentAcceptances    LegalDocumentAcceptance[]
+  legalConsentEvents          LegalConsentEvent[]
+  dataPrivacyRequests         DataPrivacyRequest[]
+  userActivities              UserActivity[]
+  locations                   Location[]
+  sellerPromotions            Promotion[]                      @relation("SellerPromotions")
 
   @@index([countryCode])
   @@index([status])
@@ -616,18 +628,18 @@ model Membership {
 }
 
 model Country {
-  id                 String              @id @default(cuid())
-  countryCode        String              @unique
+  id                 String                  @id @default(cuid())
+  countryCode        String                  @unique
   countryName        String
   currencyCode       String
   defaultTimezone    String
   defaultLocale      String
   measurementSystem  MeasurementSystem
   phoneCountryCode   String
-  isActive           Boolean             @default(true)
+  isActive           Boolean                 @default(true)
   supportedModules   String[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
   organizations      Organization[]
   countryAssignments CountryAssignment[]
   countryConfigs     CountryConfig[]
@@ -761,41 +773,41 @@ model CountryConfig {
 }
 
 model LocalizationLocale {
-  id                  String                       @id @default(cuid())
-  localeCode          String                       @unique
-  languageName        String
-  nativeName          String
-  textDirection       LocaleTextDirection          @default(ltr)
-  status              LocalizationStatus           @default(active)
-  isDefault           Boolean                      @default(false)
-  dateFormat          String
-  timeFormat          String
-  numberFormat        String
-  createdById         String?
-  updatedById         String?
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
-  translations        LocalizationTranslation[]
-  userPreferences     UserLocalizationPreference[]
-  terminologyAliases  FoodTerminologyAlias[]
+  id                 String                       @id @default(cuid())
+  localeCode         String                       @unique
+  languageName       String
+  nativeName         String
+  textDirection      LocaleTextDirection          @default(ltr)
+  status             LocalizationStatus           @default(active)
+  isDefault          Boolean                      @default(false)
+  dateFormat         String
+  timeFormat         String
+  numberFormat       String
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  translations       LocalizationTranslation[]
+  userPreferences    UserLocalizationPreference[]
+  terminologyAliases FoodTerminologyAlias[]
 
   @@index([status])
   @@index([textDirection])
 }
 
 model LocalizationTranslation {
-  id              String              @id @default(cuid())
+  id              String             @id @default(cuid())
   localeCode      String
   namespace       String
   translationKey  String
   defaultValue    String
   translatedValue String
-  status          TranslationStatus   @default(published)
+  status          TranslationStatus  @default(published)
   createdById     String?
   updatedById     String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  locale          LocalizationLocale  @relation(fields: [localeCode], references: [localeCode], onDelete: Cascade)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  locale          LocalizationLocale @relation(fields: [localeCode], references: [localeCode], onDelete: Cascade)
 
   @@unique([localeCode, namespace, translationKey])
   @@index([namespace])
@@ -803,24 +815,24 @@ model LocalizationTranslation {
 }
 
 model CurrencySetting {
-  id                  String             @id @default(cuid())
-  currencyCode        String             @unique
-  displayName         String
-  symbol              String
-  decimalDigits       Int                @default(2)
-  status              LocalizationStatus @default(active)
-  countryCodesJson    Json?
-  createdById         String?
-  updatedById         String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id               String             @id @default(cuid())
+  currencyCode     String             @unique
+  displayName      String
+  symbol           String
+  decimalDigits    Int                @default(2)
+  status           LocalizationStatus @default(active)
+  countryCodesJson Json?
+  createdById      String?
+  updatedById      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([status])
 }
 
 model CountryRegionalSetting {
-  id                         String             @id @default(cuid())
-  countryCode                String             @unique
+  id                         String            @id @default(cuid())
+  countryCode                String            @unique
   defaultLocale              String
   supportedLocalesJson       Json
   supportedCurrencyCodesJson Json
@@ -828,32 +840,32 @@ model CountryRegionalSetting {
   dateFormat                 String
   timeFormat                 String
   addressFormatJson          Json
-  rtlEnabled                 Boolean            @default(false)
+  rtlEnabled                 Boolean           @default(false)
   createdById                String?
   updatedById                String?
-  createdAt                  DateTime           @default(now())
-  updatedAt                  DateTime           @updatedAt
-  country                    Country            @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  country                    Country           @relation(fields: [countryCode], references: [countryCode], onDelete: Cascade)
 
   @@index([defaultLocale])
   @@index([measurementSystem])
 }
 
 model FoodTerminologyAlias {
-  id                  String                @id @default(cuid())
-  localeCode          String?
-  countryCode         String?
-  ingredientId        String?
-  sourceTerm          String
-  localizedTerm       String
-  transliteration     String?
-  notes               String?
-  createdById         String?
-  updatedById         String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  locale              LocalizationLocale?    @relation(fields: [localeCode], references: [localeCode], onDelete: SetNull)
-  ingredient          Ingredient?            @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+  id              String              @id @default(cuid())
+  localeCode      String?
+  countryCode     String?
+  ingredientId    String?
+  sourceTerm      String
+  localizedTerm   String
+  transliteration String?
+  notes           String?
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  locale          LocalizationLocale? @relation(fields: [localeCode], references: [localeCode], onDelete: SetNull)
+  ingredient      Ingredient?         @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
 
   @@index([localeCode])
   @@index([countryCode])
@@ -884,15 +896,15 @@ model AuditLog {
 }
 
 model Permission {
-  id           String                   @id @default(cuid())
-  key          String                   @unique
-  name         String
-  description  String?
-  module       String
-  action       PermissionAction
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  roleBindings RolePermission[]
+  id            String                   @id @default(cuid())
+  key           String                   @unique
+  name          String
+  description   String?
+  module        String
+  action        PermissionAction
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  roleBindings  RolePermission[]
   userOverrides UserPermissionOverride[]
 
   @@index([module])
@@ -900,12 +912,12 @@ model Permission {
 }
 
 model RolePermission {
-  id           String       @id @default(cuid())
+  id           String     @id @default(cuid())
   roleScope    RoleScope
   roleName     String
   permissionId String
-  createdAt    DateTime     @default(now())
-  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleScope, roleName, permissionId])
   @@index([roleScope, roleName])
@@ -913,16 +925,16 @@ model RolePermission {
 }
 
 model UserPermissionOverride {
-  id           String             @id @default(cuid())
+  id           String           @id @default(cuid())
   userId       String
   permissionId String
   effect       PermissionEffect
   createdById  String
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  user         User               @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission         @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  createdBy    User               @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  user         User             @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdBy    User             @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@unique([userId, permissionId])
   @@index([userId])
@@ -960,6 +972,14 @@ enum BillingPlanStatus {
   archived
 }
 
+enum BillingPlanAudience {
+  household
+  chef_staff
+  home_catering
+  restaurant
+  platform_internal
+}
+
 enum BillingSubscriptionStatus {
   trialing
   active
@@ -984,6 +1004,8 @@ model BillingPlan {
   currencyCode    String                @default("USD")
   billingInterval BillingInterval       @default(monthly)
   status          BillingPlanStatus     @default(draft)
+  planAudience    BillingPlanAudience   @default(household)
+  isPopular       Boolean               @default(false)
   limitsJson      Json                  @default("{}")
   featuresJson    Json                  @default("[]")
   stripePriceId   String?
@@ -992,6 +1014,7 @@ model BillingPlan {
   subscriptions   BillingSubscription[]
 
   @@index([status])
+  @@index([planAudience])
   @@index([slug])
 }
 
@@ -1081,38 +1104,38 @@ model StorageConfiguration {
 }
 
 model StorageFile {
-  id               String                 @id @default(cuid())
-  organizationId   String?
-  userId           String?
-  uploadedById     String
-  countryCode      String?
-  module           StorageModule
-  entityType       String?
-  entityId         String?
-  provider         StorageProvider
-  bucketName       String
-  objectKey        String
-  originalFilename String
-  storedFilename   String
-  mimeType         String
-  fileExtension    String?
-  sizeBytes        Int
-  checksumSha256   String?
-  visibility       StorageFileVisibility  @default(private)
-  status           StorageFileStatus      @default(active)
-  purpose          StorageFilePurpose
-  metadataJson     Json?
-  imageWidth       Int?
-  imageHeight      Int?
-  altText          String?
-  caption          String?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  deletedAt        DateTime?
-  organization     Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy       User                   @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  accessLogs       StorageFileAccessLog[]
-  versions         StorageFileVersion[]
+  id                 String                 @id @default(cuid())
+  organizationId     String?
+  userId             String?
+  uploadedById       String
+  countryCode        String?
+  module             StorageModule
+  entityType         String?
+  entityId           String?
+  provider           StorageProvider
+  bucketName         String
+  objectKey          String
+  originalFilename   String
+  storedFilename     String
+  mimeType           String
+  fileExtension      String?
+  sizeBytes          Int
+  checksumSha256     String?
+  visibility         StorageFileVisibility  @default(private)
+  status             StorageFileStatus      @default(active)
+  purpose            StorageFilePurpose
+  metadataJson       Json?
+  imageWidth         Int?
+  imageHeight        Int?
+  altText            String?
+  caption            String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  deletedAt          DateTime?
+  organization       Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy         User                   @relation("StorageFileUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  accessLogs         StorageFileAccessLog[]
+  versions           StorageFileVersion[]
   dataPrivacyExports DataPrivacyRequest[]
 
   @@unique([bucketName, objectKey])
@@ -1162,26 +1185,26 @@ model StorageFileVersion {
 }
 
 model PlatformIntegration {
-  id              String                 @id @default(cuid())
+  id              String                          @id @default(cuid())
   provider        IntegrationProvider
   category        IntegrationCategory
   displayName     String
   description     String?
-  status          IntegrationStatus      @default(draft)
-  environment     IntegrationEnvironment @default(production)
+  status          IntegrationStatus               @default(draft)
+  environment     IntegrationEnvironment          @default(production)
   countryCode     String?
   region          String?
-  isGlobal        Boolean                @default(true)
-  isDefault       Boolean                @default(false)
+  isGlobal        Boolean                         @default(true)
+  isDefault       Boolean                         @default(false)
   createdById     String
   updatedById     String?
   lastTestedAt    DateTime?
-  lastTestStatus  IntegrationTestStatus  @default(not_tested)
+  lastTestStatus  IntegrationTestStatus           @default(not_tested)
   lastTestMessage String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  createdBy       User                   @relation("PlatformIntegrationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy       User?                  @relation("PlatformIntegrationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime                        @default(now())
+  updatedAt       DateTime                        @updatedAt
+  createdBy       User                            @relation("PlatformIntegrationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?                           @relation("PlatformIntegrationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   credentials     PlatformIntegrationCredential[]
   settings        PlatformIntegrationSetting[]
   testLogs        PlatformIntegrationTestLog[]
@@ -1195,20 +1218,20 @@ model PlatformIntegration {
 }
 
 model PlatformIntegrationCredential {
-  id                 String              @id @default(cuid())
-  integrationId      String
-  keyName            String
-  encryptedValue     String
-  valuePreview       String
-  isPublicClientValue Boolean            @default(false)
-  createdById        String
-  updatedById        String?
-  rotatedAt          DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  integration        PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
-  createdBy          User                @relation("PlatformIntegrationCredentialCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy          User?               @relation("PlatformIntegrationCredentialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  id                  String              @id @default(cuid())
+  integrationId       String
+  keyName             String
+  encryptedValue      String
+  valuePreview        String
+  isPublicClientValue Boolean             @default(false)
+  createdById         String
+  updatedById         String?
+  rotatedAt           DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  integration         PlatformIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  createdBy           User                @relation("PlatformIntegrationCredentialCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User?               @relation("PlatformIntegrationCredentialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([integrationId, keyName])
   @@index([integrationId])
@@ -1232,16 +1255,16 @@ model PlatformIntegrationSetting {
 }
 
 model PlatformIntegrationTestLog {
-  id           String                @id @default(cuid())
+  id            String                @id @default(cuid())
   integrationId String
-  testType     String
-  status       IntegrationTestStatus @default(not_tested)
-  message      String
-  metadataJson Json?
-  testedById   String
-  createdAt    DateTime              @default(now())
-  integration  PlatformIntegration   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
-  testedBy     User                  @relation("PlatformIntegrationTestedBy", fields: [testedById], references: [id], onDelete: Restrict)
+  testType      String
+  status        IntegrationTestStatus @default(not_tested)
+  message       String
+  metadataJson  Json?
+  testedById    String
+  createdAt     DateTime              @default(now())
+  integration   PlatformIntegration   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  testedBy      User                  @relation("PlatformIntegrationTestedBy", fields: [testedById], references: [id], onDelete: Restrict)
 
   @@index([integrationId])
   @@index([status])
@@ -1250,33 +1273,33 @@ model PlatformIntegrationTestLog {
 }
 
 model SeoSetting {
-  id                    String          @id @default(cuid())
-  scope                 SeoScope
-  entityType            String?
-  entityId              String?
-  countryCode           String?
-  city                  String?
-  path                  String?
-  metaTitle             String?
-  metaDescription       String?
-  canonicalUrl          String?
-  ogTitle               String?
-  ogDescription         String?
-  ogImageFileId         String?
-  twitterTitle          String?
-  twitterDescription    String?
-  twitterImageFileId    String?
-  robotsDirective       RobotsDirective?
-  structuredDataJson    Json?
-  aeoSummary            String?
-  aeoFaqJson            Json?
-  isActive              Boolean         @default(true)
-  createdById           String
-  updatedById           String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  createdBy             User            @relation("SeoSettingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy             User?           @relation("SeoSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  id                 String           @id @default(cuid())
+  scope              SeoScope
+  entityType         String?
+  entityId           String?
+  countryCode        String?
+  city               String?
+  path               String?
+  metaTitle          String?
+  metaDescription    String?
+  canonicalUrl       String?
+  ogTitle            String?
+  ogDescription      String?
+  ogImageFileId      String?
+  twitterTitle       String?
+  twitterDescription String?
+  twitterImageFileId String?
+  robotsDirective    RobotsDirective?
+  structuredDataJson Json?
+  aeoSummary         String?
+  aeoFaqJson         Json?
+  isActive           Boolean          @default(true)
+  createdById        String
+  updatedById        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  createdBy          User             @relation("SeoSettingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User?            @relation("SeoSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@index([scope])
   @@index([entityType, entityId])
@@ -1347,27 +1370,27 @@ enum EmailSuppressionReason {
 }
 
 model EmailTemplate {
-  id           String                @id @default(cuid())
-  templateKey  String
-  name         String
-  description  String?
-  category     EmailTemplateCategory
-  subject      String
-  preheader    String?
-  htmlBody     String
-  textBody     String
-  status       EmailTemplateStatus   @default(draft)
-  locale       String?
-  countryCode  String?
-  version      Int                   @default(1)
-  isSystem     Boolean               @default(false)
-  createdById  String?
-  updatedById  String?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  createdBy    User?                 @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy    User?                 @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  variables    EmailTemplateVariable[]
+  id          String                  @id @default(cuid())
+  templateKey String
+  name        String
+  description String?
+  category    EmailTemplateCategory
+  subject     String
+  preheader   String?
+  htmlBody    String
+  textBody    String
+  status      EmailTemplateStatus     @default(draft)
+  locale      String?
+  countryCode String?
+  version     Int                     @default(1)
+  isSystem    Boolean                 @default(false)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  createdBy   User?                   @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?                   @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  variables   EmailTemplateVariable[]
 
   @@unique([templateKey, locale, countryCode, version])
   @@index([templateKey])
@@ -1379,14 +1402,14 @@ model EmailTemplate {
 }
 
 model EmailTemplateVariable {
-  id            String        @id @default(cuid())
-  templateId    String
-  variableKey   String
-  description   String?
-  exampleValue  String?
-  isRequired    Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  template      EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  templateId   String
+  variableKey  String
+  description  String?
+  exampleValue String?
+  isRequired   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  template     EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, variableKey])
   @@index([templateId])
@@ -1427,34 +1450,34 @@ model EmailLog {
 }
 
 model EmailPreference {
-  id                         String   @id @default(cuid())
-  userId                     String   @unique
-  transactionalEnabled       Boolean  @default(true)
-  marketingEnabled           Boolean  @default(false)
-  mealPlanningEmails         Boolean  @default(true)
-  groceryEmails              Boolean  @default(true)
-  orderEmails                Boolean  @default(true)
-  homeChefEmails             Boolean  @default(true)
-  sellerEmails               Boolean  @default(true)
-  paymentEmails              Boolean  @default(true)
-  verificationEmails         Boolean  @default(true)
-  supportEmails              Boolean  @default(true)
-  reviewEmails               Boolean  @default(true)
-  promotionEmails            Boolean  @default(false)
-  adminAlertEmails           Boolean  @default(true)
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
-  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  transactionalEnabled Boolean  @default(true)
+  marketingEnabled     Boolean  @default(false)
+  mealPlanningEmails   Boolean  @default(true)
+  groceryEmails        Boolean  @default(true)
+  orderEmails          Boolean  @default(true)
+  homeChefEmails       Boolean  @default(true)
+  sellerEmails         Boolean  @default(true)
+  paymentEmails        Boolean  @default(true)
+  verificationEmails   Boolean  @default(true)
+  supportEmails        Boolean  @default(true)
+  reviewEmails         Boolean  @default(true)
+  promotionEmails      Boolean  @default(false)
+  adminAlertEmails     Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailSuppression {
-  id          String                  @id @default(cuid())
+  id          String                 @id @default(cuid())
   email       String
   reason      EmailSuppressionReason
   category    EmailTemplateCategory?
-  createdAt   DateTime                @default(now())
+  createdAt   DateTime               @default(now())
   createdById String?
-  createdBy   User?                   @relation("EmailSuppressionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?                  @relation("EmailSuppressionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([email, category])
   @@index([email])
@@ -1484,19 +1507,19 @@ enum SystemAlertStatus {
 }
 
 model SystemAlert {
-  id          String              @id @default(cuid())
-  type        String
-  severity    SystemAlertSeverity @default(info)
-  status      SystemAlertStatus   @default(open)
-  title       String
-  message     String
+  id           String              @id @default(cuid())
+  type         String
+  severity     SystemAlertSeverity @default(info)
+  status       SystemAlertStatus   @default(open)
+  title        String
+  message      String
   metadataJson Json?
   resolvedById String?
-  resolvedAt  DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  resolvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  resolvedBy  User?               @relation("SystemAlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("SystemAlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([severity])
@@ -1566,6 +1589,12 @@ enum RecipeSourceType {
   organization
   imported
   user_created
+}
+
+enum IngredientRequestStatus {
+  pending
+  approved
+  rejected
 }
 
 enum MediaReferenceType {
@@ -1642,6 +1671,100 @@ enum HomeChefRequestType {
   weekly_cooking
   daily_cooking
   custom
+}
+
+enum HomeChefLeadTimeCategory {
+  advance_booking
+  short_term
+  same_day
+  recurring
+  custom
+}
+
+enum HomeChefRequestOfferStatus {
+  pending
+  accepted
+  declined
+  expired
+  cancelled
+}
+
+enum HomeChefRequestOfferType {
+  direct
+  cascade
+  admin_override
+}
+
+enum HomeChefMatchingStatus {
+  awaiting_admin_review
+  awaiting_offer
+  offered
+  chef_accepted
+  chef_declined
+  expired
+  no_chef_available
+  confirmed
+  cancelled
+}
+
+enum HomeChefRevealTrigger {
+  never
+  offer_created
+  chef_accepted
+  household_confirmed
+  deposit_authorized
+  deposit_paid
+  full_payment_paid
+  admin_confirmed
+  booking_locked
+  within_24_hours
+  completed
+}
+
+enum HomeChefPrivacyPolicyStatus {
+  active
+  disabled
+}
+
+enum HomeChefBookingLockStatus {
+  not_locked
+  pending_household_confirmation
+  pending_payment
+  deposit_authorized
+  deposit_paid
+  full_payment_paid
+  admin_confirmed
+  locked
+  unlocked_cancelled
+  revoked
+}
+
+enum HomeChefAccessGrantType {
+  limited_request_view
+  anonymous_messaging
+  full_logistics
+  address_access
+  contact_proxy
+  emergency_contact
+}
+
+enum HomeChefAccessGrantStatus {
+  active
+  expired
+  revoked
+}
+
+enum ContactProxyStatus {
+  pending
+  active
+  expired
+  revoked
+}
+
+enum ContactProxyProvider {
+  manual_placeholder
+  twilio_placeholder
+  other
 }
 
 enum GenderPreference {
@@ -1916,6 +2039,87 @@ enum PaymentModule {
   manual_invoice
 }
 
+enum PricingModule {
+  food_order
+  home_chef_request
+  subscription
+  grocery_partner_order
+  manual_invoice
+}
+
+enum PricingSellerType {
+  home_catering
+  restaurant
+  chef_staff
+  platform
+}
+
+enum PricingFulfillmentType {
+  pickup
+  delivery
+  preorder
+  dine_in_not_applicable
+  home_service
+  digital_subscription
+  manual
+}
+
+enum FeePolicyStatus {
+  draft
+  active
+  disabled
+  archived
+}
+
+enum FeeType {
+  item_subtotal
+  platform_service_fee
+  delivery_fee
+  small_order_fee
+  tax
+  regulatory_fee
+  tip
+  discount
+  platform_commission
+  seller_payout
+  payment_processing_estimate
+  travel_fee
+  ingredient_shopping_fee
+  ingredient_reimbursement
+  cancellation_fee
+  other
+}
+
+enum FeeCalculationType {
+  fixed
+  percentage
+  distance_based
+  threshold_based
+  tiered
+  manual
+  external_tax_placeholder
+}
+
+enum CheckoutQuoteStatus {
+  draft
+  active
+  accepted
+  expired
+  cancelled
+  converted_to_payment
+}
+
+enum CheckoutQuoteLineType {
+  subtotal
+  fee
+  tax
+  discount
+  tip
+  commission
+  payout
+  total
+}
+
 enum PaymentOrderStatus {
   draft
   pending
@@ -2048,6 +2252,7 @@ enum LegalDocumentType {
   user_terms
   terms_of_service
   privacy_policy
+  cookie_policy
   seller_terms
   seller_agreement
   home_chef_agreement
@@ -2495,25 +2700,25 @@ model Cuisine {
 }
 
 model Unit {
-  id                         String                  @id @default(cuid())
-  code                       String                  @unique
+  id                         String                   @id @default(cuid())
+  code                       String                   @unique
   name                       String
   pluralName                 String
   type                       UnitType
   system                     UnitSystem
   symbol                     String?
-  isBaseUnit                 Boolean                 @default(false)
-  isGlobal                   Boolean                 @default(true)
-  createdAt                  DateTime                @default(now())
-  updatedAt                  DateTime                @updatedAt
-  ingredients                Ingredient[]            @relation("IngredientDefaultUnit")
+  isBaseUnit                 Boolean                  @default(false)
+  isGlobal                   Boolean                  @default(true)
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  ingredients                Ingredient[]             @relation("IngredientDefaultUnit")
   recipeIngredients          RecipeIngredient[]
   dishTemplateIngredients    DishTemplateIngredient[]
-  conversionsFrom            UnitConversion[]        @relation("ConversionFromUnit")
-  conversionsTo              UnitConversion[]        @relation("ConversionToUnit")
+  conversionsFrom            UnitConversion[]         @relation("ConversionFromUnit")
+  conversionsTo              UnitConversion[]         @relation("ConversionToUnit")
   groceryListItems           GroceryListItem[]
-  originalGroceryItemSources GroceryListItemSource[] @relation("SourceOriginalUnit")
-  scaledGroceryItemSources   GroceryListItemSource[] @relation("SourceScaledUnit")
+  originalGroceryItemSources GroceryListItemSource[]  @relation("SourceOriginalUnit")
+  scaledGroceryItemSources   GroceryListItemSource[]  @relation("SourceScaledUnit")
   householdPantryItems       HouseholdPantryItem[]
 
   @@index([type])
@@ -2539,7 +2744,7 @@ model Ingredient {
   aliases                 IngredientAlias[]
   terminologyAliases      FoodTerminologyAlias[]
   recipeIngredients       RecipeIngredient[]
-  dishTemplateIngredients  DishTemplateIngredient[]
+  dishTemplateIngredients DishTemplateIngredient[]
   unitConversions         UnitConversion[]
   groceryListItems        GroceryListItem[]
   groceryWarnings         GroceryConversionWarning[]
@@ -2565,6 +2770,27 @@ model IngredientAlias {
 
   @@index([ingredientId])
   @@index([alias])
+}
+
+model IngredientRequest {
+  id                  String                  @id @default(cuid())
+  organizationId      String
+  requestedById       String
+  requestedName       String
+  suggestedCategory   IngredientCategory?
+  notes               String?
+  status              IngredientRequestStatus @default(pending)
+  reviewedById        String?
+  reviewedAt          DateTime?
+  createdIngredientId String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([organizationId])
+  @@index([requestedById])
+  @@index([status])
+  @@index([createdIngredientId])
+  @@index([createdAt])
 }
 
 model UnitConversion {
@@ -2593,6 +2819,7 @@ model Recipe {
   id                         String                     @id @default(cuid())
   organizationId             String?
   countryCode                String?
+  sourceRecipeId             String?
   cuisineId                  String
   name                       String
   slug                       String
@@ -2609,10 +2836,14 @@ model Recipe {
   sourceType                 RecipeSourceType
   createdById                String?
   isGlobal                   Boolean                    @default(false)
+  isTemplate                 Boolean                    @default(false)
+  isUserCustomized           Boolean                    @default(false)
   isPublished                Boolean                    @default(false)
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @updatedAt
   cuisine                    Cuisine                    @relation(fields: [cuisineId], references: [id])
+  sourceRecipe               Recipe?                    @relation("RecipeSource", fields: [sourceRecipeId], references: [id], onDelete: SetNull)
+  copiedRecipes              Recipe[]                   @relation("RecipeSource")
   ingredients                RecipeIngredient[]
   steps                      RecipeStep[]
   mediaRefs                  RecipeMediaReference[]
@@ -2632,8 +2863,11 @@ model Recipe {
   @@unique([slug, organizationId])
   @@index([organizationId])
   @@index([countryCode])
+  @@index([sourceRecipeId])
   @@index([cuisineId])
   @@index([isPublished])
+  @@index([isTemplate])
+  @@index([isUserCustomized])
   @@index([visibility])
 }
 
@@ -3120,19 +3354,21 @@ model AvoidedIngredient {
 }
 
 model FavoriteRecipe {
-  id             String       @id @default(cuid())
-  organizationId String
-  recipeId       String
-  createdById    String
-  targetServings Int?
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  recipe         Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  createdBy      User         @relation("FavoriteRecipeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  id              String       @id @default(cuid())
+  organizationId  String
+  recipeId        String
+  createdById     String
+  recipientUserId String?
+  targetServings  Int?
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipe          Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdBy       User         @relation("FavoriteRecipeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recipientUser   User?        @relation("FavoriteRecipeRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, recipeId])
   @@index([organizationId])
   @@index([recipeId])
+  @@index([recipientUserId])
 }
 
 model HouseholdPantryItem {
@@ -3269,7 +3505,7 @@ model MenuTemplate {
 }
 
 model MenuTemplateItem {
-  id             String              @id @default(cuid())
+  id             String                @id @default(cuid())
   menuTemplateId String
   dishTemplateId String?
   recipeId       String?
@@ -3280,11 +3516,11 @@ model MenuTemplateItem {
   quantity       Float?
   priceAmount    Float?
   currencyCode   String?
-  displayOrder   Int                 @default(0)
-  createdAt      DateTime            @default(now())
-  menuTemplate   MenuTemplate        @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
-  dishTemplate   DishTemplate?       @relation(fields: [dishTemplateId], references: [id], onDelete: SetNull)
-  recipe         Recipe?             @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  displayOrder   Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  menuTemplate   MenuTemplate          @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  dishTemplate   DishTemplate?         @relation(fields: [dishTemplateId], references: [id], onDelete: SetNull)
+  recipe         Recipe?               @relation(fields: [recipeId], references: [id], onDelete: SetNull)
 
   @@index([menuTemplateId])
   @@index([dishTemplateId])
@@ -3356,66 +3592,66 @@ model MenuItemAvailability {
 }
 
 model FoodOrder {
-  id                     String                   @id @default(cuid())
-  organizationId         String
-  countryCode            String
-  customerOrganizationId String
-  customerUserId         String
-  sellerOrganizationId   String
-  sellerType             FoodOrderSellerType
-  status                 FoodOrderStatus          @default(submitted)
-  fulfillmentType        FoodOrderFulfillmentType
-  fulfillmentStatus      String                   @default("scheduled")
-  pickupLocationId       String?
-  deliveryZoneId         String?
-  fulfillmentTimeSlotId  String?
-  requestedDate          DateTime?
-  requestedTimeWindow    String?
-  preparationMinutes     Int?
-  cutoffAt               DateTime?
-  promisedReadyAt        DateTime?
-  subtotalAmount         Float?
-  deliveryFeeAmount      Float?
-  currencyCode           String
-  customerName           String?
-  customerPhone          String?
-  customerEmail          String?
-  pickupAddressSnapshot  String?
-  deliveryAddressLine1   String?
-  deliveryAddressLine2   String?
-  deliveryCity           String?
-  deliveryRegion         String?
-  deliveryCountryCode    String?
-  deliveryPostalCode     String?
-  deliveryLatitude       Float?
-  deliveryLongitude      Float?
-  deliveryProviderPlaceId String?
-  customerNotes          String?
-  sellerNotes            String?
-  adminNotes             String?
-  paymentRequired        Boolean                  @default(false)
-  paymentStatus          ModulePaymentStatus      @default(not_required)
-  paymentOrderId         String?
-  promotionCode          String?
-  promotionDiscountAmount Float?
+  id                          String                      @id @default(cuid())
+  organizationId              String
+  countryCode                 String
+  customerOrganizationId      String
+  customerUserId              String
+  sellerOrganizationId        String
+  sellerType                  FoodOrderSellerType
+  status                      FoodOrderStatus             @default(submitted)
+  fulfillmentType             FoodOrderFulfillmentType
+  fulfillmentStatus           String                      @default("scheduled")
+  pickupLocationId            String?
+  deliveryZoneId              String?
+  fulfillmentTimeSlotId       String?
+  requestedDate               DateTime?
+  requestedTimeWindow         String?
+  preparationMinutes          Int?
+  cutoffAt                    DateTime?
+  promisedReadyAt             DateTime?
+  subtotalAmount              Float?
+  deliveryFeeAmount           Float?
+  currencyCode                String
+  customerName                String?
+  customerPhone               String?
+  customerEmail               String?
+  pickupAddressSnapshot       String?
+  deliveryAddressLine1        String?
+  deliveryAddressLine2        String?
+  deliveryCity                String?
+  deliveryRegion              String?
+  deliveryCountryCode         String?
+  deliveryPostalCode          String?
+  deliveryLatitude            Float?
+  deliveryLongitude           Float?
+  deliveryProviderPlaceId     String?
+  customerNotes               String?
+  sellerNotes                 String?
+  adminNotes                  String?
+  paymentRequired             Boolean                     @default(false)
+  paymentStatus               ModulePaymentStatus         @default(not_required)
+  paymentOrderId              String?
+  promotionCode               String?
+  promotionDiscountAmount     Float?
   platformCreditAppliedAmount Float?
-  paidAt                 DateTime?
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  cancelledAt            DateTime?
-  completedAt            DateTime?
-  organization           Organization             @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
-  customerOrganization   Organization             @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
-  customerUser           User                     @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
-  sellerOrganization     Organization             @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
-  pickupLocation         FulfillmentPickupLocation? @relation(fields: [pickupLocationId], references: [id], onDelete: SetNull)
-  deliveryZone           FulfillmentDeliveryZone?   @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
-  fulfillmentTimeSlot    FulfillmentTimeSlot?       @relation(fields: [fulfillmentTimeSlotId], references: [id], onDelete: SetNull)
-  items                  FoodOrderItem[]
-  messages               FoodOrderMessage[]
-  statusHistory          FoodOrderStatusHistory[]
-  fulfillmentEvents      FoodOrderFulfillmentEvent[]
-  marketplaceReviews     MarketplaceReview[]
+  paidAt                      DateTime?
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  cancelledAt                 DateTime?
+  completedAt                 DateTime?
+  organization                Organization                @relation("FoodOrderTenantOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  customerOrganization        Organization                @relation("FoodOrderCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  customerUser                User                        @relation("FoodOrderCustomerUser", fields: [customerUserId], references: [id], onDelete: Restrict)
+  sellerOrganization          Organization                @relation("FoodOrderSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  pickupLocation              FulfillmentPickupLocation?  @relation(fields: [pickupLocationId], references: [id], onDelete: SetNull)
+  deliveryZone                FulfillmentDeliveryZone?    @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  fulfillmentTimeSlot         FulfillmentTimeSlot?        @relation(fields: [fulfillmentTimeSlotId], references: [id], onDelete: SetNull)
+  items                       FoodOrderItem[]
+  messages                    FoodOrderMessage[]
+  statusHistory               FoodOrderStatusHistory[]
+  fulfillmentEvents           FoodOrderFulfillmentEvent[]
+  marketplaceReviews          MarketplaceReview[]
 
   @@index([organizationId])
   @@index([customerOrganizationId])
@@ -3685,7 +3921,7 @@ model PaymentConfiguration {
 }
 
 model PaymentOrder {
-  id                        String               @id @default(cuid())
+  id                        String                   @id @default(cuid())
   organizationId            String
   countryCode               String
   customerOrganizationId    String?
@@ -3695,21 +3931,22 @@ model PaymentOrder {
   moduleEntityId            String
   provider                  PaymentProvider
   gatewayId                 String?
-  status                    PaymentOrderStatus   @default(pending)
-  amount                    Decimal              @db.Decimal(10, 2)
+  status                    PaymentOrderStatus       @default(pending)
+  amount                    Decimal                  @db.Decimal(10, 2)
   currencyCode              String
-  platformFeeAmount         Decimal?             @db.Decimal(10, 2)
-  sellerAmount              Decimal?             @db.Decimal(10, 2)
-  taxAmount                 Decimal?             @db.Decimal(10, 2)
-  discountAmount            Decimal?             @db.Decimal(10, 2)
-  platformCreditAmount      Decimal?             @db.Decimal(10, 2)
+  platformFeeAmount         Decimal?                 @db.Decimal(10, 2)
+  sellerAmount              Decimal?                 @db.Decimal(10, 2)
+  taxAmount                 Decimal?                 @db.Decimal(10, 2)
+  discountAmount            Decimal?                 @db.Decimal(10, 2)
+  platformCreditAmount      Decimal?                 @db.Decimal(10, 2)
   promotionCode             String?
   promotionRedemptionId     String?
   providerOrderId           String?
   providerPaymentIntentId   String?
   providerCheckoutSessionId String?
   providerCustomerId        String?
-  idempotencyKey            String               @unique
+  idempotencyKey            String                   @unique
+  checkoutQuoteId           String?
   checkoutUrl               String?
   returnUrl                 String?
   cancelUrl                 String?
@@ -3719,9 +3956,9 @@ model PaymentOrder {
   expiresAt                 DateTime?
   paidAt                    DateTime?
   cancelledAt               DateTime?
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
-  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  organization              Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions              PaymentTransaction[]
   refunds                   PaymentRefund[]
   disputes                  PaymentDispute[]
@@ -3738,27 +3975,28 @@ model PaymentOrder {
   @@index([provider])
   @@index([gatewayId])
   @@index([status])
+  @@index([checkoutQuoteId])
   @@index([promotionCode])
   @@index([promotionRedemptionId])
   @@index([createdAt])
 }
 
 model TaxConfiguration {
-  id              String                 @id @default(cuid())
-  name            String
-  countryCode     String?
-  region          String?
-  currencyCode    String?
-  module          PaymentModule?
-  mode            TaxCalculationMode     @default(disabled)
-  taxPercent      Decimal?               @db.Decimal(5, 2)
-  fixedTaxAmount  Decimal?               @db.Decimal(10, 2)
-  status          TaxConfigurationStatus @default(draft)
-  notes           String?
-  createdById     String?
-  updatedById     String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id             String                 @id @default(cuid())
+  name           String
+  countryCode    String?
+  region         String?
+  currencyCode   String?
+  module         PaymentModule?
+  mode           TaxCalculationMode     @default(disabled)
+  taxPercent     Decimal?               @db.Decimal(5, 2)
+  fixedTaxAmount Decimal?               @db.Decimal(10, 2)
+  status         TaxConfigurationStatus @default(draft)
+  notes          String?
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   @@index([countryCode])
   @@index([currencyCode])
@@ -3825,6 +4063,130 @@ model CommissionRecord {
   @@index([countryCode])
   @@index([status])
   @@index([earnedAt])
+}
+
+model FeePolicy {
+  id              String                  @id @default(cuid())
+  name            String                  @unique
+  description     String?
+  countryCode     String?
+  region          String?
+  city            String?
+  module          PricingModule
+  sellerType      PricingSellerType?
+  fulfillmentType PricingFulfillmentType?
+  status          FeePolicyStatus         @default(draft)
+  priority        Int                     @default(100)
+  effectiveFrom   DateTime?
+  effectiveTo     DateTime?
+  rulesJson       Json                    @default("{}")
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  rules           FeeRule[]
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([module])
+  @@index([sellerType])
+  @@index([fulfillmentType])
+  @@index([status])
+  @@index([priority])
+}
+
+model FeeRule {
+  id                    String             @id @default(cuid())
+  feePolicyId           String
+  feeType               FeeType
+  calculationType       FeeCalculationType
+  percentage            Decimal?           @db.Decimal(8, 4)
+  fixedAmount           Decimal?           @db.Decimal(10, 2)
+  minAmount             Decimal?           @db.Decimal(10, 2)
+  maxAmount             Decimal?           @db.Decimal(10, 2)
+  thresholdAmount       Decimal?           @db.Decimal(10, 2)
+  currencyCode          String             @default("USD")
+  appliesBeforeDiscount Boolean            @default(true)
+  taxable               Boolean            @default(false)
+  displayToCustomer     Boolean            @default(true)
+  displayName           String
+  sortOrder             Int                @default(100)
+  isActive              Boolean            @default(true)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  feePolicy             FeePolicy          @relation(fields: [feePolicyId], references: [id], onDelete: Cascade)
+
+  @@index([feePolicyId])
+  @@index([feeType])
+  @@index([calculationType])
+  @@index([currencyCode])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model CheckoutQuote {
+  id                         String              @id @default(cuid())
+  organizationId             String
+  customerUserId             String
+  customerOrganizationId     String?
+  sellerOrganizationId       String?
+  chefProfileId              String?
+  module                     PricingModule
+  moduleEntityId             String?
+  status                     CheckoutQuoteStatus @default(active)
+  countryCode                String
+  region                     String?
+  city                       String?
+  currencyCode               String
+  subtotalAmount             Decimal             @default(0) @db.Decimal(10, 2)
+  serviceFeeAmount           Decimal             @default(0) @db.Decimal(10, 2)
+  deliveryFeeAmount          Decimal             @default(0) @db.Decimal(10, 2)
+  smallOrderFeeAmount        Decimal             @default(0) @db.Decimal(10, 2)
+  taxAmount                  Decimal             @default(0) @db.Decimal(10, 2)
+  regulatoryFeeAmount        Decimal             @default(0) @db.Decimal(10, 2)
+  discountAmount             Decimal             @default(0) @db.Decimal(10, 2)
+  tipAmount                  Decimal             @default(0) @db.Decimal(10, 2)
+  platformCommissionAmount   Decimal             @default(0) @db.Decimal(10, 2)
+  sellerAmount               Decimal             @default(0) @db.Decimal(10, 2)
+  totalAmount                Decimal             @default(0) @db.Decimal(10, 2)
+  pricingPolicySnapshotJson  Json                @default("{}")
+  inputSnapshotJson          Json                @default("{}")
+  expiresAt                  DateTime
+  acceptedAt                 DateTime?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  lines                      CheckoutQuoteLine[]
+
+  @@index([organizationId])
+  @@index([customerUserId])
+  @@index([customerOrganizationId])
+  @@index([sellerOrganizationId])
+  @@index([chefProfileId])
+  @@index([module])
+  @@index([moduleEntityId])
+  @@index([status])
+  @@index([countryCode])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model CheckoutQuoteLine {
+  id              String                @id @default(cuid())
+  checkoutQuoteId String
+  lineType        CheckoutQuoteLineType
+  label           String
+  description     String?
+  amount          Decimal               @db.Decimal(10, 2)
+  currencyCode    String
+  sortOrder       Int                   @default(100)
+  metadataJson    Json?
+  createdAt       DateTime              @default(now())
+  checkoutQuote   CheckoutQuote         @relation(fields: [checkoutQuoteId], references: [id], onDelete: Cascade)
+
+  @@index([checkoutQuoteId])
+  @@index([lineType])
+  @@index([sortOrder])
 }
 
 model SellerSettlementReport {
@@ -4009,37 +4371,41 @@ model SellerPayout {
 }
 
 model ChefProfile {
-  id                    String                     @id @default(cuid())
-  organizationId        String                     @unique
-  countryCode           String
-  displayName           String
-  slug                  String                     @unique
-  bio                   String
-  status                ChefProfileStatus          @default(draft)
-  verificationStatus    ChefVerificationStatus     @default(unverified)
-  profilePhotoUrl       String?
-  profilePhotoFileId    String?
-  coverPhotoFileId      String?
-  languages             Json
-  specialties           Json
-  yearsExperience       Int?
-  serviceRadiusKm       Int?
-  baseCity              String?
-  baseRegion            String?
-  postalCode            String?
-  phone                 String?
-  email                 String?
-  averageRating         Float?
-  ratingCount           Int                        @default(0)
-  isPublic              Boolean                    @default(false)
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  services              ChefService[]
-  specialtyRecipes      ChefSpecialtyRecipe[]
-  availability          ChefAvailability[]
-  reviews               ChefReview[]
-  verificationDocuments ChefVerificationDocument[]
+  id                       String                       @id @default(cuid())
+  organizationId           String                       @unique
+  countryCode              String
+  displayName              String
+  slug                     String                       @unique
+  bio                      String
+  status                   ChefProfileStatus            @default(draft)
+  verificationStatus       ChefVerificationStatus       @default(unverified)
+  profilePhotoUrl          String?
+  profilePhotoFileId       String?
+  coverPhotoFileId         String?
+  languages                Json
+  specialties              Json
+  yearsExperience          Int?
+  serviceRadiusKm          Int?
+  baseCity                 String?
+  baseRegion               String?
+  postalCode               String?
+  phone                    String?
+  email                    String?
+  averageRating            Float?
+  ratingCount              Int                          @default(0)
+  isPublic                 Boolean                      @default(false)
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  services                 ChefService[]
+  specialtyRecipes         ChefSpecialtyRecipe[]
+  availability             ChefAvailability[]
+  reviews                  ChefReview[]
+  verificationDocuments    ChefVerificationDocument[]
+  assignedHomeChefRequests HomeChefRequest[]            @relation("HomeChefRequestAssignedChefProfile")
+  homeChefRequestOffers    HomeChefRequestOffer[]
+  homeChefAccessGrants     HomeChefRequestAccessGrant[]
+  contactProxySessions     ContactProxySession[]
 
   @@index([organizationId])
   @@index([countryCode])
@@ -4123,7 +4489,7 @@ model ChefReview {
 }
 
 model MarketplaceReview {
-  id                     String                      @id @default(cuid())
+  id                     String                       @id @default(cuid())
   organizationId         String
   countryCode            String
   customerOrganizationId String
@@ -4136,23 +4502,23 @@ model MarketplaceReview {
   rating                 Int
   title                  String?
   comment                String?
-  status                 MarketplaceReviewStatus    @default(pending)
-  verifiedPurchase       Boolean                     @default(true)
+  status                 MarketplaceReviewStatus      @default(pending)
+  verifiedPurchase       Boolean                      @default(true)
   sellerReply            String?
   sellerReplyById        String?
   sellerRepliedAt        DateTime?
   moderatedById          String?
   moderatedAt            DateTime?
   moderationNote         String?
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  customerOrganization   Organization                @relation("MarketplaceReviewCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
-  sellerOrganization     Organization                @relation("MarketplaceReviewSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
-  reviewer               User                        @relation("MarketplaceReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
-  sellerReplyBy          User?                       @relation("MarketplaceReviewSellerReplyBy", fields: [sellerReplyById], references: [id], onDelete: SetNull)
-  moderatedBy            User?                       @relation("MarketplaceReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
-  foodOrder              FoodOrder?                  @relation(fields: [foodOrderId], references: [id], onDelete: SetNull)
-  homeChefRequest        HomeChefRequest?            @relation(fields: [homeChefRequestId], references: [id], onDelete: SetNull)
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  customerOrganization   Organization                 @relation("MarketplaceReviewCustomerOrganization", fields: [customerOrganizationId], references: [id], onDelete: Cascade)
+  sellerOrganization     Organization                 @relation("MarketplaceReviewSellerOrganization", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  reviewer               User                         @relation("MarketplaceReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  sellerReplyBy          User?                        @relation("MarketplaceReviewSellerReplyBy", fields: [sellerReplyById], references: [id], onDelete: SetNull)
+  moderatedBy            User?                        @relation("MarketplaceReviewModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  foodOrder              FoodOrder?                   @relation(fields: [foodOrderId], references: [id], onDelete: SetNull)
+  homeChefRequest        HomeChefRequest?             @relation(fields: [homeChefRequestId], references: [id], onDelete: SetNull)
   reports                MarketplaceReviewReport[]
 
   @@unique([foodOrderId, reviewerUserId])
@@ -4224,38 +4590,38 @@ model TrustComplaint {
 }
 
 model Promotion {
-  id                         String                @id @default(cuid())
-  code                       String                @unique
-  name                       String
-  description                String?
-  promotionType              PromotionType         @default(promo_code)
-  discountType               PromotionDiscountType
-  status                     PromotionStatus       @default(draft)
-  scope                      PromotionScope        @default(platform)
-  sellerOrganizationId       String?
-  countryCode                String?
-  region                     String?
-  city                       String?
-  currencyCode               String?
-  percentOff                 Decimal?              @db.Decimal(5, 2)
-  amountOff                  Decimal?              @db.Decimal(10, 2)
-  minOrderAmount             Decimal?              @db.Decimal(10, 2)
-  maxDiscountAmount          Decimal?              @db.Decimal(10, 2)
-  startsAt                   DateTime?
-  endsAt                     DateTime?
-  usageLimit                 Int?
-  perUserLimit               Int?
-  appliesToFoodOrders        Boolean               @default(true)
-  appliesToHomeChefRequests  Boolean               @default(true)
-  appliesToSubscriptions     Boolean               @default(false)
-  createdById                String
-  updatedById                String?
-  createdAt                  DateTime              @default(now())
-  updatedAt                  DateTime              @updatedAt
-  sellerOrganization         Organization?         @relation("SellerPromotions", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
-  createdBy                  User                  @relation("PromotionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy                  User?                 @relation("PromotionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  redemptions                PromotionRedemption[]
+  id                        String                @id @default(cuid())
+  code                      String                @unique
+  name                      String
+  description               String?
+  promotionType             PromotionType         @default(promo_code)
+  discountType              PromotionDiscountType
+  status                    PromotionStatus       @default(draft)
+  scope                     PromotionScope        @default(platform)
+  sellerOrganizationId      String?
+  countryCode               String?
+  region                    String?
+  city                      String?
+  currencyCode              String?
+  percentOff                Decimal?              @db.Decimal(5, 2)
+  amountOff                 Decimal?              @db.Decimal(10, 2)
+  minOrderAmount            Decimal?              @db.Decimal(10, 2)
+  maxDiscountAmount         Decimal?              @db.Decimal(10, 2)
+  startsAt                  DateTime?
+  endsAt                    DateTime?
+  usageLimit                Int?
+  perUserLimit              Int?
+  appliesToFoodOrders       Boolean               @default(true)
+  appliesToHomeChefRequests Boolean               @default(true)
+  appliesToSubscriptions    Boolean               @default(false)
+  createdById               String
+  updatedById               String?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  sellerOrganization        Organization?         @relation("SellerPromotions", fields: [sellerOrganizationId], references: [id], onDelete: Cascade)
+  createdBy                 User                  @relation("PromotionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                 User?                 @relation("PromotionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  redemptions               PromotionRedemption[]
 
   @@index([code])
   @@index([status])
@@ -4321,17 +4687,17 @@ model PlatformCreditAccount {
 }
 
 model PlatformCreditLedgerEntry {
-  id                     String                   @id @default(cuid())
-  accountId              String
-  entryType              PlatformCreditLedgerType
-  amount                 Decimal                  @db.Decimal(10, 2)
-  balanceAfter           Decimal                  @db.Decimal(10, 2)
-  reason                 String?
-  createdById            String?
-  promotionRedemptionId  String?
-  metadataJson           Json?
-  createdAt              DateTime                 @default(now())
-  account                PlatformCreditAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id                    String                   @id @default(cuid())
+  accountId             String
+  entryType             PlatformCreditLedgerType
+  amount                Decimal                  @db.Decimal(10, 2)
+  balanceAfter          Decimal                  @db.Decimal(10, 2)
+  reason                String?
+  createdById           String?
+  promotionRedemptionId String?
+  metadataJson          Json?
+  createdAt             DateTime                 @default(now())
+  account               PlatformCreditAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
   @@index([entryType])
@@ -4341,20 +4707,20 @@ model PlatformCreditLedgerEntry {
 }
 
 model ReferralCode {
-  id                 String             @id @default(cuid())
-  code               String             @unique
-  ownerUserId        String
+  id                  String             @id @default(cuid())
+  code                String             @unique
+  ownerUserId         String
   ownerOrganizationId String?
-  countryCode        String?
-  city               String?
-  status             ReferralCodeStatus @default(active)
-  usageLimit         Int?
-  usageCount         Int                @default(0)
-  rewardCreditAmount Decimal?           @db.Decimal(10, 2)
-  rewardCurrencyCode String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  events             ReferralEvent[]
+  countryCode         String?
+  city                String?
+  status              ReferralCodeStatus @default(active)
+  usageLimit          Int?
+  usageCount          Int                @default(0)
+  rewardCreditAmount  Decimal?           @db.Decimal(10, 2)
+  rewardCurrencyCode  String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  events              ReferralEvent[]
 
   @@index([ownerUserId])
   @@index([ownerOrganizationId])
@@ -4363,16 +4729,16 @@ model ReferralCode {
 }
 
 model ReferralEvent {
-  id                      String              @id @default(cuid())
-  referralCodeId          String
-  referredUserId          String
-  referredOrganizationId  String?
-  status                  ReferralEventStatus @default(started)
-  rewardCreditAmount      Decimal?            @db.Decimal(10, 2)
-  rewardCurrencyCode      String?
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @updatedAt
-  referralCode            ReferralCode        @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  id                     String              @id @default(cuid())
+  referralCodeId         String
+  referredUserId         String
+  referredOrganizationId String?
+  status                 ReferralEventStatus @default(started)
+  rewardCreditAmount     Decimal?            @db.Decimal(10, 2)
+  rewardCurrencyCode     String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  referralCode           ReferralCode        @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
 
   @@unique([referralCodeId, referredUserId])
   @@index([referralCodeId])
@@ -4515,26 +4881,26 @@ model SellerVerificationRequirement {
 }
 
 model SellerVerificationPolicy {
-  id                                      String                         @id @default(cuid())
-  countryCode                             String?
-  region                                  String?
-  sellerType                              SellerType
-  policyName                              String
-  status                                  SellerVerificationPolicyStatus @default(active)
-  allowPublicProfileBeforeVerification    Boolean                        @default(false)
-  allowMenuPublishingBeforeVerification   Boolean                        @default(false)
-  allowOrderAcceptanceBeforeVerification  Boolean                        @default(false)
-  allowPayoutsBeforeVerification          Boolean                        @default(false)
-  requireIdentityVerification             Boolean                        @default(false)
-  requireFoodHandlerCertificate           Boolean                        @default(false)
-  requireLocalPermit                      Boolean                        @default(false)
-  requireKitchenReview                    Boolean                        @default(false)
-  requireBackgroundCheck                  Boolean                        @default(false)
-  requirePayoutOnboarding                 Boolean                        @default(false)
-  requireAdminApproval                    Boolean                        @default(true)
-  createdAt                               DateTime                       @default(now())
-  updatedAt                               DateTime                       @updatedAt
-  overrides                               SellerVerificationOverride[]
+  id                                     String                         @id @default(cuid())
+  countryCode                            String?
+  region                                 String?
+  sellerType                             SellerType
+  policyName                             String
+  status                                 SellerVerificationPolicyStatus @default(active)
+  allowPublicProfileBeforeVerification   Boolean                        @default(false)
+  allowMenuPublishingBeforeVerification  Boolean                        @default(false)
+  allowOrderAcceptanceBeforeVerification Boolean                        @default(false)
+  allowPayoutsBeforeVerification         Boolean                        @default(false)
+  requireIdentityVerification            Boolean                        @default(false)
+  requireFoodHandlerCertificate          Boolean                        @default(false)
+  requireLocalPermit                     Boolean                        @default(false)
+  requireKitchenReview                   Boolean                        @default(false)
+  requireBackgroundCheck                 Boolean                        @default(false)
+  requirePayoutOnboarding                Boolean                        @default(false)
+  requireAdminApproval                   Boolean                        @default(true)
+  createdAt                              DateTime                       @default(now())
+  updatedAt                              DateTime                       @updatedAt
+  overrides                              SellerVerificationOverride[]
 
   @@index([countryCode])
   @@index([region])
@@ -4563,7 +4929,7 @@ model SellerVerificationOverride {
 }
 
 model MarketplacePolicy {
-  id               String                         @id @default(cuid())
+  id               String                           @id @default(cuid())
   name             String
   description      String?
   countryCode      String?
@@ -4571,15 +4937,15 @@ model MarketplacePolicy {
   sellerType       SellerType?
   organizationType OrganizationType?
   module           MarketplacePolicyModule
-  status           MarketplacePolicyStatus        @default(draft)
-  priority         Int                            @default(0)
-  rulesJson        Json                           @default("{}")
+  status           MarketplacePolicyStatus          @default(draft)
+  priority         Int                              @default(0)
+  rulesJson        Json                             @default("{}")
   createdById      String
   updatedById      String?
-  createdAt        DateTime                       @default(now())
-  updatedAt        DateTime                       @updatedAt
-  createdBy        User                           @relation("MarketplacePolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy        User?                          @relation("MarketplacePolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
+  createdBy        User                             @relation("MarketplacePolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        User?                            @relation("MarketplacePolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   overrides        MarketplacePolicyOverride[]
   evaluationLogs   MarketplacePolicyEvaluationLog[]
 
@@ -4605,11 +4971,11 @@ model MarketplacePolicyOverride {
   revokedAt      DateTime?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
-  policy         MarketplacePolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  organization   Organization?         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User?                 @relation("MarketplacePolicyOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
-  createdBy      User                  @relation("MarketplacePolicyOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  revokedBy      User?                 @relation("MarketplacePolicyOverrideRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  policy         MarketplacePolicy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?                @relation("MarketplacePolicyOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      User                 @relation("MarketplacePolicyOverrideCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedBy      User?                @relation("MarketplacePolicyOverrideRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
 
   @@index([policyId])
   @@index([organizationId])
@@ -4629,9 +4995,9 @@ model MarketplacePolicyEvaluationLog {
   reason         String?
   metadataJson   Json?
   createdAt      DateTime                @default(now())
-  policy         MarketplacePolicy?       @relation(fields: [policyId], references: [id], onDelete: SetNull)
-  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  policy         MarketplacePolicy?      @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  organization   Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([policyId])
   @@index([organizationId])
@@ -4695,7 +5061,7 @@ model LegalDocumentAcceptance {
 }
 
 model LegalConsentEvent {
-  id             String        @id @default(cuid())
+  id             String            @id @default(cuid())
   userId         String
   organizationId String?
   consentType    LegalDocumentType
@@ -4704,9 +5070,9 @@ model LegalConsentEvent {
   version        String
   ipAddress      String?
   userAgent      String?
-  createdAt      DateTime      @default(now())
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([organizationId])
@@ -4777,23 +5143,23 @@ model HelpArticle {
 }
 
 model FaqItem {
-  id              String          @id @default(cuid())
-  question        String
-  answerMarkdown  String
-  category        String?
-  status          ContentStatus   @default(draft)
-  audience        ContentAudience @default(all_users)
-  countryCode     String?
-  sortOrder       Int             @default(100)
-  createdById     String
-  updatedById     String?
-  publishedById   String?
-  publishedAt     DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  createdBy       User            @relation("FaqItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy       User?           @relation("FaqItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  publishedBy     User?           @relation("FaqItemPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  id             String          @id @default(cuid())
+  question       String
+  answerMarkdown String
+  category       String?
+  status         ContentStatus   @default(draft)
+  audience       ContentAudience @default(all_users)
+  countryCode    String?
+  sortOrder      Int             @default(100)
+  createdById    String
+  updatedById    String?
+  publishedById  String?
+  publishedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  createdBy      User            @relation("FaqItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User?           @relation("FaqItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  publishedBy    User?           @relation("FaqItemPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
 
   @@index([category])
   @@index([status])
@@ -4834,19 +5200,19 @@ model DataPrivacyRequest {
 }
 
 model DataRetentionPolicy {
-  id             String                    @id @default(cuid())
-  countryCode    String?
-  dataCategory   DataCategory
-  retentionDays  Int?
-  action         RetentionAction
-  status         DataRetentionPolicyStatus @default(active)
-  notes          String?
-  createdById    String
-  updatedById    String?
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  createdBy      User                      @relation("DataRetentionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User?                     @relation("DataRetentionPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  id            String                    @id @default(cuid())
+  countryCode   String?
+  dataCategory  DataCategory
+  retentionDays Int?
+  action        RetentionAction
+  status        DataRetentionPolicyStatus @default(active)
+  notes         String?
+  createdById   String
+  updatedById   String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  createdBy     User                      @relation("DataRetentionPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy     User?                     @relation("DataRetentionPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@index([countryCode])
   @@index([dataCategory])
@@ -4880,35 +5246,39 @@ model UserActivity {
 }
 
 model UserPrivacySetting {
-  id                                  String                @id @default(cuid())
-  userId                              String                @unique
-  profileVisibility                   UserProfileVisibility @default(private)
-  activityRetentionDays               Int?
-  marketingEmailsEnabled              Boolean               @default(false)
-  analyticsConsent                    Boolean               @default(false)
-  personalizedRecommendationsEnabled  Boolean               @default(true)
-  createdAt                           DateTime              @default(now())
-  updatedAt                           DateTime              @updatedAt
-  user                                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                                 String                @id @default(cuid())
+  userId                             String                @unique
+  profileVisibility                  UserProfileVisibility @default(private)
+  activityRetentionDays              Int?
+  marketingEmailsEnabled             Boolean               @default(false)
+  analyticsConsent                   Boolean               @default(false)
+  marketingCookiesConsent            Boolean               @default(false)
+  functionalCookiesConsent           Boolean               @default(true)
+  cookiePreferencesUpdatedAt         DateTime?
+  personalizedRecommendationsEnabled Boolean               @default(true)
+  createdAt                          DateTime              @default(now())
+  updatedAt                          DateTime              @updatedAt
+  user                               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([profileVisibility])
   @@index([analyticsConsent])
+  @@index([marketingCookiesConsent])
   @@index([marketingEmailsEnabled])
 }
 
 model UserLocalizationPreference {
-  id                 String               @id @default(cuid())
-  userId             String               @unique
-  localeCode         String
-  timezone           String
-  measurementSystem  MeasurementSystem?
-  currencyCode       String?
-  dateFormat         String?
-  timeFormat         String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  locale             LocalizationLocale   @relation(fields: [localeCode], references: [localeCode], onDelete: Restrict)
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  localeCode        String
+  timezone          String
+  measurementSystem MeasurementSystem?
+  currencyCode      String?
+  dateFormat        String?
+  timeFormat        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locale            LocalizationLocale @relation(fields: [localeCode], references: [localeCode], onDelete: Restrict)
 
   @@index([localeCode])
   @@index([currencyCode])
@@ -5131,54 +5501,83 @@ model KycWebhookEvent {
 }
 
 model HomeChefRequest {
-  id                         String                         @id @default(cuid())
-  organizationId             String
-  countryCode                String
-  createdById                String
-  status                     HomeChefRequestStatus          @default(draft)
-  requestType                HomeChefRequestType
-  title                      String
-  description                String?
-  mealPlanId                 String?
-  recipeId                   String?
-  requestedDate              DateTime
-  requestedTimeWindow        String?
-  guestCount                 Int
-  householdSize              Int?
-  serviceAddressLine1        String?
-  serviceAddressLine2        String?
-  city                       String?
-  region                     String?
-  postalCode                 String?
-  phone                      String?
-  preferredLanguage          String?
-  genderPreference           GenderPreference               @default(no_preference)
-  budgetAmount               Float?
-  budgetCurrency             String?
-  paymentRequired            Boolean                        @default(false)
-  paymentStatus              ModulePaymentStatus            @default(not_required)
-  paymentOrderId             String?
-  promotionCode              String?
-  promotionDiscountAmount    Float?
+  id                          String                         @id @default(cuid())
+  organizationId              String
+  countryCode                 String
+  createdById                 String
+  status                      HomeChefRequestStatus          @default(draft)
+  requestType                 HomeChefRequestType
+  title                       String
+  description                 String?
+  mealPlanId                  String?
+  recipeId                    String?
+  requestedDate               DateTime
+  requestedTimeWindow         String?
+  guestCount                  Int
+  householdSize               Int?
+  serviceAddressLine1         String?
+  serviceAddressLine2         String?
+  city                        String?
+  region                      String?
+  postalCode                  String?
+  phone                       String?
+  preferredLanguage           String?
+  genderPreference            GenderPreference               @default(no_preference)
+  budgetAmount                Float?
+  budgetCurrency              String?
+  paymentRequired             Boolean                        @default(false)
+  paymentStatus               ModulePaymentStatus            @default(not_required)
+  paymentOrderId              String?
+  promotionCode               String?
+  promotionDiscountAmount     Float?
   platformCreditAppliedAmount Float?
-  quotedAmount               Float?
-  depositAmount              Float?
-  currencyCode               String                         @default("USD")
-  paidAt                     DateTime?
-  notes                      String?
-  adminNotes                 String?
-  assignedChefOrganizationId String?
-  createdAt                  DateTime                       @default(now())
-  updatedAt                  DateTime                       @updatedAt
-  organization               Organization                   @relation("HomeChefRequestOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy                  User                           @relation("HomeChefRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  mealPlan                   MealPlan?                      @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
-  recipe                     Recipe?                        @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  assignedChefOrganization   Organization?                  @relation("HomeChefRequestAssignedChefOrganization", fields: [assignedChefOrganizationId], references: [id], onDelete: SetNull)
-  messages                   HomeChefRequestMessage[]
-  statusHistory              HomeChefRequestStatusHistory[]
-  chefReviews                ChefReview[]
-  marketplaceReviews         MarketplaceReview[]
+  quotedAmount                Float?
+  depositAmount               Float?
+  currencyCode                String                         @default("USD")
+  paidAt                      DateTime?
+  notes                       String?
+  adminNotes                  String?
+  assignedChefOrganizationId  String?
+  assignedChefProfileId       String?
+  leadTimeCategory            HomeChefLeadTimeCategory       @default(custom)
+  acceptanceDeadlineAt        DateTime?
+  currentOfferId              String?                        @unique
+  autoCascadeEnabled          Boolean                        @default(false)
+  cascadeAttemptCount         Int                            @default(0)
+  nextCascadeAt               DateTime?
+  matchingStatus              HomeChefMatchingStatus         @default(awaiting_admin_review)
+  bookingLockStatus           HomeChefBookingLockStatus      @default(not_locked)
+  bookingLockedAt             DateTime?
+  bookingLockedById           String?
+  bookingLockReason           String?
+  addressRevealedAt           DateTime?
+  addressAccessRevokedAt      DateTime?
+  contactAccessRevokedAt      DateTime?
+  confirmedAt                 DateTime?
+  expiresAt                   DateTime?
+  recurrenceRuleJson          Json?
+  recurringDayOfWeek          Int?
+  recurringStartTime          String?
+  recurringEndTime            String?
+  preliminaryCallRequested    Boolean                        @default(false)
+  preliminaryCallScheduledAt  DateTime?
+  createdAt                   DateTime                       @default(now())
+  updatedAt                   DateTime                       @updatedAt
+  organization                Organization                   @relation("HomeChefRequestOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                   User                           @relation("HomeChefRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  mealPlan                    MealPlan?                      @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
+  recipe                      Recipe?                        @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  assignedChefOrganization    Organization?                  @relation("HomeChefRequestAssignedChefOrganization", fields: [assignedChefOrganizationId], references: [id], onDelete: SetNull)
+  assignedChefProfile         ChefProfile?                   @relation("HomeChefRequestAssignedChefProfile", fields: [assignedChefProfileId], references: [id], onDelete: SetNull)
+  bookingLockedBy             User?                          @relation("HomeChefRequestBookingLockedBy", fields: [bookingLockedById], references: [id], onDelete: SetNull)
+  currentOffer                HomeChefRequestOffer?          @relation("HomeChefRequestCurrentOffer", fields: [currentOfferId], references: [id], onDelete: SetNull)
+  offers                      HomeChefRequestOffer[]         @relation("HomeChefRequestOffers")
+  accessGrants                HomeChefRequestAccessGrant[]
+  contactProxySessions        ContactProxySession[]
+  messages                    HomeChefRequestMessage[]
+  statusHistory               HomeChefRequestStatusHistory[]
+  chefReviews                 ChefReview[]
+  marketplaceReviews          MarketplaceReview[]
 
   @@index([organizationId])
   @@index([countryCode])
@@ -5192,6 +5591,155 @@ model HomeChefRequest {
   @@index([mealPlanId])
   @@index([recipeId])
   @@index([assignedChefOrganizationId])
+  @@index([assignedChefProfileId])
+  @@index([bookingLockStatus])
+  @@index([bookingLockedById])
+  @@index([leadTimeCategory])
+  @@index([matchingStatus])
+  @@index([currentOfferId])
+  @@index([nextCascadeAt])
+}
+
+model HomeChefAcceptancePolicy {
+  id                      String                   @id @default(cuid())
+  countryCode             String?
+  region                  String?
+  city                    String?
+  requestType             HomeChefRequestType?
+  leadTimeCategory        HomeChefLeadTimeCategory
+  acceptanceWindowMinutes Int
+  autoCascadeEnabled      Boolean                  @default(true)
+  maxCascadeAttempts      Int                      @default(3)
+  cascadeDelayMinutes     Int                      @default(10)
+  requireAdminReview      Boolean                  @default(true)
+  requireVerifiedChef     Boolean                  @default(true)
+  isActive                Boolean                  @default(true)
+  createdById             String
+  updatedById             String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  createdBy               User                     @relation("HomeChefAcceptancePolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy               User?                    @relation("HomeChefAcceptancePolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([requestType])
+  @@index([leadTimeCategory])
+  @@index([isActive])
+}
+
+model HomeChefPrivacyPolicy {
+  id                              String                      @id @default(cuid())
+  countryCode                     String?
+  region                          String?
+  city                            String?
+  requestType                     HomeChefRequestType?
+  revealExactAddressTrigger       HomeChefRevealTrigger       @default(booking_locked)
+  revealCustomerNameTrigger       HomeChefRevealTrigger       @default(booking_locked)
+  allowPreAcceptanceMessaging     Boolean                     @default(true)
+  allowFirstNameBeforeAcceptance  Boolean                     @default(false)
+  allowPhoneProxyAfterLock        Boolean                     @default(true)
+  allowRealPhoneReveal            Boolean                     @default(false)
+  allowEmailReveal                Boolean                     @default(false)
+  revokeAccessOnCancellation      Boolean                     @default(true)
+  revokeAccessAfterCompletionDays Int?
+  emergencyContactWindowHours     Int                         @default(24)
+  status                          HomeChefPrivacyPolicyStatus @default(active)
+  createdById                     String
+  updatedById                     String?
+  createdAt                       DateTime                    @default(now())
+  updatedAt                       DateTime                    @updatedAt
+  createdBy                       User                        @relation("HomeChefPrivacyPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                       User?                       @relation("HomeChefPrivacyPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([countryCode])
+  @@index([region])
+  @@index([city])
+  @@index([requestType])
+  @@index([status])
+}
+
+model HomeChefRequestOffer {
+  id                 String                     @id @default(cuid())
+  homeChefRequestId  String
+  chefProfileId      String
+  offeredById        String
+  status             HomeChefRequestOfferStatus @default(pending)
+  offerType          HomeChefRequestOfferType   @default(direct)
+  responseDeadlineAt DateTime
+  acceptedAt         DateTime?
+  declinedAt         DateTime?
+  expiredAt          DateTime?
+  cancelledAt        DateTime?
+  responseMessage    String?
+  quoteAmount        Float?
+  currencyCode       String?
+  adminNotes         String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  homeChefRequest    HomeChefRequest            @relation("HomeChefRequestOffers", fields: [homeChefRequestId], references: [id], onDelete: Cascade)
+  chefProfile        ChefProfile                @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+  offeredBy          User                       @relation("HomeChefRequestOfferOfferedBy", fields: [offeredById], references: [id], onDelete: Restrict)
+  currentForRequest  HomeChefRequest?           @relation("HomeChefRequestCurrentOffer")
+
+  @@index([homeChefRequestId])
+  @@index([chefProfileId])
+  @@index([offeredById])
+  @@index([status])
+  @@index([offerType])
+  @@index([responseDeadlineAt])
+}
+
+model HomeChefRequestAccessGrant {
+  id            String                    @id @default(cuid())
+  requestId     String
+  chefProfileId String
+  userId        String?
+  grantType     HomeChefAccessGrantType
+  status        HomeChefAccessGrantStatus @default(active)
+  grantedAt     DateTime                  @default(now())
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason String?
+  createdById   String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  request       HomeChefRequest           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  chefProfile   ChefProfile               @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+  user          User?                     @relation("HomeChefAccessGrantUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdBy     User?                     @relation("HomeChefAccessGrantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([chefProfileId])
+  @@index([userId])
+  @@index([createdById])
+  @@index([grantType])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model ContactProxySession {
+  id              String               @id @default(cuid())
+  requestId       String
+  householdUserId String
+  chefProfileId   String
+  status          ContactProxyStatus   @default(pending)
+  provider        ContactProxyProvider @default(manual_placeholder)
+  proxyNumber     String?
+  startsAt        DateTime
+  expiresAt       DateTime
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  request         HomeChefRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  householdUser   User                 @relation("ContactProxySessionHouseholdUser", fields: [householdUserId], references: [id], onDelete: Restrict)
+  chefProfile     ChefProfile          @relation(fields: [chefProfileId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([householdUserId])
+  @@index([chefProfileId])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 model HomeChefRequestMessage {

@@ -6,6 +6,7 @@ import { FeatureFlagToggle } from "@/components/admin/feature-flag-toggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountryBadge } from "@/components/ui/country-badge";
+import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG } from "@/lib/feature-flags";
 import { listAdminFeatureFlags } from "@/server/admin/feature-flags";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,9 @@ export default async function AdminFeatureFlagsPage() {
     }),
   ]);
   const canCreate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
+  const cookiePrivacyFlag = flags.find(
+    (flag) => flag.key === COOKIE_PRIVACY_CONSENT_FEATURE_FLAG && !flag.countryCode && !flag.organizationId,
+  );
 
   return (
     <AdminShell
@@ -37,6 +41,36 @@ export default async function AdminFeatureFlagsPage() {
       title="Feature flag control"
       description="Manage future platform modules and rollout scopes at the global, country, and organization levels."
     >
+      {cookiePrivacyFlag ? (
+        <Card className={cookiePrivacyFlag.enabled ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/80"}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-primary)]">Launch privacy control</p>
+              <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">Cookie privacy consent and analytics</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-muted)]">
+                Controls Secure Privacy CMP, Google Consent Mode, Google Analytics, and public tracking scripts. Disable this while launching if
+                you do not want analytics or cookie-consent widgets showing yet.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm sm:min-w-64">
+              <FeatureFlagToggle enabled={cookiePrivacyFlag.enabled} scope="global" />
+              <form action={`/api/admin/feature-flags/${cookiePrivacyFlag.id}`} method="post">
+                <input type="hidden" name="key" value={cookiePrivacyFlag.key} />
+                <input type="hidden" name="name" value={cookiePrivacyFlag.name} />
+                <input type="hidden" name="description" value={cookiePrivacyFlag.description ?? ""} />
+                <input type="hidden" name="scopeType" value="global" />
+                <input type="hidden" name="countryCode" value="" />
+                <input type="hidden" name="organizationId" value="" />
+                <input type="hidden" name="enabled" value={cookiePrivacyFlag.enabled ? "" : "on"} />
+                <Button type="submit" variant={cookiePrivacyFlag.enabled ? "secondary" : "primary"} className="w-full">
+                  {cookiePrivacyFlag.enabled ? "Disable cookies and analytics" : "Enable cookies and analytics"}
+                </Button>
+              </form>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {canCreate ? (
         <Card>
           <h2 className="text-lg font-semibold text-[var(--color-ink)]">Create feature flag</h2>

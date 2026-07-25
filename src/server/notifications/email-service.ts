@@ -9,8 +9,23 @@ export type EmailTemplateKey =
   | "home_chef_new_message"
   | "chef_profile_approved"
   | "chef_profile_suspended"
+  | "catering_new_order"
+  | "catering_order_cancelled"
+  | "catering_review_received"
+  | "restaurant_new_order"
+  | "restaurant_order_cancelled"
+  | "restaurant_review_received"
+  | "food_order_accepted"
+  | "food_order_declined"
+  | "food_order_preparing"
+  | "food_order_ready_for_pickup"
+  | "food_order_out_for_delivery"
+  | "food_order_completed"
+  | "food_order_cancelled"
+  | "food_order_message_received"
   | "grocery_list_shared"
   | "password_reset"
+  | "review_reported"
   | "support_ticket_created"
   | "support_ticket_reply"
   | "support_ticket_status_changed";
@@ -32,14 +47,29 @@ const TEMPLATE_KEY_MAP: Record<EmailTemplateKey, string> = {
   home_chef_new_message: "home_chef.message_received",
   chef_profile_approved: "verification.approved",
   chef_profile_suspended: "verification.suspended",
+  catering_new_order: "catering.new_order",
+  catering_order_cancelled: "catering.order_cancelled",
+  catering_review_received: "catering.review_received",
+  restaurant_new_order: "restaurant.new_order",
+  restaurant_order_cancelled: "restaurant.order_cancelled",
+  restaurant_review_received: "restaurant.review_received",
+  food_order_accepted: "order.accepted",
+  food_order_declined: "order.declined",
+  food_order_preparing: "order.preparing",
+  food_order_ready_for_pickup: "order.ready_for_pickup",
+  food_order_out_for_delivery: "order.out_for_delivery",
+  food_order_completed: "order.completed",
+  food_order_cancelled: "order.cancelled",
+  food_order_message_received: "order.message_received",
   grocery_list_shared: "grocery_list.shared",
   password_reset: "auth.password_reset",
+  review_reported: "review.reported",
   support_ticket_created: "support.ticket_created",
   support_ticket_reply: "support.reply_received",
   support_ticket_status_changed: "support.status_changed",
 };
 
-export function renderEmailTemplate(templateKey: EmailTemplateKey, data: Record<string, string | null | undefined>) {
+export function renderEmailTemplate(templateKey: EmailTemplateKey, data: Record<string, unknown>) {
   const mappedKey = TEMPLATE_KEY_MAP[templateKey];
   const rendered = renderSeedTemplate(mappedKey, {
     ...data,

@@ -2,7 +2,19 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { FoodOrderDetail } from "@/server/food-orders";
 
+function formatMoney(currencyCode: string, amount: unknown) {
+  if (amount == null) return "To be confirmed";
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "To be confirmed";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(value);
+}
+
 export function FoodOrderSummary({ order, showInternal = false }: { order: FoodOrderDetail; showInternal?: boolean }) {
+  const hasPayableAmount = order.subtotalAmount != null && Number(order.subtotalAmount) > 0;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card>
@@ -13,8 +25,18 @@ export function FoodOrderSummary({ order, showInternal = false }: { order: FoodO
           </div>
           <Badge tone={statusTone(order.status)}>{order.status.replace(/_/g, " ")}</Badge>
         </div>
-        <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
-          Payment is handled directly with the seller for now. There is no checkout or payment collection in NizamKitchen.
+        <div className={["mt-5 rounded-2xl border p-4 text-sm leading-6", hasPayableAmount ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"].join(" ")}>
+          {hasPayableAmount ? (
+            <>
+              <span className="font-semibold">Online checkout is available for this order.</span>{" "}
+              Use the checkout section on this page to pay securely with a hosted provider. NizamKitchen never stores card numbers or CVV.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Online checkout is not available yet.</span>{" "}
+              This order does not have a payable menu price, so the seller must confirm pricing before payment can be collected.
+            </>
+          )}
         </div>
         <div className="mt-6 space-y-3">
           {order.items.map((item) => (
@@ -34,8 +56,9 @@ export function FoodOrderSummary({ order, showInternal = false }: { order: FoodO
           <Info label="Time window" value={order.requestedTimeWindow || "Not specified"} />
           <Info label="Pickup location" value={order.pickupAddressSnapshot || order.pickupLocation?.label || "Not assigned"} />
           <Info label="Delivery zone" value={order.deliveryZone?.name || "Not matched"} />
-          <Info label="Delivery fee" value={order.deliveryFeeAmount != null ? `${order.currencyCode} ${order.deliveryFeeAmount}` : "Not applied"} />
-          <Info label="Estimated subtotal" value={order.subtotalAmount ? `${order.currencyCode} ${order.subtotalAmount}` : "To be confirmed"} />
+          <Info label="Delivery fee" value={order.deliveryFeeAmount != null ? formatMoney(order.currencyCode, order.deliveryFeeAmount) : "Not applied"} />
+          <Info label="Estimated subtotal" value={formatMoney(order.currencyCode, order.subtotalAmount)} />
+          <Info label="Payment status" value={order.paymentStatus.replace(/_/g, " ")} />
         </dl>
         {order.customerNotes ? <p className="mt-5 text-sm text-[var(--color-muted)]"><span className="font-semibold text-[var(--color-ink)]">Customer notes:</span> {order.customerNotes}</p> : null}
         {order.sellerNotes ? <p className="mt-3 text-sm text-[var(--color-muted)]"><span className="font-semibold text-[var(--color-ink)]">Seller notes:</span> {order.sellerNotes}</p> : null}

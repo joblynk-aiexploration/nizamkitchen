@@ -147,6 +147,10 @@ describe("dish and menu template library", () => {
     mockPrisma.mealPlan.create.mockResolvedValue({ id: "plan-1" });
 
     await applyMenuTemplateToMealPlan({
+      session: {
+        user: { id: "user-1", email: "household@example.test", platformRole: null },
+        activeOrganization: { id: "household-org", countryCode: "US" },
+      } as never,
       templateId: "template-1",
       organizationId: "household-org",
       countryCode: "US",

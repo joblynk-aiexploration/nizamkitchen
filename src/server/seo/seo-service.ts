@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { IntegrationProvider, Prisma, RobotsDirective, SeoScope, type SeoSetting } from "@prisma/client";
 import { shouldSkipBuildTimeDatabase } from "@/lib/build-phase";
+import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG, isGlobalFeatureEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { getActiveIntegration, getPublicIntegrationConfig } from "@/server/config/platform-config-service";
 
 const DEFAULT_SITE_URL = "https://nizamkitchen.com";
 const DEFAULT_TITLE = "NizamKitchen";
 const DEFAULT_DESCRIPTION = "Hyderabadi meal planning, grocery lists, home chefs, catering, restaurants, and food marketplace workflows.";
+const DEFAULT_GOOGLE_ANALYTICS_MEASUREMENT_ID = "G-D2668ZZ80C";
+const DEFAULT_SECURE_PRIVACY_SCRIPT_URL = "https://app.secureprivacy.ai/script/6a265d6522609752e3d645f1.js";
 
 export type SeoFormInput = {
   id?: string;
@@ -38,9 +41,19 @@ export type GooglePlatformPublicConfig = {
   analyticsMeasurementId?: string;
   analyticsEnabled: boolean;
   analyticsConsentRequired: boolean;
+  consentManagementEnabled: boolean;
+  consentModeEnabled: boolean;
+  cmpAnalyticsIntegrationEnabled: boolean;
   adsensePublisherId?: string;
   adsenseEnabled: boolean;
   adsTxtLine?: string;
+};
+
+export type SecurePrivacyPublicConfig = {
+  enabled: boolean;
+  scriptUrl?: string;
+  consentModeEnabled: boolean;
+  googleAnalyticsIntegrationEnabled: boolean;
 };
 
 export function siteUrl(path = "/") {
@@ -325,42 +338,146 @@ function credentialValue(integration: Awaited<ReturnType<typeof getActiveIntegra
   return integration?.credentials.find((credential) => credential.keyName === key)?.value;
 }
 
+function normalizeGoogleAnalyticsMeasurementId(value?: string | null) {
+  const measurementId = value?.trim();
+  if (!measurementId) return undefined;
+  return /^G-[A-Z0-9]+$/i.test(measurementId) ? measurementId.toUpperCase() : undefined;
+}
+
+function googleAnalyticsMeasurementIdFromEnv() {
+  return normalizeGoogleAnalyticsMeasurementId(
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || DEFAULT_GOOGLE_ANALYTICS_MEASUREMENT_ID,
+  );
+}
+
+function googlePlatformConfigFallback(): GooglePlatformPublicConfig {
+  const analyticsMeasurementId = googleAnalyticsMeasurementIdFromEnv();
+  return {
+    analyticsMeasurementId,
+    analyticsEnabled: Boolean(analyticsMeasurementId),
+    analyticsConsentRequired: true,
+    consentManagementEnabled: true,
+    consentModeEnabled: true,
+    cmpAnalyticsIntegrationEnabled: true,
+    adsenseEnabled: false,
+  };
+}
+
+async function cookiePrivacyConsentEnabled(defaultEnabled = true) {
+  if (shouldSkipBuildTimeDatabase()) return defaultEnabled;
+  return isGlobalFeatureEnabled(COOKIE_PRIVACY_CONSENT_FEATURE_FLAG, defaultEnabled);
+}
+
+function securePrivacyScriptUrl(value: unknown) {
+  if (typeof value !== "string") return undefined;
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") return undefined;
+    if (parsed.hostname !== "app.secureprivacy.ai") return undefined;
+    if (!parsed.pathname.startsWith("/script/") || !parsed.pathname.endsWith(".js")) return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getSecurePrivacyPublicConfig(): Promise<SecurePrivacyPublicConfig> {
+  if (!(await cookiePrivacyConsentEnabled(true))) {
+    return {
+      enabled: false,
+      scriptUrl: undefined,
+      consentModeEnabled: false,
+      googleAnalyticsIntegrationEnabled: false,
+    };
+  }
+
+  const fallbackScriptUrl =
+    securePrivacyScriptUrl(process.env.NEXT_PUBLIC_SECURE_PRIVACY_SCRIPT_URL) ??
+    DEFAULT_SECURE_PRIVACY_SCRIPT_URL;
+  const fallbackConfig: SecurePrivacyPublicConfig = {
+    enabled: true,
+    scriptUrl: fallbackScriptUrl,
+    consentModeEnabled: true,
+    googleAnalyticsIntegrationEnabled: true,
+  };
+
+  if (shouldSkipBuildTimeDatabase()) {
+    return fallbackConfig;
+  }
+
+  try {
+    const integration = await getPublicIntegrationConfig(IntegrationProvider.secure_privacy);
+    if (!integration) return fallbackConfig;
+
+    const scriptUrl = securePrivacyScriptUrl(integration?.settings.scriptUrl);
+    const enabled = Boolean(scriptUrl);
+    return {
+      enabled,
+      scriptUrl,
+      consentModeEnabled: enabled && settingToBoolean(integration?.settings.consentModeEnabled, true),
+      googleAnalyticsIntegrationEnabled: enabled && (
+        settingToBoolean(integration?.settings.googleAnalyticsConsentEnabled, false) ||
+        settingToBoolean(integration?.settings.googleAnalyticsIntegrationEnabled, true)
+      ),
+    };
+  } catch {
+    return fallbackConfig;
+  }
+}
+
 export async function getGooglePlatformPublicConfig(): Promise<GooglePlatformPublicConfig> {
   if (shouldSkipBuildTimeDatabase()) {
-    return {
-      analyticsEnabled: false,
-      analyticsConsentRequired: true,
-      adsenseEnabled: false,
-    };
+    return googlePlatformConfigFallback();
   }
 
   let searchConsole: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
   let analytics: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
   let adsense: Awaited<ReturnType<typeof getPublicIntegrationConfig>>;
+  let securePrivacy: SecurePrivacyPublicConfig;
+  let cookieConsentEnabled: boolean;
 
   try {
-    [searchConsole, analytics, adsense] = await Promise.all([
+    [searchConsole, analytics, adsense, securePrivacy, cookieConsentEnabled] = await Promise.all([
       getPublicIntegrationConfig(IntegrationProvider.google_search_console),
       getPublicIntegrationConfig(IntegrationProvider.google_analytics),
       getPublicIntegrationConfig(IntegrationProvider.google_adsense),
+      getSecurePrivacyPublicConfig(),
+      cookiePrivacyConsentEnabled(true),
     ]);
   } catch {
+    return googlePlatformConfigFallback();
+  }
+
+  const searchConsoleMeta = searchConsole?.credentials.verification_meta_tag ?? searchConsole?.credentials.verification_html_token;
+  if (!cookieConsentEnabled) {
     return {
+      searchConsoleVerification: typeof searchConsoleMeta === "string" ? extractGoogleVerificationContent(searchConsoleMeta) : undefined,
       analyticsEnabled: false,
-      analyticsConsentRequired: true,
+      analyticsConsentRequired: false,
+      consentManagementEnabled: false,
+      consentModeEnabled: false,
+      cmpAnalyticsIntegrationEnabled: false,
       adsenseEnabled: false,
     };
   }
 
-  const searchConsoleMeta = searchConsole?.credentials.verification_meta_tag ?? searchConsole?.credentials.verification_html_token;
-  const analyticsMeasurementId = analytics?.credentials.measurement_id;
+  const analyticsCredentialMeasurementId = normalizeGoogleAnalyticsMeasurementId(
+    typeof analytics?.credentials.measurement_id === "string" ? analytics.credentials.measurement_id : undefined,
+  );
+  const analyticsMeasurementId = analyticsCredentialMeasurementId ?? googleAnalyticsMeasurementIdFromEnv();
   const adsensePublisherId = adsense?.credentials.publisher_id;
 
   return {
     searchConsoleVerification: typeof searchConsoleMeta === "string" ? extractGoogleVerificationContent(searchConsoleMeta) : undefined,
-    analyticsMeasurementId: typeof analyticsMeasurementId === "string" ? analyticsMeasurementId : undefined,
-    analyticsEnabled: Boolean(analytics && analyticsMeasurementId),
-    analyticsConsentRequired: settingToBoolean(analytics?.settings.consentRequired, true),
+    analyticsMeasurementId,
+    analyticsEnabled: Boolean(analyticsMeasurementId),
+    analyticsConsentRequired: securePrivacy.googleAnalyticsIntegrationEnabled
+      ? true
+      : settingToBoolean(analytics?.settings.consentRequired, false),
+    consentManagementEnabled: securePrivacy.enabled,
+    consentModeEnabled: securePrivacy.consentModeEnabled,
+    cmpAnalyticsIntegrationEnabled: securePrivacy.googleAnalyticsIntegrationEnabled,
     adsensePublisherId: typeof adsensePublisherId === "string" ? adsensePublisherId : undefined,
     adsenseEnabled: Boolean(adsense && adsensePublisherId && settingToBoolean(adsense.settings.publicAdScriptEnabled, false)),
     adsTxtLine: typeof adsense?.settings.adsTxtLine === "string" ? adsense.settings.adsTxtLine : undefined,

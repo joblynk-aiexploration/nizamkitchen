@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { PublicNav } from "@/components/public/public-nav";
 import { getCurrentSession } from "@/lib/auth/session";
-import { GooglePlatformScripts } from "@/components/seo/google-platform-scripts";
 import { organizationJsonLd, websiteJsonLd } from "@/server/seo/seo-service";
+
+function jsonLd(value: unknown) {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
 
 const footerSections = [
   {
     title: "Product",
     links: [
       { href: "/features", label: "Features" },
+      { href: "/marketplace", label: "Marketplace" },
       { href: "/pricing", label: "Pricing" },
       { href: "/for-households", label: "For Households" },
     ],
@@ -16,8 +20,10 @@ const footerSections = [
   {
     title: "Marketplace",
     links: [
-      { href: "/for-chefs", label: "For Chefs" },
-      { href: "/for-restaurants", label: "For Restaurants" },
+      { href: "/marketplace/chefs", label: "Home Chefs" },
+      { href: "/marketplace/caterers", label: "Home Catering" },
+      { href: "/marketplace/restaurants", label: "Restaurants" },
+      { href: "/marketplace/dishes", label: "Dishes" },
     ],
   },
   {
@@ -34,6 +40,7 @@ const footerSections = [
     links: [
       { href: "/terms", label: "Terms" },
       { href: "/privacy", label: "Privacy" },
+      { href: "/cookie-policy", label: "Cookie Policy" },
       { href: "/legal/seller-agreement", label: "Seller Agreement" },
       { href: "/legal/food-safety", label: "Food Safety" },
     ],
@@ -66,9 +73,8 @@ export default async function PublicLayout({ children }: { children: React.React
       <script
         type="application/ld+json"
         suppressHydrationWarning
-        dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd(), websiteJsonLd()]) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd([organizationJsonLd(), websiteJsonLd()]) }}
       />
-      <GooglePlatformScripts />
       <PublicNav dashboardHref={dashboardHref} />
       <main className="flex-1">{children}</main>
       <footer data-testid="public-footer" className="relative z-10 border-t border-[var(--color-border)] bg-slate-50">

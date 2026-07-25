@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { requireMembership } from "@/lib/auth/session";
 import {
@@ -14,10 +15,12 @@ import {
   duplicateMealPlan,
   generateGroceryListFromMealPlan,
   moveMealPlanEntry,
+  replaceLegacyGlobalMealPlanEntryWithMyRecipe,
   updateMealPlan,
   updateMealPlanEntry,
   updateMealPlanPreference,
 } from "@/server/meal-plans";
+import { copyRecipeToMyRecipes } from "@/server/recipes";
 import { applyMenuTemplateToMealPlan } from "@/server/templates";
 
 function listFromFormData(formData: FormData, key: string) {
@@ -63,7 +66,7 @@ export async function createMealPlanAction(formData: FormData) {
     });
 
     revalidatePath("/meal-plans");
-    redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created.`);
+    redirect(withAnalyticsEvent(`/meal-plans/${plan.id}/edit?message=Meal plan created.`, "meal_plan_created"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create meal plan."))}`);
@@ -74,6 +77,7 @@ export async function createMealPlanFromTemplateAction(formData: FormData) {
   try {
     const session = await requireMealPlannerAccess();
     const plan = await applyMenuTemplateToMealPlan({
+      session,
       templateId: String(formData.get("templateId")),
       organizationId: session.activeOrganization.id,
       countryCode: session.activeOrganization.countryCode,
@@ -83,7 +87,7 @@ export async function createMealPlanFromTemplateAction(formData: FormData) {
     });
 
     revalidatePath("/meal-plans");
-    redirect(`/meal-plans/${plan.id}/edit?message=Meal plan created from template.`);
+    redirect(withAnalyticsEvent(`/meal-plans/${plan.id}/edit?message=Meal plan created from template.`, "meal_plan_created"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to apply meal plan template."))}`);
@@ -116,7 +120,7 @@ export async function createReadyMadeMealPlanAction(formData: FormData) {
     });
 
     revalidatePath("/meal-plans");
-    redirect(`/meal-plans/${plan.id}/edit?message=Ready-made meal plan created with breakfast, lunch, and dinner.`);
+    redirect(withAnalyticsEvent(`/meal-plans/${plan.id}/edit?message=Ready-made meal plan created with breakfast, lunch, and dinner.`, "meal_plan_created"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/new?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to create ready-made meal plan."))}`);
@@ -179,6 +183,71 @@ export async function addMealPlanEntryAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to add meal."))}`);
+  }
+}
+
+export async function addGlobalRecipeToMealPlanAction(formData: FormData) {
+  const mealPlanId = String(formData.get("mealPlanId"));
+
+  try {
+    const session = await requireMealPlannerAccess();
+    const globalRecipeId = String(formData.get("globalRecipeId") ?? "").trim();
+    if (!globalRecipeId) {
+      throw new Error("Choose a global recipe to add to My Recipes first.");
+    }
+
+    const copiedRecipe = await copyRecipeToMyRecipes({
+      session,
+      recipeId: globalRecipeId,
+      organizationId: session.activeOrganization.id,
+      countryCode: session.activeOrganization.countryCode,
+    });
+
+    await addMealPlanEntry({
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      input: {
+        mealPlanDayId: formData.get("mealPlanDayId"),
+        recipeId: copiedRecipe.id,
+        mealType: formData.get("mealType"),
+        targetServings: formData.get("targetServings"),
+        notes: formData.get("notes") || undefined,
+        status: formData.get("status") || "planned",
+      },
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    revalidatePath("/recipes/my");
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Recipe added to My Recipes and used in the meal plan.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to add global recipe."))}`);
+  }
+}
+
+export async function replaceLegacyGlobalRecipeEntryAction(formData: FormData) {
+  const mealPlanId = String(formData.get("mealPlanId"));
+  const entryId = String(formData.get("entryId"));
+
+  try {
+    const session = await requireMealPlannerAccess();
+
+    await replaceLegacyGlobalMealPlanEntryWithMyRecipe({
+      session,
+      entryId,
+      organizationId: session.activeOrganization.id,
+      actorUserId: session.user.id,
+      countryCode: session.activeOrganization.countryCode,
+    });
+
+    revalidatePath(`/meal-plans/${mealPlanId}`);
+    revalidatePath(`/meal-plans/${mealPlanId}/edit`);
+    revalidatePath("/recipes/my");
+    redirect(`/meal-plans/${mealPlanId}/edit?message=Global recipe copied to My Recipes and attached to this entry.`);
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirect(`/meal-plans/${mealPlanId}/edit?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to copy this recipe."))}`);
   }
 }
 
@@ -317,7 +386,7 @@ export async function generateMealPlanGroceryListAction(formData: FormData) {
     revalidatePath(`/meal-plans/${mealPlanId}`);
     revalidatePath(`/meal-plans/${mealPlanId}/grocery-list`);
     revalidatePath("/grocery-lists");
-    redirect(`/grocery-lists/${groceryList.id}?message=Grocery list generated from meal plan.`);
+    redirect(withAnalyticsEvent(`/grocery-lists/${groceryList.id}?message=Grocery list generated from meal plan.`, "grocery_list_generated"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/meal-plans/${mealPlanId}/grocery-list?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to generate grocery list."))}`);

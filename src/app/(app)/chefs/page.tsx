@@ -57,7 +57,7 @@ export default async function ChefsMarketplacePage({
       <Card>
         <form className="grid gap-4 md:grid-cols-5">
           <TextInput label="City" name="city" defaultValue={params.city ?? ""} />
-          <TextInput label="Region" name="region" defaultValue={params.region ?? ""} />
+          <TextInput label="State" name="region" defaultValue={params.region ?? ""} />
           <TextInput label="Specialty" name="specialty" defaultValue={params.specialty ?? ""} />
           <SelectInput label="Service" name="serviceType" defaultValue={params.serviceType ?? ""} options={serviceTypeOptions} />
           <label className="flex items-end gap-2 pb-3 text-sm text-[var(--color-ink)]">

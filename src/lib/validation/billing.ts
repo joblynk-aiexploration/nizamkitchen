@@ -8,7 +8,12 @@ export const billingPlanCreateSchema = z.object({
   currencyCode: z.string().trim().min(3).max(3).default("USD"),
   billingInterval: z.enum(["monthly", "yearly", "custom"]).default("monthly"),
   status: z.enum(["draft", "active", "archived"]).default("draft"),
-  stripePriceId: z.preprocess((v) => (v === "" || v == null ? null : v), z.string().trim().max(180).nullable().optional()),
+  planAudience: z.enum(["household", "chef_staff", "home_catering", "restaurant", "platform_internal"]),
+  isPopular: z.boolean().default(false),
+  stripePriceId: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.string().trim().max(180).regex(/^price_/, "Stripe Price ID must start with price_.").nullable().optional(),
+  ),
   limitsJson: z.record(z.string(), z.unknown()).default({}),
   featuresJson: z.array(z.unknown()).default([]),
 });

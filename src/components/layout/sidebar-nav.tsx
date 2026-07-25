@@ -68,6 +68,7 @@ const iconByHref = {
   "/admin/audit-logs": Logs,
   "/admin/recipe-library": BookOpen,
   "/admin/ingredients": ChefHat,
+  "/admin/ingredient-requests": Inbox,
   "/admin/units": Cog,
   "/admin/cuisines": UtensilsCrossed,
   "/admin/youtube-discovery": BookOpen,
@@ -101,6 +102,14 @@ export function SidebarNav({
   const pathname = usePathname();
   const workspaceLinks = getWorkspaceNavItems(session);
   const platformLinks = getPlatformNavItems(session);
+  const isRecipeEditPath = /^\/recipes\/[^/]+\/edit(?:\/)?$/.test(pathname);
+  const isMyRecipesPath = pathname === "/recipes/my" || pathname.startsWith("/recipes/my/");
+
+  function isWorkspaceLinkActive(href: string) {
+    if (href === "/recipes/my") return isMyRecipesPath || isRecipeEditPath;
+    if (href === "/recipes" && (isMyRecipesPath || isRecipeEditPath)) return false;
+    return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -110,7 +119,7 @@ export function SidebarNav({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</p>
             {workspaceLinks.map((link) => {
               const Icon = iconByHref[link.href as keyof typeof iconByHref] ?? LayoutDashboard;
-              const active = pathname === link.href || (link.href !== "/dashboard" && pathname.startsWith(`${link.href}/`));
+              const active = isWorkspaceLinkActive(link.href);
 
               return (
                 <Link

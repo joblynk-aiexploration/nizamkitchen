@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { BillingInterval, BillingPlanStatus } from "@prisma/client";
+import type { BillingInterval, BillingPlanAudience, BillingPlanStatus } from "@prisma/client";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { createBillingPlan, updateBillingPlan } from "@/server/billing/plans";
@@ -49,6 +49,8 @@ function planInputFromForm(formData: FormData) {
     currencyCode: stringField(formData, "currencyCode", "USD").toUpperCase(),
     billingInterval: stringField(formData, "billingInterval", "monthly") as BillingInterval,
     status: stringField(formData, "status", "draft") as BillingPlanStatus,
+    planAudience: stringField(formData, "planAudience") as BillingPlanAudience,
+    isPopular: formData.get("isPopular") === "on",
     stripePriceId: optionalStringField(formData, "stripePriceId"),
     limitsJson: {
       maxMealPlans: limitField(formData, "maxMealPlans", 2),

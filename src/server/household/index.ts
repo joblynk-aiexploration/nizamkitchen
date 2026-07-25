@@ -12,6 +12,7 @@ import {
   shoppingPreferenceSchema,
 } from "@/lib/validation/household";
 import { createAuditEvent } from "@/server/audit";
+import { sendTemplateEmail } from "@/server/email/email-service";
 
 const householdProfileInclude = Prisma.validator<Prisma.HouseholdProfileDefaultArgs>()({
   include: {
@@ -73,7 +74,11 @@ export async function listHouseholdMembers(organizationId: string) {
 export async function listHouseholdSharedRecipes(organizationId: string) {
   return prisma.favoriteRecipe.findMany({
     where: { organizationId },
-    include: { recipe: { include: { cuisine: true } }, createdBy: { select: { fullName: true } } },
+    include: {
+      recipe: { include: { cuisine: true } },
+      createdBy: { select: { fullName: true } },
+      recipientUser: { select: { id: true, fullName: true, email: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 12,
   });
@@ -81,6 +86,7 @@ export async function listHouseholdSharedRecipes(organizationId: string) {
 
 export async function createHouseholdMemberAccount(params: {
   organizationId: string;
+  organizationName?: string | null;
   actorUserId: string;
   actorRole: OrganizationRole;
   countryCode: string;
@@ -136,7 +142,59 @@ export async function createHouseholdMemberAccount(params: {
     },
   });
 
+  await sendHouseholdMemberWelcomeEmail({
+    user,
+    membershipId: membership.id,
+    organizationId: params.organizationId,
+    organizationName: params.organizationName,
+    countryCode: params.countryCode,
+    actorUserId: params.actorUserId,
+    existingUser: Boolean(existingUser),
+  });
+
   return { user, membership, existingUser: Boolean(existingUser) };
+}
+
+async function sendHouseholdMemberWelcomeEmail(params: {
+  user: { id: string; fullName: string; email: string };
+  membershipId: string;
+  organizationId: string;
+  organizationName?: string | null;
+  countryCode: string;
+  actorUserId: string;
+  existingUser: boolean;
+}) {
+  const appUrl = process.env.APP_URL || "http://localhost:3000";
+  const dashboardUrl = new URL("/dashboard", appUrl).toString();
+
+  try {
+    await sendTemplateEmail({
+      to: params.user.email,
+      recipientUserId: params.user.id,
+      organizationId: params.organizationId,
+      countryCode: params.countryCode,
+      templateKey: "auth.welcome",
+      variables: {
+        appName: "NizamKitchen",
+        userName: params.user.fullName,
+        userEmail: params.user.email,
+        organizationName: params.organizationName || "your household",
+        dashboardUrl,
+        appUrl,
+        currentYear: new Date().getFullYear(),
+        primaryActionLabel: "Open household dashboard",
+      },
+      metadata: {
+        source: "household_member_created",
+        membershipId: params.membershipId,
+        createdByUserId: params.actorUserId,
+        existingUser: params.existingUser,
+      },
+      idempotencyKey: `household-member-welcome:${params.membershipId}:${params.user.id}`,
+    });
+  } catch (error) {
+    console.error("Unable to send household member welcome email", error);
+  }
 }
 
 export async function upsertHouseholdProfile(params: {
@@ -314,7 +372,11 @@ export async function deleteAvoidedIngredient(params: {
 export async function listFavoriteRecipes(organizationId: string) {
   return prisma.favoriteRecipe.findMany({
     where: { organizationId },
-    include: { recipe: { include: { cuisine: true } }, createdBy: { select: { fullName: true } } },
+    include: {
+      recipe: { include: { cuisine: true } },
+      createdBy: { select: { fullName: true } },
+      recipientUser: { select: { id: true, fullName: true, email: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -331,18 +393,41 @@ export async function addFavoriteRecipe(params: {
   input: unknown;
 }) {
   const parsed = favoriteRecipeSchema.parse(params.input);
-  const favorite = await prisma.favoriteRecipe.upsert({
-    where: { organizationId_recipeId: { organizationId: params.organizationId, recipeId: parsed.recipeId } },
-    update: {
-      targetServings: parsed.targetServings ?? undefined,
-    },
-    create: {
+  const recipientUserId = parsed.recipientUserId ?? null;
+
+  if (recipientUserId) {
+    const recipientMembership = await prisma.membership.findUnique({
+      where: { userId_organizationId: { userId: recipientUserId, organizationId: params.organizationId } },
+      select: { status: true },
+    });
+    if (recipientMembership?.status !== "active") {
+      throw new Error("Choose an active family member from this household.");
+    }
+  }
+
+  const existing = await prisma.favoriteRecipe.findFirst({
+    where: {
       organizationId: params.organizationId,
       recipeId: parsed.recipeId,
-      createdById: params.actorUserId,
-      targetServings: parsed.targetServings ?? null,
+      recipientUserId,
     },
   });
+  const favorite = existing
+    ? await prisma.favoriteRecipe.update({
+      where: { id: existing.id },
+      data: {
+        targetServings: parsed.targetServings ?? undefined,
+      },
+    })
+    : await prisma.favoriteRecipe.create({
+      data: {
+        organizationId: params.organizationId,
+        recipeId: parsed.recipeId,
+        createdById: params.actorUserId,
+        recipientUserId,
+        targetServings: parsed.targetServings ?? null,
+      },
+    });
 
   await createAuditEvent({
     actorUserId: params.actorUserId,
@@ -351,7 +436,12 @@ export async function addFavoriteRecipe(params: {
     action: "favorite_recipe.created",
     targetType: "favorite_recipe",
     targetId: favorite.id,
-    details: { recipeId: parsed.recipeId, targetServings: parsed.targetServings ?? null },
+    details: {
+      recipeId: parsed.recipeId,
+      targetServings: parsed.targetServings ?? null,
+      shareScope: recipientUserId ? "member" : "household",
+      recipientUserId,
+    },
   });
 
   return favorite;
@@ -363,12 +453,14 @@ export async function removeFavoriteRecipe(params: {
   countryCode: string;
   recipeId: string;
 }) {
-  const existing = await prisma.favoriteRecipe.findUnique({
-    where: { organizationId_recipeId: { organizationId: params.organizationId, recipeId: params.recipeId } },
+  const existing = await prisma.favoriteRecipe.findFirst({
+    where: { organizationId: params.organizationId, recipeId: params.recipeId },
   });
   if (!existing) return;
 
-  await prisma.favoriteRecipe.delete({ where: { id: existing.id } });
+  await prisma.favoriteRecipe.deleteMany({
+    where: { organizationId: params.organizationId, recipeId: params.recipeId },
+  });
   await createAuditEvent({
     actorUserId: params.actorUserId,
     organizationId: params.organizationId,

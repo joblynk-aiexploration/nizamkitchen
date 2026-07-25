@@ -54,6 +54,8 @@ export const userPrivacySettingSchema = z.object({
   ),
   marketingEmailsEnabled: z.preprocess((value) => value === "on" || value === true, z.boolean()),
   analyticsConsent: z.preprocess((value) => value === "on" || value === true, z.boolean()),
+  marketingCookiesConsent: z.preprocess((value) => value === "on" || value === true, z.boolean()),
+  functionalCookiesConsent: z.preprocess((value) => value === "on" || value === true, z.boolean()),
   personalizedRecommendationsEnabled: z.preprocess((value) => value === "on" || value === true, z.boolean()),
 });
 

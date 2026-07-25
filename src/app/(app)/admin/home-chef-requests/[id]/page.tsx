@@ -6,12 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
+import { TextInput } from "@/components/ui/text-input";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { getAdminHomeChefRequest } from "@/server/home-chef";
+import {
+  formatHomeChefResponseWindow,
+  getAdminHomeChefRequest,
+  getHomeChefAcceptancePolicyForRequest,
+  getHomeChefPrivacyPolicyForRequest,
+  HOME_CHEF_LEAD_TIME_LABELS,
+} from "@/server/home-chef";
 import {
   assignHomeChefRequestAction,
   createAdminHomeChefMessageAction,
+  createHomeChefOfferAction,
+  lockHomeChefBookingAction,
+  revokeHomeChefAccessAction,
+  triggerHomeChefCascadeAction,
   updateAdminHomeChefStatusAction,
 } from "../actions";
 
@@ -41,18 +52,20 @@ export default async function AdminHomeChefRequestDetailPage({
     "auditor",
   ]);
   const { id } = await params;
-  const [request, chefOrganizations] = await Promise.all([
+  const [request, chefProfiles] = await Promise.all([
     getAdminHomeChefRequest(session, id).catch(() => null),
-    prisma.organization.findMany({
-      where: { organizationType: "chef_business" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, countryCode: true },
+    prisma.chefProfile.findMany({
+      where: { status: "active" },
+      orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true, organizationId: true, countryCode: true, verificationStatus: true },
     }),
   ]);
 
   if (!request) notFound();
+  const policy = await getHomeChefAcceptancePolicyForRequest(request);
+  const privacyPolicy = await getHomeChefPrivacyPolicyForRequest(request);
   const canMutate = session.user.platformRole !== "auditor";
-  const countryChefs = chefOrganizations.filter((organization) => organization.countryCode === request.countryCode);
+  const countryChefs = chefProfiles.filter((profile) => profile.countryCode === request.countryCode);
 
   return (
     <AdminShell
@@ -67,6 +80,11 @@ export default async function AdminHomeChefRequestDetailPage({
     >
       <div className="flex flex-wrap gap-2">
         <Badge tone="warning">{request.status}</Badge>
+        <Badge tone="info">{HOME_CHEF_LEAD_TIME_LABELS[request.leadTimeCategory]}</Badge>
+        <Badge tone="neutral">{request.matchingStatus.replace(/_/g, " ")}</Badge>
+        <Badge tone={request.bookingLockStatus === "locked" ? "success" : request.bookingLockStatus === "revoked" ? "danger" : "neutral"}>
+          {request.bookingLockStatus.replace(/_/g, " ")}
+        </Badge>
         <Badge tone="info">{request.countryCode}</Badge>
         <Badge tone="neutral">{request.guestCount} guests</Badge>
       </div>
@@ -81,6 +99,8 @@ export default async function AdminHomeChefRequestDetailPage({
               <Info label="Created by" value={`${request.createdBy.fullName} (${request.createdBy.email})`} />
               <Info label="Requested date" value={request.requestedDate.toLocaleDateString()} />
               <Info label="Time window" value={request.requestedTimeWindow} />
+              <Info label="Expected chef response" value={formatHomeChefResponseWindow(policy.acceptanceWindowMinutes)} />
+              <Info label="Current deadline" value={request.acceptanceDeadlineAt?.toLocaleString()} />
               <Info label="Phone" value={request.phone} />
               <Info label="City" value={request.city} />
               <Info label="Budget" value={request.budgetAmount ? `${request.budgetAmount} ${request.budgetCurrency}` : null} />
@@ -143,6 +163,57 @@ export default async function AdminHomeChefRequestDetailPage({
         <div className="space-y-6">
           {canMutate ? (
             <Card className="space-y-4">
+              <h2 className="font-semibold text-[var(--color-ink)]">Privacy and logistics access</h2>
+              <div className="grid gap-3 text-sm">
+                <Info label="Exact address reveal" value={privacyPolicy?.revealExactAddressTrigger.replace(/_/g, " ") ?? "booking locked"} />
+                <Info label="Customer name reveal" value={privacyPolicy?.revealCustomerNameTrigger.replace(/_/g, " ") ?? "booking locked"} />
+                <Info label="Pre-acceptance messaging" value={privacyPolicy?.allowPreAcceptanceMessaging ? "Allowed anonymously" : "Disabled"} />
+                <Info label="Phone/email policy" value={`Proxy ${privacyPolicy?.allowPhoneProxyAfterLock ? "enabled" : "disabled"} · real phone ${privacyPolicy?.allowRealPhoneReveal ? "allowed" : "hidden"} · email ${privacyPolicy?.allowEmailReveal ? "allowed" : "hidden"}`} />
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+                <p className="font-semibold text-[var(--color-ink)]">Access grants</p>
+                {request.accessGrants.length === 0 ? (
+                  <p className="mt-2">No chef access grants have been created.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {request.accessGrants.map((grant) => (
+                      <p key={grant.id}>
+                        {grant.grantType.replace(/_/g, " ")} · {grant.status}
+                        {grant.revokedAt ? ` · revoked ${grant.revokedAt.toLocaleString()}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+                <p className="font-semibold text-[var(--color-ink)]">Contact proxy sessions</p>
+                {request.contactProxySessions.length === 0 ? (
+                  <p className="mt-2">No contact proxy sessions yet.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {request.contactProxySessions.map((proxy) => (
+                      <p key={proxy.id}>
+                        {proxy.provider.replace(/_/g, " ")} · {proxy.status} · expires {proxy.expiresAt.toLocaleString()}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <form action={lockHomeChefBookingAction} className="space-y-3">
+                <input type="hidden" name="requestId" value={request.id} />
+                <TextArea label="Lock reason" name="reason" defaultValue="Admin confirmed booking; payments are disabled or manually verified." />
+                <Button type="submit" className="w-full justify-center">Lock booking and reveal logistics</Button>
+              </form>
+              <form action={revokeHomeChefAccessAction} className="space-y-3">
+                <input type="hidden" name="requestId" value={request.id} />
+                <TextArea label="Revoke reason" name="reason" defaultValue="Admin revoked access after cancellation, dispute, or reassignment." />
+                <Button type="submit" variant="danger" className="w-full justify-center">Revoke logistics access</Button>
+              </form>
+            </Card>
+          ) : null}
+
+          {canMutate ? (
+            <Card className="space-y-4">
               <h2 className="font-semibold text-[var(--color-ink)]">Status controls</h2>
               <form action={updateAdminHomeChefStatusAction} className="space-y-3">
                 <input type="hidden" name="requestId" value={request.id} />
@@ -155,7 +226,49 @@ export default async function AdminHomeChefRequestDetailPage({
 
           {canMutate ? (
             <Card className="space-y-4">
-              <h2 className="font-semibold text-[var(--color-ink)]">Assign chef placeholder</h2>
+              <h2 className="font-semibold text-[var(--color-ink)]">Send chef offer</h2>
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
+                <p className="font-semibold text-[var(--color-ink)]">Policy window: {formatHomeChefResponseWindow(policy.acceptanceWindowMinutes)}</p>
+                <p className="mt-1">
+                  Cascade {policy.autoCascadeEnabled ? "enabled" : "disabled"} · max {policy.maxCascadeAttempts} attempts · {policy.cascadeDelayMinutes} minute delay
+                </p>
+              </div>
+              <form action={createHomeChefOfferAction} className="space-y-3">
+                <input type="hidden" name="requestId" value={request.id} />
+                <SelectInput
+                  label="Chef profile"
+                  name="chefProfileId"
+                  defaultValue={request.assignedChefProfileId ?? ""}
+                  options={[
+                    { value: "", label: "Choose a chef profile" },
+                    ...countryChefs.map((profile) => ({
+                      value: profile.id,
+                      label: `${profile.displayName} (${profile.verificationStatus})`,
+                    })),
+                  ]}
+                />
+                <TextInput
+                  label="Response window in minutes"
+                  name="responseWindowMinutes"
+                  type="number"
+                  min={5}
+                  defaultValue={policy.acceptanceWindowMinutes}
+                />
+                <TextInput label="Quote amount" name="quoteAmount" type="number" min={0} step="0.01" />
+                <TextInput label="Currency" name="currencyCode" defaultValue={request.currencyCode} maxLength={3} />
+                <TextArea label="Offer note" name="adminNotes" />
+                <Button type="submit" variant="secondary" className="w-full justify-center">Send offer</Button>
+              </form>
+              <form action={triggerHomeChefCascadeAction}>
+                <input type="hidden" name="requestId" value={request.id} />
+                <Button type="submit" variant="secondary" className="w-full justify-center">Trigger cascade</Button>
+              </form>
+            </Card>
+          ) : null}
+
+          {canMutate ? (
+            <Card className="space-y-4">
+              <h2 className="font-semibold text-[var(--color-ink)]">Legacy organization assignment</h2>
               <form action={assignHomeChefRequestAction} className="space-y-3">
                 <input type="hidden" name="requestId" value={request.id} />
                 <SelectInput
@@ -164,7 +277,7 @@ export default async function AdminHomeChefRequestDetailPage({
                   defaultValue={request.assignedChefOrganizationId ?? ""}
                   options={[
                     { value: "", label: "Unassigned" },
-                    ...countryChefs.map((org) => ({ value: org.id, label: org.name })),
+                    ...countryChefs.map((profile) => ({ value: profile.organizationId, label: profile.displayName })),
                   ]}
                 />
                 <TextArea label="Assignment note" name="note" />
@@ -172,6 +285,35 @@ export default async function AdminHomeChefRequestDetailPage({
               </form>
             </Card>
           ) : null}
+
+          <Card className="space-y-4">
+            <h2 className="font-semibold text-[var(--color-ink)]">Offer history</h2>
+            {request.offers.length === 0 ? (
+              <p className="text-sm text-[var(--color-muted)]">No chef offers have been sent yet.</p>
+            ) : (
+              request.offers.map((offer) => (
+                <div key={offer.id} className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[var(--color-ink)]">{offer.chefProfile.displayName}</p>
+                    <Badge tone={offer.status === "accepted" ? "success" : offer.status === "pending" ? "warning" : "neutral"}>
+                      {offer.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-[var(--color-muted)]">
+                    Deadline: {offer.responseDeadlineAt.toLocaleString()} · type: {offer.offerType.replace(/_/g, " ")}
+                  </p>
+                  {offer.quoteAmount ? (
+                    <p className="mt-2 text-sm text-[var(--color-muted)]">
+                      Quote: {offer.currencyCode ?? request.currencyCode} {offer.quoteAmount}
+                    </p>
+                  ) : null}
+                  {offer.responseMessage ? (
+                    <p className="mt-2 text-sm text-[var(--color-muted)]">{offer.responseMessage}</p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </Card>
 
           <Card className="space-y-4">
             <h2 className="font-semibold text-[var(--color-ink)]">Status history</h2>

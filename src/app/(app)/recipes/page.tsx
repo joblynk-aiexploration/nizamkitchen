@@ -43,6 +43,7 @@ export default async function RecipesPage({
       spiceLevel: params.spiceLevel as never,
       countryCode: params.countryCode,
       publishedOnly: true,
+      scope: "global_templates",
       page: params.page,
     }),
     listCuisines(),
@@ -51,12 +52,12 @@ export default async function RecipesPage({
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Recipe library"
-        title="Recipes"
+        eyebrow="Recipe template library"
+        title="Global Recipe Templates"
         description={
           isHousehold
-            ? "Browse public recipes and recipes saved for your household. Ingredients use safe units for grocery planning."
-            : "Browse public recipes and recipes saved for your workspace. Ingredients use safe units for grocery planning."
+            ? "Browse global recipe templates. Add a template to My Recipes before customizing your household version."
+            : "Browse global recipe templates. Workspace-owned recipes stay separate from the global library."
         }
       />
 
@@ -100,14 +101,19 @@ export default async function RecipesPage({
           </button>
         </form>
         <Button asChild className="ml-auto">
-          <Link href="/recipes/new">Add recipe</Link>
+          <Link href="/recipes/new">{isHousehold ? "Create My Recipe" : "Add recipe"}</Link>
         </Button>
+        {isHousehold && (
+          <Button asChild variant="secondary">
+            <Link href="/recipes/my">My Recipes</Link>
+          </Button>
+        )}
       </div>
 
       {recipes.items.length === 0 ? (
         <EmptyState
-          title="No recipes found"
-          description="No published recipes match the current filters."
+          title="No global recipes found"
+          description="No published global recipe templates match the current filters."
         />
       ) : (
         <>
@@ -124,8 +130,8 @@ export default async function RecipesPage({
                     </Link>
                     <p className="mt-1 text-xs text-[var(--color-muted)]">{recipe.cuisine.name}</p>
                   </div>
-                  <Badge tone={recipe.isGlobal ? "info" : "neutral"}>
-                    {recipe.isGlobal ? "global" : "org"}
+                  <Badge tone="info">
+                    Global template
                   </Badge>
                 </div>
 

@@ -104,6 +104,10 @@ const POST_REGISTER_DESTINATION: Record<SocialAccountType, string> = {
   restaurant: "/restaurant",
 };
 
+const FREE_ACCOUNT_READY_MESSAGE = "Your free account is ready. Welcome to NizamKitchen.";
+const PLAN_UNAVAILABLE_MESSAGE = "Your account is ready, but that pricing plan is no longer available. You can choose another plan from Billing when you are ready.";
+const CHECKOUT_UNAVAILABLE_MESSAGE = "Your account is ready. We could not open secure checkout right now, but you can continue and choose a paid plan from Billing anytime.";
+
 function providerToIntegration(provider: SocialAuthProvider) {
   return provider === "google"
     ? IntegrationProvider.google_oauth
@@ -155,18 +159,31 @@ function normalizeSelectedPlanSlug(value: string | null | undefined) {
   return plan;
 }
 
+function pathWithMessage(destination: string, message: string) {
+  const url = new URL(destination, env.APP_URL);
+  url.searchParams.set("message", message);
+  url.searchParams.set("analytics_event", "sign_up");
+  return `${url.pathname}${url.search}`;
+}
+
 async function getCheckoutDestinationForPlan(params: {
   selectedPlanSlug?: string | null;
   organizationId: string;
   userId: string;
   fallbackDestination: string;
 }) {
+  if (params.selectedPlanSlug?.trim() === "free") {
+    return pathWithMessage(params.fallbackDestination, FREE_ACCOUNT_READY_MESSAGE);
+  }
   const selectedPlanSlug = normalizeSelectedPlanSlug(params.selectedPlanSlug);
   if (!selectedPlanSlug) return params.fallbackDestination;
 
   const plan = await getActiveBillingPlanBySlug(selectedPlanSlug);
-  if (!plan || Number(plan.priceAmount) <= 0) {
-    return `/billing/plans?message=${encodeURIComponent("Your account was created, but the selected pricing plan was not found. Please choose a plan to continue.")}`;
+  if (!plan) {
+    return `/billing/plans?message=${encodeURIComponent(PLAN_UNAVAILABLE_MESSAGE)}`;
+  }
+  if (Number(plan.priceAmount) <= 0) {
+    return pathWithMessage(params.fallbackDestination, FREE_ACCOUNT_READY_MESSAGE);
   }
 
   try {
@@ -184,7 +201,7 @@ async function getCheckoutDestinationForPlan(params: {
     console.error("Unable to start checkout after registration", error);
   }
 
-  return `/billing/plans?message=${encodeURIComponent("Your account was created. Payment checkout could not start, so please choose your plan again from Billing.")}`;
+  return `/billing/plans?message=${encodeURIComponent(CHECKOUT_UNAVAILABLE_MESSAGE)}`;
 }
 
 function buildCallbackUrl(provider: SocialAuthProvider, configured: unknown, requestOrigin?: string | null) {

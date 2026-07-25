@@ -68,6 +68,7 @@ export async function createHouseholdMemberAction(formData: FormData) {
     const session = await requireHouseholdAccess();
     await createHouseholdMemberAccount({
       organizationId: session.activeOrganization.id,
+      organizationName: session.activeOrganization.name,
       actorUserId: session.user.id,
       actorRole: session.activeMembership.role,
       countryCode: session.activeOrganization.countryCode,
@@ -164,11 +165,13 @@ export async function shareHouseholdRecipeAction(formData: FormData) {
       countryCode: session.activeOrganization.countryCode,
       input: {
         recipeId: formData.get("recipeId"),
+        recipientUserId: formData.get("recipientUserId"),
         targetServings: formData.get("targetServings"),
       },
     });
     revalidateHouseholdPaths();
-    redirect("/household/members?message=Recipe shared with your household.");
+    const recipientUserId = String(formData.get("recipientUserId") ?? "");
+    redirect(`/household/members?message=${recipientUserId ? "Recipe shared with that family member." : "Recipe shared with your whole household."}`);
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/household/members?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to share recipe with your household."))}`);

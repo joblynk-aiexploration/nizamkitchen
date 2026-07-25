@@ -1,6 +1,10 @@
 import {
   ChefProfileStatus,
   ChefVerificationStatus,
+  HomeChefMatchingStatus,
+  HomeChefRequestOfferStatus,
+  HomeChefRequestOfferType,
+  HomeChefRequestStatus,
   OrganizationType,
   Prisma,
   SellerType,
@@ -471,15 +475,36 @@ export async function requestSpecificChef(params: {
     input: { ...(typeof params.input === "object" && params.input !== null ? params.input : {}), submit: true },
   });
 
+  const responseDeadlineAt =
+    "acceptanceDeadlineAt" in request && request.acceptanceDeadlineAt instanceof Date
+      ? request.acceptanceDeadlineAt
+      : new Date(Date.now() + 180 * 60 * 1000);
+  const offer = await prisma.homeChefRequestOffer.create({
+    data: {
+      homeChefRequestId: request.id,
+      chefProfileId: chef.id,
+      offeredById: params.actorUserId,
+      status: HomeChefRequestOfferStatus.pending,
+      offerType: HomeChefRequestOfferType.direct,
+      responseDeadlineAt,
+      currencyCode: request.currencyCode ?? params.householdCurrencyCode,
+      adminNotes: `Household requested ${chef.displayName} directly from the marketplace.`,
+    },
+  });
+
   const assigned = await prisma.homeChefRequest.update({
     where: { id: request.id },
     data: {
       assignedChefOrganizationId: chef.organizationId,
-      status: "reviewing",
+      assignedChefProfileId: chef.id,
+      currentOfferId: offer.id,
+      matchingStatus: HomeChefMatchingStatus.offered,
+      acceptanceDeadlineAt: responseDeadlineAt,
+      status: HomeChefRequestStatus.reviewing,
       statusHistory: {
         create: {
           oldStatus: request.status,
-          newStatus: "reviewing",
+          newStatus: HomeChefRequestStatus.reviewing,
           changedById: params.actorUserId,
           note: `Requested specific chef: ${chef.displayName}.`,
         },

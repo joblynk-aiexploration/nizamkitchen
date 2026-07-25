@@ -1,5 +1,6 @@
 import {
   HomeChefMessageSenderRole,
+  HomeChefMatchingStatus,
   HomeChefRequestStatus,
   OrganizationType,
   Prisma,
@@ -20,6 +21,64 @@ import {
 import { createAuditEvent } from "@/server/audit";
 import { createNotification } from "@/server/notifications/notification-service";
 import { assertSellerGate } from "@/server/seller-verification-gates";
+import {
+  acceptHomeChefRequestOffer,
+  declineHomeChefRequestOffer,
+} from "./home-chef-cascade-service";
+import {
+  calculateHomeChefAcceptanceDeadline,
+  getDefaultHomeChefAcceptanceWindowMinutes,
+  getHomeChefLeadTimeCategory,
+} from "./lead-time";
+import { revokeBookingAccess } from "./home-chef-booking-lock-service";
+
+export {
+  createHomeChefRequestOffer,
+  getHomeChefAcceptancePolicyForRequest,
+  homeChefAcceptancePolicySchema,
+  homeChefOfferSchema,
+  listHomeChefAcceptancePolicies,
+  triggerHomeChefCascade,
+  upsertHomeChefAcceptancePolicy,
+} from "./home-chef-cascade-service";
+export {
+  canRevealContact,
+  canRevealCustomerName,
+  canRevealExactAddress,
+  evaluateBookingLock,
+  getHomeChefPrivacyPolicyForRequest,
+  lockBooking,
+  lockPaidHomeChefRequestsForPaymentOrder,
+  revokeBookingAccess,
+  revokeExpiredHomeChefAccessGrants,
+} from "./home-chef-booking-lock-service";
+export {
+  getHomeChefRequestForViewer,
+  listChefHomeChefRequestsForViewer,
+} from "./home-chef-request-view-service";
+export {
+  redactAddress,
+  redactCustomerName,
+  redactEmail,
+  redactPhone,
+  toAdminRequestView,
+  toChefLimitedRequestView,
+  toChefLogisticsRequestView,
+  toGeneralLocation,
+  toHouseholdRequestView,
+} from "./home-chef-redaction";
+export {
+  homeChefPrivacyPolicySchema,
+  listHomeChefPrivacyPolicies,
+  upsertHomeChefPrivacyPolicy,
+} from "./home-chef-privacy-policy-service";
+export {
+  HOME_CHEF_LEAD_TIME_LABELS,
+  calculateHomeChefAcceptanceDeadline,
+  formatHomeChefResponseWindow,
+  getDefaultHomeChefAcceptanceWindowMinutes,
+  getHomeChefLeadTimeCategory,
+} from "./lead-time";
 
 const ADMIN_HOME_CHEF_ROLES: PlatformRole[] = [
   "platform_owner",
@@ -35,9 +94,11 @@ const requestListArgs = Prisma.validator<Prisma.HomeChefRequestDefaultArgs>()({
     recipe: { select: { id: true, name: true, slug: true } },
     mealPlan: { select: { id: true, name: true, startDate: true, endDate: true } },
     assignedChefOrganization: { select: { id: true, name: true, organizationType: true } },
+    assignedChefProfile: { select: { id: true, displayName: true, organizationId: true } },
+    currentOffer: { select: { id: true, status: true, responseDeadlineAt: true, chefProfileId: true } },
     createdBy: { select: { id: true, fullName: true, email: true } },
     organization: { select: { id: true, name: true, organizationType: true, countryCode: true } },
-    _count: { select: { messages: true, statusHistory: true } },
+    _count: { select: { messages: true, statusHistory: true, offers: true } },
   },
 });
 
@@ -64,6 +125,25 @@ const requestDetailArgs = Prisma.validator<Prisma.HomeChefRequestDefaultArgs>()(
     },
     createdBy: { select: { id: true, fullName: true, email: true } },
     assignedChefOrganization: { select: { id: true, name: true, organizationType: true, countryCode: true } },
+    assignedChefProfile: { select: { id: true, displayName: true, organizationId: true, status: true, verificationStatus: true } },
+    currentOffer: {
+      include: {
+        chefProfile: { select: { id: true, displayName: true, organizationId: true } },
+      },
+    },
+    offers: {
+      include: {
+        chefProfile: { select: { id: true, displayName: true, organizationId: true, status: true, verificationStatus: true } },
+        offeredBy: { select: { id: true, fullName: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    },
+    accessGrants: {
+      orderBy: { grantedAt: "desc" },
+    },
+    contactProxySessions: {
+      orderBy: { createdAt: "desc" },
+    },
     messages: {
       include: { senderUser: { select: { id: true, fullName: true, email: true, platformRole: true } } },
       orderBy: { createdAt: "asc" },
@@ -179,8 +259,11 @@ export async function getChefHomeChefRequest(params: {
   const request = await prisma.homeChefRequest.findFirst({
     where: {
       id: params.requestId,
-      assignedChefOrganizationId: params.chefOrganizationId,
       countryCode: params.countryCode,
+      OR: [
+        { assignedChefOrganizationId: params.chefOrganizationId },
+        { offers: { some: { chefProfile: { organizationId: params.chefOrganizationId } } } },
+      ],
     },
     ...requestDetailArgs,
   });
@@ -204,12 +287,24 @@ export async function createHomeChefRequest(params: {
   await ensureMealPlanForOrganization(parsed.mealPlanId, params.organizationId);
 
   const status = parsed.submit ? HomeChefRequestStatus.submitted : HomeChefRequestStatus.draft;
+  const leadTimeCategory = getHomeChefLeadTimeCategory({
+    requestType: parsed.requestType,
+    requestedDate: parsed.requestedDate,
+    requestedTimeWindow: parsed.requestedTimeWindow,
+  });
+  const acceptanceWindowMinutes = getDefaultHomeChefAcceptanceWindowMinutes(leadTimeCategory);
+  const acceptanceDeadlineAt = parsed.submit
+    ? calculateHomeChefAcceptanceDeadline(new Date(), acceptanceWindowMinutes)
+    : null;
   const request = await prisma.homeChefRequest.create({
     data: {
       organizationId: params.organizationId,
       countryCode: params.countryCode,
       createdById: params.createdById,
       status,
+      leadTimeCategory,
+      acceptanceDeadlineAt,
+      matchingStatus: parsed.submit ? HomeChefMatchingStatus.awaiting_admin_review : HomeChefMatchingStatus.awaiting_admin_review,
       requestType: parsed.requestType,
       title: parsed.title,
       description: nullable(parsed.description),
@@ -230,6 +325,9 @@ export async function createHomeChefRequest(params: {
       budgetAmount: nullable(parsed.budgetAmount),
       budgetCurrency: normalizeCurrency(parsed.budgetCurrency, params.defaultCurrencyCode),
       notes: nullable(parsed.notes),
+      recurrenceRuleJson: parsed.requestType === "weekly_cooking" || parsed.requestType === "daily_cooking"
+        ? { requestType: parsed.requestType, requestedDate: parsed.requestedDate.toISOString() }
+        : undefined,
       statusHistory: {
         create: {
           newStatus: status,
@@ -294,6 +392,16 @@ export async function updateHomeChefRequestDraft(params: {
   await ensureMealPlanForOrganization(parsed.mealPlanId, params.organizationId);
 
   const nextStatus = parsed.submit ? HomeChefRequestStatus.submitted : HomeChefRequestStatus.draft;
+  const leadTimeCategory = getHomeChefLeadTimeCategory({
+    requestType: parsed.requestType ?? existing.requestType,
+    requestedDate: parsed.requestedDate ?? existing.requestedDate,
+    requestedTimeWindow:
+      parsed.requestedTimeWindow === undefined ? existing.requestedTimeWindow : parsed.requestedTimeWindow,
+  });
+  const acceptanceDeadlineAt =
+    parsed.submit
+      ? calculateHomeChefAcceptanceDeadline(new Date(), getDefaultHomeChefAcceptanceWindowMinutes(leadTimeCategory))
+      : existing.acceptanceDeadlineAt;
   const request = await prisma.homeChefRequest.update({
     where: { id: existing.id },
     data: {
@@ -327,6 +435,16 @@ export async function updateHomeChefRequestDraft(params: {
         ? { budgetCurrency: normalizeCurrency(parsed.budgetCurrency, params.defaultCurrencyCode) }
         : {}),
       ...(parsed.notes !== undefined ? { notes: nullable(parsed.notes) } : {}),
+      leadTimeCategory,
+      acceptanceDeadlineAt,
+      recurrenceRuleJson:
+        (parsed.requestType ?? existing.requestType) === "weekly_cooking" ||
+        (parsed.requestType ?? existing.requestType) === "daily_cooking"
+          ? {
+              requestType: parsed.requestType ?? existing.requestType,
+              requestedDate: (parsed.requestedDate ?? existing.requestedDate).toISOString(),
+            }
+          : Prisma.JsonNull,
       status: nextStatus,
     },
   });
@@ -407,6 +525,7 @@ export async function cancelHomeChefRequest(params: {
     targetId: request.id,
     details: { previousStatus: existing.status },
   });
+  await revokeBookingAccess(existing.id, "Request cancelled by household.", params.actorUserId);
   return request;
 }
 
@@ -518,6 +637,32 @@ export async function updateChefHomeChefOrderStatus(params: {
   status: "accepted" | "declined";
   note?: string | null;
 }) {
+  const offer = await prisma.homeChefRequestOffer.findFirst({
+    where: {
+      homeChefRequestId: params.requestId,
+      status: "pending",
+      chefProfile: { organizationId: params.chefOrganizationId },
+    },
+    select: { id: true },
+  });
+  if (offer) {
+    return params.status === "accepted"
+      ? acceptHomeChefRequestOffer({
+          requestId: params.requestId,
+          chefOrganizationId: params.chefOrganizationId,
+          countryCode: params.countryCode,
+          actorUserId: params.actorUserId,
+          input: { message: params.note },
+        })
+      : declineHomeChefRequestOffer({
+          requestId: params.requestId,
+          chefOrganizationId: params.chefOrganizationId,
+          countryCode: params.countryCode,
+          actorUserId: params.actorUserId,
+          input: { message: params.note },
+        });
+  }
+
   const existing = await getChefHomeChefRequest({
     requestId: params.requestId,
     chefOrganizationId: params.chefOrganizationId,
@@ -531,10 +676,26 @@ export async function updateChefHomeChefOrderStatus(params: {
     return existing;
   }
 
+  const chefProfile =
+    params.status === "accepted" && !existing.assignedChefProfileId
+      ? await prisma.chefProfile.findUnique({
+          where: { organizationId: params.chefOrganizationId },
+          select: { id: true },
+        })
+      : null;
+
   const request = await prisma.$transaction(async (tx) => {
     const updated = await tx.homeChefRequest.update({
       where: { id: existing.id },
-      data: { status: params.status },
+      data: {
+        status: params.status,
+        ...(chefProfile
+          ? {
+              assignedChefProfileId: chefProfile.id,
+              matchingStatus: HomeChefMatchingStatus.chef_accepted,
+            }
+          : {}),
+      },
     });
     await tx.homeChefRequestStatusHistory.create({
       data: {
@@ -656,6 +817,9 @@ export async function updateAdminHomeChefRequestStatus(params: {
     targetId: existing.id,
     details: { oldStatus: existing.status, newStatus: parsed.status },
   });
+  if (parsed.status === "cancelled" || parsed.status === "declined") {
+    await revokeBookingAccess(existing.id, `Request marked ${parsed.status} by admin.`, params.session.user.id);
+  }
 
   await createNotification({
     organizationId: existing.organizationId,
@@ -703,6 +867,12 @@ export async function assignHomeChefRequest(params: {
       message: "Chef verification is incomplete. This chef cannot be assigned yet.",
     });
   }
+  const chefProfile = parsed.assignedChefOrganizationId
+    ? await prisma.chefProfile.findUnique({
+        where: { organizationId: parsed.assignedChefOrganizationId },
+        select: { id: true },
+      })
+    : null;
 
   const nextStatus = parsed.assignedChefOrganizationId ? HomeChefRequestStatus.matched : existing.status;
   const request = await prisma.$transaction(async (tx) => {
@@ -710,8 +880,12 @@ export async function assignHomeChefRequest(params: {
       where: { id: existing.id },
       data: {
         assignedChefOrganizationId: parsed.assignedChefOrganizationId,
+        assignedChefProfileId: chefProfile?.id ?? null,
         adminNotes: parsed.note ?? existing.adminNotes,
         status: nextStatus,
+        matchingStatus: parsed.assignedChefOrganizationId
+          ? HomeChefMatchingStatus.confirmed
+          : HomeChefMatchingStatus.awaiting_admin_review,
       },
     });
 
@@ -775,7 +949,12 @@ export async function createAdminHomeChefRequestMessage(params: {
 
 export async function listAssignedChefRequests(organizationId: string) {
   return prisma.homeChefRequest.findMany({
-    where: { assignedChefOrganizationId: organizationId },
+    where: {
+      OR: [
+        { assignedChefOrganizationId: organizationId },
+        { offers: { some: { chefProfile: { organizationId } } } },
+      ],
+    },
     ...requestListArgs,
     orderBy: [{ requestedDate: "asc" }, { createdAt: "desc" }],
   });
@@ -783,7 +962,13 @@ export async function listAssignedChefRequests(organizationId: string) {
 
 export async function listChefRequestInbox(params: { organizationId: string; countryCode: string }) {
   return prisma.homeChefRequest.findMany({
-    where: { assignedChefOrganizationId: params.organizationId, countryCode: params.countryCode },
+    where: {
+      countryCode: params.countryCode,
+      OR: [
+        { assignedChefOrganizationId: params.organizationId },
+        { offers: { some: { chefProfile: { organizationId: params.organizationId } } } },
+      ],
+    },
     ...requestListArgs,
     orderBy: [{ requestedDate: "asc" }, { createdAt: "desc" }],
   });

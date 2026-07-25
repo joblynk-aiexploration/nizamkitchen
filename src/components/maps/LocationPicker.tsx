@@ -24,9 +24,10 @@ type Props = {
   fieldNames: LocationFieldNames;
   defaultValue?: Partial<NormalizedGooglePlaceSelection>;
   hint?: string;
+  required?: boolean;
 };
 
-export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hint }: Props) {
+export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hint, required = false }: Props) {
   const [value, setValue] = useState({
     addressLine1: defaultValue?.addressLine1 ?? "",
     addressLine2: defaultValue?.addressLine2 ?? "",
@@ -44,6 +45,7 @@ export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hi
     () => (mapsConfig.allowedCountries.length > 0 ? mapsConfig.allowedCountries : mapsConfig.defaultCountry ? [mapsConfig.defaultCountry] : []),
     [mapsConfig.allowedCountries, mapsConfig.defaultCountry],
   );
+  const isUnitedStates = value.countryCode.toUpperCase() === "US";
 
   function applyPlaceSelection(place: NormalizedGooglePlaceSelection) {
     setValue({
@@ -81,6 +83,7 @@ export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hi
           label="Address line 1"
           name={fieldNames.addressLine1}
           value={value.addressLine1}
+          required={required}
           onChange={(event) => setValue((current) => ({ ...current, addressLine1: event.target.value }))}
         />
         <TextInput
@@ -93,16 +96,18 @@ export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hi
           label="City"
           name={fieldNames.city}
           value={value.city}
+          required={required}
           onChange={(event) => setValue((current) => ({ ...current, city: event.target.value }))}
         />
         <TextInput
-          label="Region / state"
+          label={isUnitedStates ? "State" : "Region / state"}
           name={fieldNames.region}
           value={value.region}
+          required={required}
           onChange={(event) => setValue((current) => ({ ...current, region: event.target.value }))}
         />
         <TextInput
-          label="Postal code"
+          label={isUnitedStates ? "Zip code" : "Postal code"}
           name={fieldNames.postalCode}
           value={value.postalCode}
           onChange={(event) => setValue((current) => ({ ...current, postalCode: event.target.value }))}
@@ -111,6 +116,7 @@ export function LocationPicker({ label, mapsConfig, fieldNames, defaultValue, hi
           label="Country code"
           name={fieldNames.countryCode}
           value={value.countryCode}
+          required={required}
           onChange={(event) => setValue((current) => ({ ...current, countryCode: event.target.value.toUpperCase() }))}
           maxLength={2}
         />

@@ -3,11 +3,12 @@ import { getPlatformNavItems, getWorkspaceNavItems } from "../../src/lib/navigat
 
 describe("stabilized role navigation", () => {
   it("shows platform owners the full platform operating menu", () => {
-    const links = getPlatformNavItems({
+    const items = getPlatformNavItems({
       user: { platformRole: "platform_owner" },
       activeOrganization: { organizationType: "internal_admin" },
       activeMembership: null,
-    }).map((item) => item.href);
+    });
+    const links = items.map((item) => item.href);
 
     expect(links).toEqual(expect.arrayContaining([
       "/admin",
@@ -30,6 +31,7 @@ describe("stabilized role navigation", () => {
       "/admin/grocery-partners",
       "/admin/system-settings",
     ]));
+    expect(items).toContainEqual({ href: "/admin/emails", label: "Email Center" });
   });
 
   it("keeps country manager navigation country-scoped", () => {
@@ -106,6 +108,7 @@ describe("stabilized role navigation", () => {
       "/chef",
       "/chef/requests",
       "/chef/profile",
+      "/chef/services",
       "/chef/availability",
       "/billing",
       "/profile",
@@ -113,7 +116,6 @@ describe("stabilized role navigation", () => {
       "/support",
       "/settings",
     ]);
-    expect(links).not.toContain("/chef/services");
     expect(links).not.toContain("/chef/verification");
     expect(links).not.toContain("/admin");
   });

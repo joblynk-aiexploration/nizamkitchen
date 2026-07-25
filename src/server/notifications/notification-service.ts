@@ -19,6 +19,7 @@ type NotificationInput = {
   actionUrl?: string | null;
   priority?: NotificationPriority;
   emailTemplateKey?: EmailTemplateKey;
+  emailVariables?: Record<string, unknown>;
   preferenceKey?: keyof Pick<
     Awaited<ReturnType<typeof getNotificationPreference>>,
     "homeChefUpdates" | "chefRequestMessages" | "groceryReminders" | "mealPlanReminders" | "adminAlerts" | "marketingEmails"
@@ -64,10 +65,15 @@ export async function createNotification(input: NotificationInput) {
       (!input.preferenceKey || preference?.[input.preferenceKey] === true);
 
     if (preferenceAllowsEmail && user) {
-      const rendered = renderEmailTemplate(input.emailTemplateKey!, {
+      const actionUrl = input.actionUrl ? absoluteActionUrl(input.actionUrl) : null;
+      const emailVariables = normalizeEmailVariables({
+        ...(input.emailVariables ?? {}),
         title: input.title,
         body: input.body,
-        actionUrl: input.actionUrl ? absoluteActionUrl(input.actionUrl) : null,
+        actionUrl,
+      });
+      const rendered = renderEmailTemplate(input.emailTemplateKey!, {
+        ...emailVariables,
       });
       await sendEmail({
         to: user.email,
@@ -77,7 +83,7 @@ export async function createNotification(input: NotificationInput) {
         organizationId: input.organizationId,
         userId: user.id,
         countryCode: input.countryCode,
-        metadata: { notificationType: input.type },
+        metadata: { notificationType: input.type, ...emailVariables },
       });
     }
 
@@ -215,6 +221,31 @@ function absoluteActionUrl(actionUrl: string) {
   if (actionUrl.startsWith("http://") || actionUrl.startsWith("https://")) return actionUrl;
   const base = process.env.APP_URL ?? "http://localhost:3000";
   return new URL(actionUrl, base).toString();
+}
+
+function normalizeEmailVariables(variables: Record<string, unknown>) {
+  const urlKeys = [
+    "actionUrl",
+    "primaryActionUrl",
+    "dashboardUrl",
+    "orderUrl",
+    "requestUrl",
+    "receiptUrl",
+    "invoiceUrl",
+    "ticketUrl",
+    "verificationUrl",
+    "alertUrl",
+    "shareUrl",
+    "resetUrl",
+    "verifyUrl",
+  ];
+
+  return Object.fromEntries(Object.entries(variables).map(([key, value]) => {
+    if (urlKeys.includes(key) && typeof value === "string" && value.startsWith("/")) {
+      return [key, absoluteActionUrl(value)];
+    }
+    return [key, value];
+  }));
 }
 
 export { NotificationStatus };

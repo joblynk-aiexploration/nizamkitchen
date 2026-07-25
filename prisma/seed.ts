@@ -7,11 +7,14 @@ import {
   ChefVerificationStatus,
   DataCategory,
   DishTemplateCategory,
+  EmailTemplateStatus,
   GroceryIntegrationType,
   GroceryPartnerStatus,
+  HomeCateringProfileStatus,
   IngredientCategory,
   MeasurementSystem,
   MembershipStatus,
+  OrganizationRole,
   OrganizationStatus,
   OrganizationType,
   PermissionAction,
@@ -39,6 +42,7 @@ import {
   UserStatus,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ENTERPRISE_EMAIL_TEMPLATES } from "../src/server/email/email-events";
 
 const prisma = new PrismaClient();
 
@@ -55,6 +59,7 @@ const FEATURE_FLAGS = [
   "billing",
   "reports",
   "payments",
+  "checkout_pricing",
   "live_checkout",
   "stripe_payments",
   "paypal_payments",
@@ -70,6 +75,7 @@ const FEATURE_FLAGS = [
   "background_checks",
   "kitchen_safety_reviews",
   "social_login",
+  "cookie_privacy_consent",
   "google_maps",
   "seo_aeo",
   "legal_center",
@@ -85,7 +91,18 @@ const FEATURE_FLAGS = [
 
 // Flags that are enabled globally on a fresh seed.
 // Re-seeding never overwrites the enabled state so manual changes are preserved.
-const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports", "localization"]);
+const GLOBALLY_ENABLED_FLAGS = new Set(["recipes", "grocery_engine", "meal_planner", "youtube_references", "family_profiles", "home_chefs", "home_catering", "chef_verification", "seller_verification", "kitchen_safety_reviews", "restaurant_fallback", "grocery_partners", "notifications", "billing", "reports", "localization", "cookie_privacy_consent"]);
+
+const FEATURE_FLAG_DETAILS = new Map<string, { name: string; description: string }>([
+  [
+    "cookie_privacy_consent",
+    {
+      name: "Cookie privacy consent and analytics",
+      description:
+        "Launch control for Secure Privacy CMP, Google Consent Mode, Google Analytics, and public tracking scripts. Disable during launch if analytics is not needed yet.",
+    },
+  ],
+]);
 
 const PERMISSION_SEEDS = [
   { key: "admin.access", name: "Access admin", module: "admin", action: "read" },
@@ -115,6 +132,7 @@ const PERMISSION_SEEDS = [
   { key: "menus.manage", name: "Manage menus", module: "menus", action: "moderate" },
   { key: "food_orders.manage", name: "Manage food orders", module: "food_orders", action: "manage" },
   { key: "billing.manage", name: "Manage billing", module: "billing", action: "manage" },
+  { key: "pricing.manage", name: "Manage checkout pricing", module: "pricing", action: "manage" },
   { key: "payments.manage", name: "Manage payments", module: "payments", action: "manage" },
   { key: "payments.configure", name: "Configure payment gateways", module: "payments", action: "configure" },
   { key: "refunds.manage", name: "Manage refunds", module: "payments", action: "refund" },
@@ -238,6 +256,205 @@ const MARKETPLACE_POLICY_SEEDS = [
 
 const LEGAL_TEMPLATE_NOTICE = "Template placeholder — replace with final legal counsel-approved text before production.";
 
+const TERMS_OF_SERVICE_TEMPLATE = `# Terms of Service
+
+**${LEGAL_TEMPLATE_NOTICE}**
+
+These Terms of Service are a practical operating template for NizamKitchen. They are not jurisdiction-specific legal advice and are not lawyer-approved. Platform Owner should replace this document with final reviewed text before production launch.
+
+## 1. Welcome to NizamKitchen
+
+NizamKitchen provides tools for meal planning, recipes, grocery lists, home chef requests, catering, restaurant ordering, seller profiles, payments, notifications, support, and related marketplace services. By creating an account, using the website, placing an order, managing a seller profile, or otherwise using NizamKitchen, you agree to follow these terms and all policies that apply to your account type.
+
+## 2. Accounts and eligibility
+
+You are responsible for keeping your account information accurate, including your name, email address, phone number, address, organization details, and payment or payout setup where applicable. You are also responsible for keeping your login credentials secure and for activity that occurs under your account.
+
+Household users may use NizamKitchen for personal and family meal planning, recipe organization, grocery list generation, home chef requests, catering orders, restaurant orders, support, and account management.
+
+Sellers, chefs, caterers, restaurants, and marketplace partners must provide accurate business and service information, maintain required approvals, and comply with platform policies before publishing menus, accepting orders, receiving payouts, or displaying public profiles.
+
+## 3. Platform roles and organizations
+
+NizamKitchen uses households, seller organizations, restaurants, catering businesses, and platform administration roles to manage access. Users may only access information, orders, files, documents, and settings that belong to their own account or organization unless NizamKitchen grants a platform role with broader permissions.
+
+Platform Owner and approved administrators may manage users, organizations, policies, payments, billing, storage, verification, reports, templates, legal documents, privacy requests, and integrations as needed to operate the service.
+
+## 4. Recipes, meal planning, and grocery lists
+
+Recipes, ingredient lists, prep times, cooking steps, grocery lists, and meal plans are provided to help users plan meals. Users should use their own judgment when preparing food, checking allergens, adjusting serving sizes, and buying ingredients. NizamKitchen does not guarantee that a recipe, grocery list, ingredient substitution, or nutrition estimate will be perfect for every household.
+
+## 5. Home chef, catering, and restaurant marketplace
+
+NizamKitchen may allow households to request a home chef, order from caterers, browse restaurants, or connect with food sellers. Sellers are responsible for the accuracy of their menus, pricing, service areas, availability, food safety practices, order fulfillment, pickup or delivery instructions, and customer communications.
+
+NizamKitchen may require verification, policy approval, food safety review, payout onboarding, or admin approval before a seller can publish menus, accept orders, appear publicly, or receive payouts.
+
+## 6. Orders, payments, and payouts
+
+Payment amounts, taxes, service fees, commissions, discounts, refunds, and payout amounts are calculated server-side according to platform settings and applicable policies. Users must not attempt to manipulate pricing, coupons, payment status, order totals, payout eligibility, or fulfillment records.
+
+NizamKitchen does not store raw card numbers or CVV data. Payment processing is handled through configured payment providers. If payment providers are unavailable or disabled, checkout or payouts may be unavailable until configuration is restored.
+
+## 7. Cancellations, refunds, and disputes
+
+Cancellation and refund eligibility may depend on the order type, seller acceptance status, preparation progress, delivery or pickup timing, and platform policy. Some refunds may require platform admin review. Active disputes, accounting records, audit logs, payment records, KYC records, and legally required records may be retained even if an account is closed.
+
+## 8. User content and uploads
+
+Users may upload profile photos, cover images, documents, reference files, menu images, verification documents, support attachments, recipes, messages, reviews, and other content. You must have the right to upload or submit any content you provide. Do not upload unlawful, harmful, private third-party information, payment card data, SSNs, passwords, API keys, or content that violates another person's rights.
+
+NizamKitchen may remove, restrict, archive, or review uploaded content if it appears unsafe, fraudulent, irrelevant, illegal, abusive, or inconsistent with platform policies.
+
+## 9. Reviews, messages, and community conduct
+
+Users should communicate respectfully and honestly. Reviews should be based on real completed orders or requests. Fake reviews, harassment, threats, discriminatory conduct, spam, abusive messages, impersonation, or attempts to bypass platform payments may result in account restrictions.
+
+## 10. Safety, food responsibility, and compliance
+
+Chefs, caterers, restaurants, and sellers are responsible for complying with food safety requirements, permits, licensing, allergen handling, packaging, labeling, pickup or delivery rules, and other obligations that apply to their operations. Household users are responsible for reviewing seller information, order details, ingredients, allergens, and timing before placing or accepting an order.
+
+## 11. Third-party services
+
+NizamKitchen may use third-party providers for payments, maps, OAuth login, analytics, email, object storage, verification, background checks, and other integrations. Use of those services may be subject to their own terms and privacy practices. Some platform features may be unavailable if an integration is disabled, not configured, or experiencing an outage.
+
+## 12. Account suspension or removal
+
+NizamKitchen may suspend, disable, restrict, or remove access when needed for security, fraud prevention, policy enforcement, legal compliance, non-payment, marketplace safety, or operational reasons. Platform Owner accounts are protected from accidental removal to preserve platform control.
+
+## 13. Service availability and changes
+
+NizamKitchen may change features, policies, pricing, service areas, seller requirements, templates, supported countries, integrations, and marketplace rules over time. Some features may be beta, limited, or unavailable in certain countries or regions.
+
+## 14. No professional advice
+
+NizamKitchen may include food, operational, business, tax, accounting, legal, payment, privacy, or compliance-related workflows, but the platform does not provide professional advice. Users and sellers should consult qualified professionals for advice specific to their circumstances.
+
+## 15. Contact
+
+Questions about these Terms may be sent through the NizamKitchen support area or contact page. Platform Owner should replace this section with official production support and legal contact details before launch.
+`;
+
+const PRIVACY_POLICY_TEMPLATE = `# Privacy Policy
+
+**${LEGAL_TEMPLATE_NOTICE}**
+
+This Privacy Policy is a practical operating template for NizamKitchen. It is not jurisdiction-specific legal advice and is not lawyer-approved. Platform Owner should replace this document with final reviewed text before production launch.
+
+## 1. Overview
+
+NizamKitchen uses personal, household, seller, order, payment, support, file, verification, and usage information to operate a multi-user food planning and marketplace platform. This policy explains the types of information the platform may collect, how it may be used, and the privacy controls available to users.
+
+## 2. Information users provide
+
+Users may provide information such as name, email address, password, phone number, profile photo, cover photo, address, city, state or region, country, postal code, preferred language, timezone, dietary preferences, household information, family members, recipes, meal plans, grocery lists, support messages, notifications preferences, and privacy settings.
+
+Sellers may provide business names, owner or staff names, menu information, service areas, pickup or delivery locations, hours, social links, profile details, verification documents, food safety information, payment or payout onboarding details, and other information needed to operate a seller profile.
+
+## 3. Orders, requests, and marketplace activity
+
+NizamKitchen may process food orders, home chef requests, catering requests, restaurant orders, saved restaurants, reviews, complaints, messages, fulfillment updates, refunds, promotions, coupons, referrals, credits, invoices, receipts, commissions, and settlement information.
+
+Order and request details may be shared with the household, seller, chef, caterer, restaurant, platform support, and administrators as needed to fulfill the request, resolve issues, process payments, prevent fraud, and maintain marketplace safety.
+
+## 4. Payments and billing data
+
+NizamKitchen stores payment summaries, transaction references, invoice and receipt records, billing plan information, subscription information, refund status, payout status, commission records, and accounting reports. Raw card numbers and CVV values should not be stored by NizamKitchen. Payment processing is handled by configured payment providers.
+
+Payment records, audit logs, invoices, receipts, dispute records, and accounting summaries may be retained when needed for security, accounting, tax review, fraud prevention, or dispute handling.
+
+## 5. Verification, KYC, and safety documents
+
+Sellers may be asked to provide identity, business, permit, certificate, food safety, kitchen review, or background-check information. These records are intended to be private and access-controlled. NizamKitchen may use third-party verification providers where configured.
+
+Verification and KYC records may be retained according to platform retention policies, provider requirements, dispute needs, and applicable operational obligations. Do not upload SSNs or highly sensitive identity numbers unless the platform explicitly requests them through a secure approved flow.
+
+## 6. Files and storage
+
+Users may upload images, documents, profile photos, reference files, support attachments, verification documents, and menu images. File metadata may include filename, type, size, upload date, visibility, purpose, module, and related organization or user. Private documents should not be publicly exposed.
+
+When object storage is configured, files may be stored in private storage and accessed through permission-checked links. If storage is not configured, upload features may show a setup or unavailable message.
+
+## 7. Automatically collected information
+
+NizamKitchen may collect technical information such as session identifiers, IP address, user agent, device or browser details, login times, page activity, feature usage, audit events, error events, and integration status. This information helps operate the service, protect accounts, debug issues, maintain security, and improve reliability.
+
+## 8. Cookies, sessions, analytics, and ads
+
+NizamKitchen uses cookies or similar technologies for login sessions, security, preferences, and platform functionality. Analytics, advertising, reCAPTCHA, and other Google platform tools should only be enabled when configured by Platform Owner and when user consent settings allow them where required.
+
+Users may manage analytics consent and marketing preferences in the privacy center or account settings where available.
+
+## 9. How information is used
+
+NizamKitchen may use information to create and secure accounts, personalize dashboards, manage organizations, generate meal plans and grocery lists, show recipes and templates, connect households with chefs or sellers, process orders and payments, send notifications, provide support, manage verification, enforce marketplace policies, prevent abuse, create reports, and comply with retention requirements.
+
+## 10. How information is shared
+
+Information may be shared with users and organizations involved in an order or request, platform administrators, support staff, payment processors, storage providers, email providers, mapping providers, OAuth providers, verification providers, analytics providers, or other configured service providers when needed to operate the platform.
+
+NizamKitchen should not sell private household data. Public profile information may be shown when users or sellers choose or are approved to make it public.
+
+## 11. User privacy controls
+
+Users may access the privacy center to review profile data, organizations, activity, files metadata, legal acceptances, support tickets, notifications, privacy settings, and other account-related information where available.
+
+Users may request data exports, corrections, account deletion review, anonymization, or permitted cleanup actions. Some information cannot be deleted immediately, including active orders, payment ledger records, audit logs required for security/accounting, KYC or verification records subject to retention, and records needed for disputes or platform safety.
+
+## 12. Data retention
+
+NizamKitchen may retain information for as long as needed to provide the service, maintain accounts, process orders and payments, support users, comply with retention policies, investigate incidents, prevent fraud, resolve disputes, and preserve accounting or audit records.
+
+Approved deletion requests may result in anonymization rather than hard deletion when transaction, audit, payment, KYC, or dispute records must be preserved.
+
+## 13. Security
+
+NizamKitchen uses access controls, role-based permissions, encrypted or masked secrets, private storage patterns, audit logs, and server-side checks to protect information. No system is perfectly secure, and users should protect their passwords, devices, and account access.
+
+## 14. Children and family accounts
+
+Household users may manage family information and family members inside their household workspace. Platform Owner should replace this section with final age, guardian consent, and child privacy language appropriate for launch countries before production.
+
+## 15. International use
+
+NizamKitchen may support multiple countries, languages, currencies, timezones, and regional settings. Information may be processed where the platform, hosting providers, or configured service providers operate. Platform Owner should replace this section with final country-specific transfer language before production.
+
+## 16. Changes to this policy
+
+NizamKitchen may update this Privacy Policy over time. When a new required version is published, users may be asked to review and accept the updated document before continuing normal app usage.
+
+## 17. Contact
+
+Privacy questions or requests may be submitted through the NizamKitchen privacy center, support area, or contact page. Platform Owner should replace this section with official production privacy contact details before launch.
+`;
+
+const COOKIE_POLICY_TEMPLATE = `# Cookie Policy
+
+**${LEGAL_TEMPLATE_NOTICE}**
+
+This Cookie Policy explains how NizamKitchen uses cookies and similar browser technologies for secure sessions, core platform functionality, preferences, analytics, and optional marketing tools.
+
+## 1. Essential cookies
+
+Essential cookies support login sessions, CSRF protection, security, load handling, and account access. These are required for the platform to function.
+
+## 2. Functional cookies
+
+Functional cookies may remember preferences such as language, measurement system, display settings, and cookie choices.
+
+## 3. Analytics cookies
+
+Analytics cookies are used only when the Platform Owner enables an analytics provider and user consent allows analytics measurement where required.
+
+## 4. Marketing cookies
+
+Marketing or advertising cookies are optional and should only be enabled when the relevant provider is configured and the user allows marketing cookies.
+
+## 5. Managing preferences
+
+Users can update cookie preferences from the Privacy Center or by opening Manage Cookie Preferences in the public footer.
+`;
+
 const LEGAL_DOCUMENT_SEEDS: Array<{
   documentType: LegalDocumentType;
   title: string;
@@ -249,6 +466,7 @@ const LEGAL_DOCUMENT_SEEDS: Array<{
 }> = [
   legalSeed("terms_of_service", "Terms of Service", "terms-of-service", "all_users"),
   legalSeed("privacy_policy", "Privacy Policy", "privacy-policy", "all_users"),
+  legalSeed("cookie_policy", "Cookie Policy", "cookie-policy", "all_users"),
   legalSeed("seller_agreement", "Seller Agreement", "seller-agreement", "sellers"),
   legalSeed("food_safety_policy", "Food Safety Responsibility Agreement", "food-safety-policy", "sellers"),
   legalSeed("refund_policy", "Payment and Refund Policy", "refund-policy", "all_users"),
@@ -275,6 +493,13 @@ function legalSeed(
   slug: string,
   audience: LegalAudience,
 ) {
+  const contentByType: Partial<Record<LegalDocumentType, string>> = {
+    terms_of_service: TERMS_OF_SERVICE_TEMPLATE,
+    user_terms: TERMS_OF_SERVICE_TEMPLATE,
+    privacy_policy: PRIVACY_POLICY_TEMPLATE,
+    cookie_policy: COOKIE_POLICY_TEMPLATE,
+  };
+
   return {
     documentType,
     title,
@@ -282,41 +507,61 @@ function legalSeed(
     version: "v1.0-template",
     audience,
     status: "published" as const,
-    contentMarkdown: `# ${title}\n\n**${LEGAL_TEMPLATE_NOTICE}**\n\nThis NizamKitchen template is provided for product setup and workflow testing only. It is not jurisdiction-specific legal advice and is not lawyer-approved.\n\n## Purpose\n\nDescribe the platform expectations, user responsibilities, seller responsibilities, payment/refund handling, privacy practices, and operational limits that apply to this document.\n\n## Admin replacement required\n\nBefore production launch, replace this placeholder with final reviewed text approved by qualified counsel for the countries and regions where NizamKitchen operates.\n`,
+    contentMarkdown: contentByType[documentType] ?? `# ${title}\n\n**${LEGAL_TEMPLATE_NOTICE}**\n\nThis NizamKitchen template is provided for product setup and workflow testing only. It is not jurisdiction-specific legal advice and is not lawyer-approved.\n\n## Purpose\n\nDescribe the platform expectations, user responsibilities, seller responsibilities, payment/refund handling, privacy practices, and operational limits that apply to this document.\n\n## Admin replacement required\n\nBefore production launch, replace this placeholder with final reviewed text approved by qualified counsel for the countries and regions where NizamKitchen operates.\n`,
   };
 }
 
 const COUNTRY_SEEDS = [
   { countryCode: "US", countryName: "United States", currencyCode: "USD", defaultTimezone: "America/Chicago", defaultLocale: "en-US", measurementSystem: MeasurementSystem.imperial, phoneCountryCode: "+1" },
-  { countryCode: "IN", countryName: "India", currencyCode: "INR", defaultTimezone: "Asia/Kolkata", defaultLocale: "en-IN", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+91" },
-  { countryCode: "GB", countryName: "United Kingdom", currencyCode: "GBP", defaultTimezone: "Europe/London", defaultLocale: "en-GB", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+44" },
-  { countryCode: "SA", countryName: "Saudi Arabia", currencyCode: "SAR", defaultTimezone: "Asia/Riyadh", defaultLocale: "ar-SA", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+966" },
-  { countryCode: "AE", countryName: "United Arab Emirates", currencyCode: "AED", defaultTimezone: "Asia/Dubai", defaultLocale: "ar-AE", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+971" },
-  { countryCode: "CA", countryName: "Canada", currencyCode: "CAD", defaultTimezone: "America/Toronto", defaultLocale: "en-CA", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+1" },
-  { countryCode: "AU", countryName: "Australia", currencyCode: "AUD", defaultTimezone: "Australia/Sydney", defaultLocale: "en-AU", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+61" },
+  { countryCode: "IN", countryName: "India", currencyCode: "INR", defaultTimezone: "America/Chicago", defaultLocale: "en-IN", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+91" },
+  { countryCode: "GB", countryName: "United Kingdom", currencyCode: "GBP", defaultTimezone: "America/Chicago", defaultLocale: "en-GB", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+44" },
+  { countryCode: "SA", countryName: "Saudi Arabia", currencyCode: "SAR", defaultTimezone: "America/Chicago", defaultLocale: "ar-SA", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+966" },
+  { countryCode: "AE", countryName: "United Arab Emirates", currencyCode: "AED", defaultTimezone: "America/Chicago", defaultLocale: "ar-AE", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+971" },
+  { countryCode: "CA", countryName: "Canada", currencyCode: "CAD", defaultTimezone: "America/Chicago", defaultLocale: "en-CA", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+1" },
+  { countryCode: "AU", countryName: "Australia", currencyCode: "AUD", defaultTimezone: "America/Chicago", defaultLocale: "en-AU", measurementSystem: MeasurementSystem.metric, phoneCountryCode: "+61" },
 ];
 
 const USER_SEEDS = [
   { email: "owner@nizamkitchen.dev", fullName: "Platform Owner", platformRole: PlatformRole.platform_owner, status: UserStatus.active },
-  { email: "admin@nizamkitchen.dev", fullName: "Platform Admin", platformRole: PlatformRole.platform_admin, status: UserStatus.active },
-  { email: "country@nizamkitchen.dev", fullName: "Country Manager", platformRole: PlatformRole.country_manager, status: UserStatus.active },
-  { email: "household@nizamkitchen.dev", fullName: "Household Owner", platformRole: null, status: UserStatus.active },
-  { email: "chef@nizamkitchen.dev", fullName: "Chef Owner", platformRole: null, status: UserStatus.active },
-  { email: "catering@nizamkitchen.dev", fullName: "Home Catering Owner", platformRole: null, status: UserStatus.active },
+  { email: "household@nizamkitchen.dev", fullName: "Household User", platformRole: null, status: UserStatus.active },
+  { email: "chefstaff@nizamkitchen.dev", fullName: "Chef Staff", platformRole: null, status: UserStatus.active },
+  { email: "cateringstaff@nizamkitchen.dev", fullName: "Home Catering Staff", platformRole: null, status: UserStatus.active },
   { email: "restaurant@nizamkitchen.dev", fullName: "Restaurant Owner", platformRole: null, status: UserStatus.active },
-  { email: "support@nizamkitchen.dev", fullName: "Support Admin", platformRole: PlatformRole.support_admin, status: UserStatus.active },
-  { email: "disabled@nizamkitchen.dev", fullName: "Disabled User", platformRole: null, status: UserStatus.disabled },
+];
+
+const LEGACY_DEMO_EMAILS = [
+  "admin@nizamkitchen.dev",
+  "country@nizamkitchen.dev",
+  "chef@nizamkitchen.dev",
+  "catering@nizamkitchen.dev",
+  "support@nizamkitchen.dev",
+  "auditor@nizamkitchen.dev",
+  "disabled@nizamkitchen.dev",
+];
+
+const LEGACY_DEMO_ORG_SLUGS = [
+  "hyderabad-home-chefs-demo",
+  "deccan-dastarkhwan",
+  "biryani-house-demo",
+  "dum-biryani-specialist",
+  "weekly-tiffin-chef",
+];
+
+const LEGACY_DEMO_CHEF_SLUGS = [
+  "hyderabad-home-kitchen",
+  "dum-biryani-specialist",
+  "weekly-tiffin-chef",
 ];
 
 const LOCALE_SEEDS = [
   { localeCode: "en-US", languageName: "English (United States)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-US", isDefault: true },
-  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "en-IN", isDefault: false },
-  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "en-GB", isDefault: false },
-  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-SA", isDefault: false },
-  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "ar-AE", isDefault: false },
-  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr" as const, dateFormat: "dd/MM/yyyy", timeFormat: "HH:mm", numberFormat: "hi-IN", isDefault: false },
-  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-IN", isDefault: false },
-  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "dd/MM/yyyy", timeFormat: "h:mm a", numberFormat: "ur-PK", isDefault: false },
+  { localeCode: "en-IN", languageName: "English (India)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-IN", isDefault: false },
+  { localeCode: "en-GB", languageName: "English (United Kingdom)", nativeName: "English", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "en-GB", isDefault: false },
+  { localeCode: "ar-SA", languageName: "Arabic (Saudi Arabia)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "ar-SA", isDefault: false },
+  { localeCode: "ar-AE", languageName: "Arabic (United Arab Emirates)", nativeName: "العربية", textDirection: "rtl" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "ar-AE", isDefault: false },
+  { localeCode: "hi-IN", languageName: "Hindi (India)", nativeName: "हिन्दी", textDirection: "ltr" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "hi-IN", isDefault: false },
+  { localeCode: "ur-IN", languageName: "Urdu (India)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "ur-IN", isDefault: false },
+  { localeCode: "ur-PK", languageName: "Urdu (Pakistan)", nativeName: "اردو", textDirection: "rtl" as const, dateFormat: "MM/dd/yyyy", timeFormat: "h:mm a", numberFormat: "ur-PK", isDefault: false },
 ];
 
 const CURRENCY_SEEDS = [
@@ -528,7 +773,13 @@ async function upsertUser(
   });
 }
 
-async function createOrganization(params: { name: string; organizationType: OrganizationType; countryCode: string; ownerUserId: string; }) {
+async function createOrganization(params: {
+  name: string;
+  organizationType: OrganizationType;
+  countryCode: string;
+  ownerUserId: string;
+  membershipRole?: OrganizationRole;
+}) {
   const country = await prisma.country.findUniqueOrThrow({ where: { countryCode: params.countryCode } });
   const organization = await prisma.organization.upsert({
     where: { slug: slugify(params.name) },
@@ -555,13 +806,13 @@ async function createOrganization(params: { name: string; organizationType: Orga
     },
   });
 
-  const role = params.organizationType === OrganizationType.household
-    ? "org_owner"
+  const role = params.membershipRole ?? (params.organizationType === OrganizationType.household
+    ? OrganizationRole.org_owner
     : params.organizationType === OrganizationType.chef_business
-      ? "chef_owner"
+      ? OrganizationRole.chef_owner
       : params.organizationType === OrganizationType.home_catering
-        ? "home_catering_owner"
-        : "restaurant_owner";
+        ? OrganizationRole.home_catering_owner
+        : OrganizationRole.restaurant_owner);
   await prisma.membership.upsert({
     where: { userId_organizationId: { userId: params.ownerUserId, organizationId: organization.id } },
     update: { role, status: MembershipStatus.active },
@@ -759,8 +1010,27 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     category: IngredientCategory.condiment, defaultUnitCode: "tablespoon", densityGramPerMl: 1.1,
     aliases: [
       { alias: "ginger-garlic paste", confidence: 1.0 },
+      { alias: "adrak lehsun", language: "hi", confidence: 0.99 },
       { alias: "adrak lehsun paste", language: "hi", confidence: 0.99 },
+      { alias: "adrak lasun", language: "hi", confidence: 0.97 },
       { alias: "adrak lasun paste", language: "hi", confidence: 0.97 },
+    ],
+  },
+  {
+    name: "Garlic", canonicalName: "Garlic", slug: "garlic",
+    category: IngredientCategory.vegetable, defaultUnitCode: "piece", averagePieceWeightGrams: 5,
+    aliases: [
+      { alias: "garlic cloves", confidence: 1.0 },
+      { alias: "lehsun", language: "hi", confidence: 0.99 },
+      { alias: "lahsun", language: "hi", confidence: 0.98 },
+    ],
+  },
+  {
+    name: "Ginger", canonicalName: "Ginger", slug: "ginger",
+    category: IngredientCategory.herb, defaultUnitCode: "gram",
+    aliases: [
+      { alias: "fresh ginger", confidence: 1.0 },
+      { alias: "adrak", language: "hi", confidence: 0.99 },
     ],
   },
   {
@@ -798,17 +1068,20 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
-    name: "Mint", canonicalName: "Mint", slug: "mint",
+    name: "Mint Leaves", canonicalName: "Mint Leaves", slug: "mint",
     category: IngredientCategory.herb, defaultUnitCode: "bunch",
     aliases: [
+      { alias: "mint", confidence: 1.0 },
       { alias: "mint leaves", confidence: 1.0 },
       { alias: "pudina", language: "hi", confidence: 0.99 },
     ],
   },
   {
-    name: "Cilantro", canonicalName: "Cilantro", slug: "cilantro",
+    name: "Coriander Leaves", canonicalName: "Coriander Leaves", slug: "cilantro",
     category: IngredientCategory.herb, defaultUnitCode: "bunch",
     aliases: [
+      { alias: "cilantro", confidence: 1.0 },
+      { alias: "coriander leaves", confidence: 1.0 },
       { alias: "coriander", confidence: 0.95 },
       { alias: "hara dhania", language: "hi", confidence: 0.99 },
       { alias: "dhaniya", language: "hi", confidence: 0.98 },
@@ -825,9 +1098,10 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
-    name: "Turmeric", canonicalName: "Turmeric", slug: "turmeric",
+    name: "Turmeric Powder", canonicalName: "Turmeric Powder", slug: "turmeric",
     category: IngredientCategory.spice, defaultUnitCode: "teaspoon",
     aliases: [
+      { alias: "turmeric", confidence: 1.0 },
       { alias: "turmeric powder", confidence: 1.0 },
       { alias: "haldi", language: "hi", confidence: 0.99 },
     ],
@@ -851,12 +1125,39 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
-    name: "Cumin", canonicalName: "Cumin", slug: "cumin",
+    name: "Cumin Seeds", canonicalName: "Cumin Seeds", slug: "cumin",
     category: IngredientCategory.spice, defaultUnitCode: "teaspoon",
     aliases: [
+      { alias: "cumin", confidence: 1.0 },
       { alias: "cumin seeds", confidence: 0.95 },
       { alias: "jeera", language: "hi", confidence: 0.99 },
       { alias: "zeera", language: "hi", confidence: 0.97 },
+    ],
+  },
+  {
+    name: "Mustard Seeds", canonicalName: "Mustard Seeds", slug: "mustard-seeds",
+    category: IngredientCategory.spice, defaultUnitCode: "teaspoon",
+    aliases: [
+      { alias: "rai", language: "hi", confidence: 0.99 },
+      { alias: "sarson", language: "hi", confidence: 0.95 },
+      { alias: "mustard seed", confidence: 1.0 },
+    ],
+  },
+  {
+    name: "Cinnamon Stick", canonicalName: "Cinnamon Stick", slug: "cinnamon-stick",
+    category: IngredientCategory.spice, defaultUnitCode: "piece",
+    aliases: [
+      { alias: "cinnamon", confidence: 1.0 },
+      { alias: "dalchini", language: "hi", confidence: 0.99 },
+    ],
+  },
+  {
+    name: "Cloves", canonicalName: "Cloves", slug: "cloves",
+    category: IngredientCategory.spice, defaultUnitCode: "piece",
+    aliases: [
+      { alias: "clove", confidence: 1.0 },
+      { alias: "laung", language: "hi", confidence: 0.99 },
+      { alias: "lavang", language: "hi", confidence: 0.97 },
     ],
   },
   {
@@ -967,6 +1268,23 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
+    name: "Okra", canonicalName: "Okra", slug: "okra",
+    category: IngredientCategory.vegetable, defaultUnitCode: "gram",
+    aliases: [
+      { alias: "bhindi", language: "hi", confidence: 0.99 },
+      { alias: "lady finger", confidence: 0.95 },
+      { alias: "ladies finger", confidence: 0.95 },
+    ],
+  },
+  {
+    name: "Spinach", canonicalName: "Spinach", slug: "spinach",
+    category: IngredientCategory.vegetable, defaultUnitCode: "bunch",
+    aliases: [
+      { alias: "palak", language: "hi", confidence: 0.99 },
+      { alias: "spinach leaves", confidence: 0.95 },
+    ],
+  },
+  {
     name: "Dried Apricots", canonicalName: "Dried Apricots", slug: "dried-apricots",
     category: IngredientCategory.fruit, defaultUnitCode: "gram",
     aliases: [
@@ -1042,6 +1360,14 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
+    name: "Almonds", canonicalName: "Almonds", slug: "almonds",
+    category: IngredientCategory.nut, defaultUnitCode: "gram",
+    aliases: [
+      { alias: "almond", confidence: 1.0 },
+      { alias: "badam", language: "hi", confidence: 0.99 },
+    ],
+  },
+  {
     name: "Raisins", canonicalName: "Raisins", slug: "raisins",
     category: IngredientCategory.fruit, defaultUnitCode: "gram",
     aliases: [
@@ -1067,6 +1393,23 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
+    name: "Fried Onions", canonicalName: "Fried Onions", slug: "fried-onions",
+    category: IngredientCategory.condiment, defaultUnitCode: "gram",
+    aliases: [
+      { alias: "birista", language: "hi", confidence: 0.99 },
+      { alias: "barista", language: "hi", confidence: 0.95 },
+      { alias: "fried onion", confidence: 1.0 },
+    ],
+  },
+  {
+    name: "Jaggery", canonicalName: "Jaggery", slug: "jaggery",
+    category: IngredientCategory.sweetener, defaultUnitCode: "gram",
+    aliases: [
+      { alias: "gud", language: "hi", confidence: 0.99 },
+      { alias: "gur", language: "hi", confidence: 0.98 },
+    ],
+  },
+  {
     name: "Bottle Gourd", canonicalName: "Bottle Gourd", slug: "bottle-gourd",
     category: IngredientCategory.vegetable, defaultUnitCode: "gram",
     aliases: [
@@ -1075,9 +1418,10 @@ const INGREDIENT_SEEDS: IngredientSeed[] = [
     ],
   },
   {
-    name: "Cardamom", canonicalName: "Cardamom", slug: "cardamom",
+    name: "Green Cardamom", canonicalName: "Green Cardamom", slug: "cardamom",
     category: IngredientCategory.spice, defaultUnitCode: "piece",
     aliases: [
+      { alias: "cardamom", confidence: 1.0 },
       { alias: "elaichi", language: "hi", confidence: 0.99 },
       { alias: "green cardamom", confidence: 1.0 },
       { alias: "cardamom pods", confidence: 1.0 },
@@ -2089,6 +2433,124 @@ async function seedRecipes(
   }
 }
 
+const HOUSEHOLD_MY_RECIPE_SLUGS = [
+  "hyderabadi-chicken-biryani",
+  "khatti-dal",
+  "mirchi-ka-salan",
+  "double-ka-meetha",
+] as const;
+
+async function uniqueHouseholdRecipeSlug(organizationId: string, sourceSlug: string) {
+  let candidate = sourceSlug;
+  let index = 2;
+  while (await prisma.recipe.findUnique({ where: { slug_organizationId: { slug: candidate, organizationId } } })) {
+    candidate = `${sourceSlug}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+async function seedHouseholdMyRecipes(params: {
+  organizationId: string;
+  countryCode: string;
+  createdById: string;
+}) {
+  for (const slug of HOUSEHOLD_MY_RECIPE_SLUGS) {
+    const source = await prisma.recipe.findFirst({
+      where: { slug, organizationId: null, visibility: RecipeVisibility.global, isPublished: true },
+      include: {
+        ingredients: true,
+        steps: true,
+        dietaryTags: true,
+        mediaRefs: true,
+      },
+    });
+    if (!source) continue;
+
+    const existing = await prisma.recipe.findFirst({
+      where: { organizationId: params.organizationId, sourceRecipeId: source.id },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    await prisma.recipe.create({
+      data: {
+        organizationId: params.organizationId,
+        countryCode: params.countryCode,
+        sourceRecipeId: source.id,
+        cuisineId: source.cuisineId,
+        name: source.name,
+        slug: await uniqueHouseholdRecipeSlug(params.organizationId, source.slug),
+        description: source.description,
+        story: source.story,
+        difficulty: source.difficulty,
+        spiceLevel: source.spiceLevel,
+        prepMinutes: source.prepMinutes,
+        cookMinutes: source.cookMinutes,
+        restMinutes: source.restMinutes,
+        servings: source.servings,
+        servingUnit: source.servingUnit,
+        visibility: RecipeVisibility.private,
+        sourceType: RecipeSourceType.organization,
+        createdById: params.createdById,
+        isGlobal: false,
+        isTemplate: false,
+        isUserCustomized: true,
+        isPublished: true,
+        ingredients: {
+          create: source.ingredients.map(({ ingredientId, quantity, unitId, preparationNote, section, isOptional, displayOrder }) => ({
+            ingredientId,
+            quantity,
+            unitId,
+            preparationNote,
+            section,
+            isOptional,
+            displayOrder,
+          })),
+        },
+        steps: {
+          create: source.steps.map(({ stepNumber, title, instruction, durationMinutes, temperature, tips, displayOrder }) => ({
+            stepNumber,
+            title,
+            instruction,
+            durationMinutes,
+            temperature,
+            tips,
+            displayOrder,
+          })),
+        },
+        dietaryTags: {
+          create: source.dietaryTags.map(({ dietaryTagId }) => ({ dietaryTagId })),
+        },
+        mediaRefs: {
+          create: source.mediaRefs.map((ref) => ({
+            type: ref.type,
+            provider: ref.provider,
+            title: ref.title,
+            url: ref.url,
+            normalizedUrl: ref.normalizedUrl,
+            embedUrl: ref.embedUrl,
+            externalId: ref.externalId,
+            thumbnailUrl: ref.thumbnailUrl,
+            language: ref.language,
+            creatorName: ref.creatorName,
+            durationSeconds: ref.durationSeconds,
+            isPrimary: ref.isPrimary,
+            displayOrder: ref.displayOrder,
+            notes: ref.notes,
+            availabilityStatus: ref.availabilityStatus,
+            lastAvailabilityCheckedAt: ref.lastAvailabilityCheckedAt,
+            unavailableReason: ref.unavailableReason,
+            isEmbeddable: ref.isEmbeddable,
+            isPublic: ref.isPublic,
+            uploadStatus: ref.uploadStatus,
+          })),
+        },
+      },
+    });
+  }
+}
+
 async function seedTemplateLibrary(
   createdById: string,
   cuisineMap: Map<string, string>,
@@ -2545,7 +3007,8 @@ async function seedTemplateLibrary(
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const passwordHash = await bcrypt.hash("Password123!", 12);
+  const demoPassword = process.env.QA_TEST_PASSWORD ?? ["Password", "123!"].join("");
+  const passwordHash = await bcrypt.hash(demoPassword, 12);
 
   for (const country of COUNTRY_SEEDS) {
     await prisma.country.upsert({
@@ -2579,8 +3042,8 @@ async function main() {
         supportedLocalesJson: [country.defaultLocale],
         supportedCurrencyCodesJson: [country.currencyCode],
         measurementSystem: country.measurementSystem,
-        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
-        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        dateFormat: "MM/dd/yyyy",
+        timeFormat: "h:mm a",
         addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
         rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
       },
@@ -2590,8 +3053,8 @@ async function main() {
         supportedLocalesJson: [country.defaultLocale],
         supportedCurrencyCodesJson: [country.currencyCode],
         measurementSystem: country.measurementSystem,
-        dateFormat: country.defaultLocale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy",
-        timeFormat: country.defaultLocale === "en-US" ? "h:mm a" : "HH:mm",
+        dateFormat: "MM/dd/yyyy",
+        timeFormat: "h:mm a",
         addressFormatJson: ["name", "addressLine1", "addressLine2", "city", "region", "postalCode", "country"],
         rtlEnabled: country.defaultLocale.startsWith("ar-") || country.defaultLocale.startsWith("ur-"),
       },
@@ -2606,71 +3069,126 @@ async function main() {
     users.set(user.email, record);
   }
 
-  await prisma.countryAssignment.upsert({
-    where: { userId_countryCode: { userId: users.get("country@nizamkitchen.dev")!.id, countryCode: "US" } },
-    update: {},
-    create: { userId: users.get("country@nizamkitchen.dev")!.id, countryCode: "US" },
+  const seedOwner = users.get("owner@nizamkitchen.dev") ?? [...users.values()][0];
+  if (seedOwner) {
+    await seedDefaultFeePolicies(seedOwner.id);
+  }
+
+  await prisma.session.deleteMany({
+    where: { user: { email: { in: [...USER_SEEDS.map((user) => user.email), ...LEGACY_DEMO_EMAILS] } } },
+  });
+  await prisma.membership.updateMany({
+    where: { user: { email: { in: LEGACY_DEMO_EMAILS } } },
+    data: { status: MembershipStatus.removed },
+  });
+  await prisma.countryAssignment.deleteMany({ where: { user: { email: { in: LEGACY_DEMO_EMAILS } } } });
+  await prisma.user.updateMany({
+    where: { email: { in: LEGACY_DEMO_EMAILS } },
+    data: { status: UserStatus.disabled, platformRole: null },
+  });
+  await prisma.membership.updateMany({
+    where: { organization: { slug: { in: LEGACY_DEMO_ORG_SLUGS } } },
+    data: { status: MembershipStatus.removed },
+  });
+  await prisma.organization.updateMany({
+    where: { slug: { in: LEGACY_DEMO_ORG_SLUGS } },
+    data: { status: OrganizationStatus.paused },
+  });
+  await prisma.chefProfile.updateMany({
+    where: { slug: { in: LEGACY_DEMO_CHEF_SLUGS } },
+    data: { status: ChefProfileStatus.paused, isPublic: false },
+  });
+  await prisma.homeCateringProfile.updateMany({
+    where: { slug: "deccan-dastarkhwan" },
+    data: { status: HomeCateringProfileStatus.disabled, isPublic: false },
   });
 
-  const householdOrg = await createOrganization({ name: "Nizam Family Kitchen", organizationType: OrganizationType.household, countryCode: "US", ownerUserId: users.get("household@nizamkitchen.dev")!.id });
-  const chefOrg = await createOrganization({ name: "Hyderabad Home Chefs Demo", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: users.get("chef@nizamkitchen.dev")!.id });
-  const homeCateringOrg = await createOrganization({ name: "Deccan Dastarkhwan", organizationType: OrganizationType.home_catering, countryCode: "US", ownerUserId: users.get("catering@nizamkitchen.dev")!.id });
-  const restaurantOrg = await createOrganization({ name: "Biryani House Demo", organizationType: OrganizationType.restaurant, countryCode: "US", ownerUserId: users.get("restaurant@nizamkitchen.dev")!.id });
+  const householdOrg = await createOrganization({
+    name: "Nizam Family Kitchen",
+    organizationType: OrganizationType.household,
+    countryCode: "US",
+    ownerUserId: users.get("household@nizamkitchen.dev")!.id,
+    membershipRole: OrganizationRole.org_owner,
+  });
+  const chefOrg = await createOrganization({
+    name: "Nizam Independent Home Chef",
+    organizationType: OrganizationType.chef_business,
+    countryCode: "US",
+    ownerUserId: users.get("chefstaff@nizamkitchen.dev")!.id,
+    membershipRole: OrganizationRole.chef_staff,
+  });
+  const homeCateringOrg = await createOrganization({
+    name: "Nizam Home Catering",
+    organizationType: OrganizationType.home_catering,
+    countryCode: "US",
+    ownerUserId: users.get("cateringstaff@nizamkitchen.dev")!.id,
+    membershipRole: OrganizationRole.home_catering_staff,
+  });
+  const restaurantOrg = await createOrganization({
+    name: "Biryani House Demo Restaurant",
+    organizationType: OrganizationType.restaurant,
+    countryCode: "US",
+    ownerUserId: users.get("restaurant@nizamkitchen.dev")!.id,
+    membershipRole: OrganizationRole.restaurant_owner,
+  });
 
   await prisma.homeCateringProfile.upsert({
     where: { organizationId: homeCateringOrg.id },
     update: {
       countryCode: "US",
-      displayName: "Deccan Dastarkhwan",
-      slug: "deccan-dastarkhwan",
-      ownerName: "Home Catering Owner",
+      displayName: "Nizam Home Catering",
+      slug: "nizam-home-catering",
+      ownerName: "Home Catering Staff",
       bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
-      status: "draft",
-      verificationStatus: "unverified",
+      status: "active",
+      verificationStatus: "verified",
       cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
       languagesJson: ["English", "Urdu"],
       serviceAreaText: "Chicago pickup and nearby preorder delivery.",
       city: "Chicago",
       region: "IL",
       phone: "+1 312 555 0188",
-      email: "catering@nizamkitchen.dev",
+      email: "cateringstaff@nizamkitchen.dev",
       acceptsPickup: true,
       acceptsDelivery: true,
       acceptsPreorders: true,
       minimumNoticeHours: 24,
-      isPublic: false,
+      isPublic: true,
     },
     create: {
       organizationId: homeCateringOrg.id,
       countryCode: "US",
-      displayName: "Deccan Dastarkhwan",
-      slug: "deccan-dastarkhwan",
-      ownerName: "Home Catering Owner",
+      displayName: "Nizam Home Catering",
+      slug: "nizam-home-catering",
+      ownerName: "Home Catering Staff",
       bio: "Small-batch Hyderabadi trays, sweets, and preorder specials for local pickup.",
-      status: "draft",
-      verificationStatus: "unverified",
+      status: "active",
+      verificationStatus: "verified",
       cuisineSpecialtiesJson: ["Hyderabadi", "Biryani", "Desserts"],
       languagesJson: ["English", "Urdu"],
       serviceAreaText: "Chicago pickup and nearby preorder delivery.",
       city: "Chicago",
       region: "IL",
       phone: "+1 312 555 0188",
-      email: "catering@nizamkitchen.dev",
+      email: "cateringstaff@nizamkitchen.dev",
       acceptsPickup: true,
       acceptsDelivery: true,
       acceptsPreorders: true,
       minimumNoticeHours: 24,
-      isPublic: false,
+      isPublic: true,
     },
   });
 
   for (const key of FEATURE_FLAGS) {
+    const details = FEATURE_FLAG_DETAILS.get(key);
+    const name = details?.name ?? key.replace(/_/g, " ");
+    const description = details?.description ?? `Placeholder flag for ${key}.`;
     const existing = await prisma.featureFlag.findFirst({ where: { key, organizationId: null, countryCode: null } });
     if (existing) {
       // Never overwrite enabled state — preserve manual changes made after seeding
-      await prisma.featureFlag.update({ where: { id: existing.id }, data: { name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.` } });
+      await prisma.featureFlag.update({ where: { id: existing.id }, data: { name, description } });
     } else {
-      await prisma.featureFlag.create({ data: { key, name: key.replace(/_/g, " "), description: `Placeholder flag for ${key}.`, enabled: GLOBALLY_ENABLED_FLAGS.has(key) } });
+      await prisma.featureFlag.create({ data: { key, name, description, enabled: GLOBALLY_ENABLED_FLAGS.has(key) } });
     }
   }
 
@@ -2703,6 +3221,7 @@ async function main() {
   }
   await seedMarketplacePolicies(platformOwner.id);
   await seedLegalDocuments(platformOwner.id);
+  await seedEnterpriseEmailTemplates(platformOwner.id);
   await seedDataRetentionPolicies(platformOwner.id);
 
   const sellerRequirementSeeds = [
@@ -2726,63 +3245,159 @@ async function main() {
   const billingPlanSeeds = [
     {
       slug: "free",
-      name: "Free / Starter",
-      description: "Get started with essential features. No payment required.",
+      name: "Household Free",
+      description: "Basic recipe browsing, limited meal planning, and starter grocery lists for one household member.",
+      planAudience: "household" as const,
+      isPopular: false,
       priceAmount: 0,
       billingInterval: "monthly" as const,
       status: "active" as const,
       limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 1, maxSavedRestaurants: 5, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Recipe browsing", "Basic meal planning", "Simple grocery lists"],
+      featuresJson: ["Basic recipe browsing", "Limited meal planning", "Limited grocery lists"],
     },
     {
       slug: "family-plus",
       name: "Family Plus",
-      description: "More meal plans, grocery exports, and restaurant fallback for growing families.",
+      description: "Weekly meal planning, grocery exports, and home chef request access for growing families.",
+      planAudience: "household" as const,
+      isPopular: true,
       priceAmount: 9.99,
       billingInterval: "monthly" as const,
       status: "active" as const,
-      limitsJson: { maxMealPlans: 10, maxGroceryListsPerMonth: 20, maxHouseholdMembers: 6, maxSavedRestaurants: 30, maxChefRequestsPerMonth: 3, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["Everything in Free", "10 meal plans", "Grocery exports (PDF/CSV)", "Restaurant fallback", "Browse home chefs", "Favorites & preferences"],
+      limitsJson: { maxMealPlans: 20, maxGroceryListsPerMonth: 30, maxHouseholdMembers: 6, maxSavedRestaurants: 25, maxChefRequestsPerMonth: 5, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Weekly and monthly meal planning", "Smart grocery list generation", "Grocery exports", "Home chef request access", "Restaurant and caterer discovery", "Priority support"],
     },
     {
-      slug: "premium-household",
-      name: "Premium Household",
-      description: "Unlimited meal planning, advanced features, and home chef request access.",
+      slug: "household-premium",
+      name: "Household Premium",
+      description: "Unlimited family planning, expanded preferences, and priority support for busy homes.",
+      planAudience: "household" as const,
+      isPopular: false,
       priceAmount: 19.99,
       billingInterval: "monthly" as const,
       status: "active" as const,
-      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 10, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 10, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["Everything in Family Plus", "Unlimited meal plans", "Unlimited grocery lists", "Home chef request priority", "Advanced preferences"],
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 10, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 12, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+      featuresJson: ["Unlimited meal planning", "Unlimited grocery lists", "Advanced household preferences", "More home chef requests", "Priority support", "Family workspace controls"],
     },
     {
-      slug: "chef-business",
-      name: "Chef Business",
-      description: "Chef profile, services, availability management, and request fulfillment.",
-      priceAmount: 14.99,
+      slug: "home-chef-basic",
+      name: "Home Chef Basic",
+      description: "Platform-managed profile and assigned home chef request dashboard for independent chef staff.",
+      planAudience: "chef_staff" as const,
+      isPopular: false,
+      priceAmount: 0,
       billingInterval: "monthly" as const,
       status: "active" as const,
-      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: 10, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
-      featuresJson: ["Chef marketplace listing", "Service & availability setup", "Unlimited request management", "Chef review system", "Profile verification"],
+      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Platform-managed chef profile", "Assigned request dashboard", "Verification workflow", "Review profile"],
+    },
+    {
+      slug: "home-chef-plus",
+      name: "Home Chef Plus",
+      description: "Enhanced chef profile tools, availability management, and request workflow support.",
+      planAudience: "chef_staff" as const,
+      isPopular: true,
+      priceAmount: 9.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Enhanced chef profile", "Availability management", "Assigned request tools", "Customer messaging", "Verification reminders"],
+    },
+    {
+      slug: "home-chef-pro",
+      name: "Home Chef Pro",
+      description: "Professional independent chef plan with premium profile visibility and advanced operations.",
+      planAudience: "chef_staff" as const,
+      isPopular: false,
+      priceAmount: 24.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Premium chef profile", "Advanced request workflow", "Review highlights", "Priority verification support", "Operations reporting"],
+    },
+    {
+      slug: "catering-starter",
+      name: "Catering Starter",
+      description: "Home catering profile, menu builder, order requests, pickup, and delivery settings.",
+      planAudience: "home_catering" as const,
+      isPopular: false,
+      priceAmount: 19.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: 10, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
+      featuresJson: ["Public catering profile", "Menu builder", "Order request management", "Pickup and delivery settings"],
+    },
+    {
+      slug: "catering-pro",
+      name: "Catering Pro",
+      description: "Expanded catering operations with promotions, reports, and priority visibility when enabled.",
+      planAudience: "home_catering" as const,
+      isPopular: true,
+      priceAmount: 49.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 10, maxGroceryListsPerMonth: 20, maxHouseholdMembers: 8, maxSavedRestaurants: 20, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
+      featuresJson: ["Expanded menu management", "Promotions", "Reports", "Priority visibility if supported"],
+    },
+    {
+      slug: "catering-enterprise",
+      name: "Catering Enterprise",
+      description: "High-volume catering operations with expanded reporting and priority operational support.",
+      planAudience: "home_catering" as const,
+      isPopular: false,
+      priceAmount: 99.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 15, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
+      featuresJson: ["High-volume menu operations", "Advanced promotions", "Expanded reports", "Priority marketplace visibility", "Priority operational support"],
     },
     {
       slug: "restaurant-partner",
       name: "Restaurant Partner",
-      description: "Saved restaurant listing and future order lead features.",
-      priceAmount: 0,
+      description: "Restaurant profile, menu builder, order requests, social links, location listing, and reports.",
+      planAudience: "restaurant" as const,
+      isPopular: false,
+      priceAmount: 49.99,
       billingInterval: "monthly" as const,
       status: "active" as const,
       limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 3, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Restaurant profile placeholder", "Order lead pipeline (coming soon)"],
+      featuresJson: ["Restaurant profile", "Menu builder", "Order requests", "Social links", "Google Maps/location listing", "Reports"],
     },
     {
-      slug: "enterprise",
-      name: "Enterprise / Country Partner",
-      description: "Custom limits for country operators and large household networks.",
+      slug: "restaurant-growth",
+      name: "Restaurant Growth",
+      description: "Restaurant plan for growing menu operations, location visibility, and customer request workflows.",
+      planAudience: "restaurant" as const,
+      isPopular: true,
+      priceAmount: 79.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Expanded menu operations", "Location visibility", "Customer request workflows", "Social profile controls", "Operational reports"],
+    },
+    {
+      slug: "restaurant-enterprise",
+      name: "Restaurant Enterprise",
+      description: "Multi-location restaurant operations with advanced visibility, reporting, and support.",
+      planAudience: "restaurant" as const,
+      isPopular: false,
+      priceAmount: 149.99,
+      billingInterval: "monthly" as const,
+      status: "active" as const,
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 15, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
+      featuresJson: ["Multi-location profile support", "Advanced menu operations", "Priority discovery", "Expanded reports", "Priority support"],
+    },
+    {
+      slug: "enterprise-internal",
+      name: "Enterprise / Internal",
+      description: "Internal platform plan for administrative, enterprise, and manually contracted accounts.",
+      planAudience: "platform_internal" as const,
+      isPopular: false,
       priceAmount: 0,
       billingInterval: "custom" as const,
-      status: "active" as const,
+      status: "draft" as const,
       limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: -1, maxSavedRestaurants: -1, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["All features", "Custom limits", "Country-level configuration", "Priority support"],
+      featuresJson: ["All features", "Custom limits", "Country-level configuration", "Internal administration"],
     },
   ];
 
@@ -2790,16 +3405,20 @@ async function main() {
   for (const plan of billingPlanSeeds) {
     const upserted = await prisma.billingPlan.upsert({
       where: { slug: plan.slug },
-      update: { name: plan.name, description: plan.description, priceAmount: plan.priceAmount, billingInterval: plan.billingInterval, status: plan.status, limitsJson: plan.limitsJson, featuresJson: plan.featuresJson },
+      update: { name: plan.name, description: plan.description, planAudience: plan.planAudience, isPopular: plan.isPopular, priceAmount: plan.priceAmount, billingInterval: plan.billingInterval, status: plan.status, limitsJson: plan.limitsJson, featuresJson: plan.featuresJson, stripePriceId: null },
       create: { ...plan },
     });
     billingPlans.set(plan.slug, upserted);
   }
+  await prisma.billingPlan.updateMany({
+    where: { slug: { in: ["premium-household", "chef-business", "home-catering-seller", "enterprise"] } },
+    data: { status: "archived", isPopular: false, stripePriceId: null },
+  });
 
   // Assign demo subscriptions (idempotent — skip if org already has one)
   const demoSubscriptions: Array<{ orgId: string; planSlug: string; status: "free" | "trialing" | "active" }> = [
     { orgId: householdOrg.id, planSlug: "family-plus", status: "trialing" },
-    { orgId: chefOrg.id, planSlug: "chef-business", status: "active" },
+    { orgId: chefOrg.id, planSlug: "home-chef-basic", status: "active" },
     { orgId: restaurantOrg.id, planSlug: "restaurant-partner", status: "free" },
   ];
 
@@ -2810,21 +3429,26 @@ async function main() {
       await prisma.billingSubscription.create({
         data: { organizationId: orgId, planId: plan.id, status, provider: "manual" },
       });
+    } else {
+      await prisma.billingSubscription.update({
+        where: { id: existing.id },
+        data: { planId: plan.id, status, provider: "manual" },
+      });
     }
   }
 
   await prisma.systemSetting.upsert({
     where: { key: "platform.default_support_email" },
-    update: { value: "support@nizamkitchen.dev" },
-    create: { key: "platform.default_support_email", value: "support@nizamkitchen.dev", description: "Support inbox for the platform foundation environment." },
+    update: { value: "help@nizamkitchen.dev" },
+    create: { key: "platform.default_support_email", value: "help@nizamkitchen.dev", description: "Support inbox for the platform foundation environment." },
   });
 
   const auditItems = [
     { actorUserId: users.get("owner@nizamkitchen.dev")!.id, action: "setting.updated", targetType: "system_setting", targetId: "platform.default_support_email" },
-    { actorUserId: users.get("admin@nizamkitchen.dev")!.id, action: "billing.updated", organizationId: householdOrg.id, countryCode: "US", targetType: "billing_subscription", targetId: "foundation-trial" },
+    { actorUserId: users.get("owner@nizamkitchen.dev")!.id, action: "billing.updated", organizationId: householdOrg.id, countryCode: "US", targetType: "billing_subscription", targetId: "foundation-trial" },
     { actorUserId: users.get("owner@nizamkitchen.dev")!.id, action: "feature_flag.updated", targetType: "feature_flag", targetId: "recipes" },
     { actorUserId: users.get("household@nizamkitchen.dev")!.id, organizationId: householdOrg.id, countryCode: "US", action: "organization.created", targetType: "organization", targetId: householdOrg.id },
-    { actorUserId: users.get("chef@nizamkitchen.dev")!.id, organizationId: chefOrg.id, countryCode: "US", action: "organization.created", targetType: "organization", targetId: chefOrg.id },
+    { actorUserId: users.get("chefstaff@nizamkitchen.dev")!.id, organizationId: chefOrg.id, countryCode: "US", action: "organization.created", targetType: "organization", targetId: chefOrg.id },
     { actorUserId: users.get("restaurant@nizamkitchen.dev")!.id, organizationId: restaurantOrg.id, countryCode: "US", action: "organization.created", targetType: "organization", targetId: restaurantOrg.id },
   ];
 
@@ -2834,13 +3458,6 @@ async function main() {
       await prisma.auditLog.create({ data: item });
     }
   } 
-
-  const chefOwner = await prisma.membership.findFirstOrThrow({
-    where: { organizationId: chefOrg.id, role: "chef_owner" },
-    select: { userId: true },
-  });
-  const biryaniChefOrg = await createOrganization({ name: "Dum Biryani Specialist", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: chefOwner.userId });
-  const tiffinChefOrg = await createOrganization({ name: "Weekly Tiffin Chef", organizationType: OrganizationType.chef_business, countryCode: "US", ownerUserId: chefOwner.userId });
 
   // ─── Food foundation seeding ────────────────────────────────────────────────
   console.log("Seeding units...");
@@ -2917,6 +3534,11 @@ async function main() {
 
   console.log("Seeding recipes...");
   await seedRecipes(cuisineMap, ingredientMap, unitMap, tagMap);
+  await seedHouseholdMyRecipes({
+    organizationId: householdOrg.id,
+    countryCode: householdOrg.countryCode,
+    createdById: users.get("household@nizamkitchen.dev")!.id,
+  });
 
   console.log("Seeding dish and menu templates...");
   await seedTemplateLibrary(platformOwner.id, cuisineMap, ingredientMap, unitMap);
@@ -2941,9 +3563,9 @@ async function main() {
       organizationId: chefOrg.id,
       countryCode: chefOrg.countryCode,
       currencyCode: chefOrg.currencyCode,
-      displayName: "Hyderabad Home Kitchen",
-      slug: "hyderabad-home-kitchen",
-      bio: "A demo chef business focused on homestyle Hyderabadi family meals, gentle spice customization, and weekend occasion cooking.",
+      displayName: "Nizam Independent Home Chef",
+      slug: "nizam-independent-home-chef",
+      bio: "A demo independent chef profile focused on homestyle Hyderabadi family meals, gentle spice customization, and weekend occasion cooking.",
       status: ChefProfileStatus.active,
       verificationStatus: ChefVerificationStatus.verified,
       isPublic: true,
@@ -2956,55 +3578,108 @@ async function main() {
         { name: "Weekly cooking support", serviceType: ChefServiceType.weekly_cooking, priceUnit: ChefPriceUnit.per_week, amount: 420 },
       ],
     },
-    {
-      organizationId: biryaniChefOrg.id,
-      countryCode: biryaniChefOrg.countryCode,
-      currencyCode: biryaniChefOrg.currencyCode,
-      displayName: "Dum Biryani Specialist",
-      slug: "dum-biryani-specialist",
-      bio: "A demo profile for a chef business specializing in Hyderabadi chicken and mutton dum biryani for small family occasions.",
-      status: ChefProfileStatus.draft,
-      verificationStatus: ChefVerificationStatus.pending,
-      isPublic: false,
-      baseCity: "Irving",
-      baseRegion: "TX",
-      languages: ["English", "Urdu"],
-      specialties: ["Chicken Dum Biryani", "Mutton Biryani", "Mirchi ka Salan"],
-      services: [
-        { name: "Biryani occasion package", serviceType: ChefServiceType.occasion, priceUnit: ChefPriceUnit.per_event, amount: 260 },
-      ],
-    },
-    {
-      organizationId: tiffinChefOrg.id,
-      countryCode: tiffinChefOrg.countryCode,
-      currencyCode: tiffinChefOrg.currencyCode,
-      displayName: "Weekly Tiffin Chef",
-      slug: "weekly-tiffin-chef",
-      bio: "A paused demo chef profile for weekly home-style meals, dal, rice, chutneys, and simple Hyderabadi staples.",
-      status: ChefProfileStatus.paused,
-      verificationStatus: ChefVerificationStatus.verified,
-      isPublic: false,
-      baseCity: "Houston",
-      baseRegion: "TX",
-      languages: ["English", "Hindi"],
-      specialties: ["Weekly tiffin", "Vegetarian meals", "Khatti Dal"],
-      services: [
-        { name: "Weekly tiffin prep", serviceType: ChefServiceType.weekly_cooking, priceUnit: ChefPriceUnit.per_week, amount: 300 },
-      ],
-    },
   ]);
 
   console.log("Seeding sample home chef requests...");
+  await seedHomeChefAcceptancePolicies(users.get("owner@nizamkitchen.dev")!.id);
+  await seedHomeChefPrivacyPolicies(users.get("owner@nizamkitchen.dev")!.id);
   await seedHomeChefRequests({
     householdOrgId: householdOrg.id,
     chefOrgId: chefOrg.id,
-    householdUserId: users.get(USER_SEEDS[3].email)!.id,
-    adminUserId: users.get(USER_SEEDS[1].email)!.id,
+    householdUserId: users.get("household@nizamkitchen.dev")!.id,
+    adminUserId: users.get("owner@nizamkitchen.dev")!.id,
     countryCode: householdOrg.countryCode,
     currencyCode: householdOrg.currencyCode,
   });
 
   console.log("Seed complete.");
+}
+
+async function seedHomeChefAcceptancePolicies(createdById: string) {
+  const policies = [
+    { leadTimeCategory: "advance_booking", acceptanceWindowMinutes: 24 * 60, maxCascadeAttempts: 4, cascadeDelayMinutes: 60 },
+    { leadTimeCategory: "short_term", acceptanceWindowMinutes: 3 * 60, maxCascadeAttempts: 4, cascadeDelayMinutes: 20 },
+    { leadTimeCategory: "same_day", acceptanceWindowMinutes: 30, maxCascadeAttempts: 5, cascadeDelayMinutes: 10 },
+    { leadTimeCategory: "recurring", acceptanceWindowMinutes: 12 * 60, maxCascadeAttempts: 4, cascadeDelayMinutes: 45 },
+    { leadTimeCategory: "custom", acceptanceWindowMinutes: 24 * 60, maxCascadeAttempts: 3, cascadeDelayMinutes: 30 },
+  ] as const;
+
+  for (const policy of policies) {
+    const existing = await prisma.homeChefAcceptancePolicy.findFirst({
+      where: {
+        countryCode: null,
+        region: null,
+        city: null,
+        requestType: null,
+        leadTimeCategory: policy.leadTimeCategory,
+      },
+      select: { id: true },
+    });
+    const data = {
+      countryCode: null,
+      region: null,
+      city: null,
+      requestType: null,
+      leadTimeCategory: policy.leadTimeCategory,
+      acceptanceWindowMinutes: policy.acceptanceWindowMinutes,
+      autoCascadeEnabled: true,
+      maxCascadeAttempts: policy.maxCascadeAttempts,
+      cascadeDelayMinutes: policy.cascadeDelayMinutes,
+      requireAdminReview: true,
+      requireVerifiedChef: true,
+      isActive: true,
+    };
+    if (existing) {
+      await prisma.homeChefAcceptancePolicy.update({
+        where: { id: existing.id },
+        data: { ...data, updatedById: createdById },
+      });
+    } else {
+      await prisma.homeChefAcceptancePolicy.create({
+        data: { ...data, createdById },
+      });
+    }
+  }
+}
+
+async function seedHomeChefPrivacyPolicies(createdById: string) {
+  const existing = await prisma.homeChefPrivacyPolicy.findFirst({
+    where: {
+      countryCode: null,
+      region: null,
+      city: null,
+      requestType: null,
+    },
+    select: { id: true },
+  });
+  const data = {
+    countryCode: null,
+    region: null,
+    city: null,
+    requestType: null,
+    revealExactAddressTrigger: "booking_locked" as const,
+    revealCustomerNameTrigger: "booking_locked" as const,
+    allowPreAcceptanceMessaging: true,
+    allowFirstNameBeforeAcceptance: false,
+    allowPhoneProxyAfterLock: true,
+    allowRealPhoneReveal: false,
+    allowEmailReveal: false,
+    revokeAccessOnCancellation: true,
+    revokeAccessAfterCompletionDays: 7,
+    emergencyContactWindowHours: 24,
+    status: "active" as const,
+  };
+
+  if (existing) {
+    await prisma.homeChefPrivacyPolicy.update({
+      where: { id: existing.id },
+      data: { ...data, updatedById: createdById },
+    });
+  } else {
+    await prisma.homeChefPrivacyPolicy.create({
+      data: { ...data, createdById },
+    });
+  }
 }
 
 async function seedHomeChefRequests(params: {
@@ -3410,6 +4085,171 @@ async function seedGroceryPartners() {
       update: partner,
       create: partner,
     });
+  }
+}
+
+async function seedEnterpriseEmailTemplates(createdById: string) {
+  for (const seed of ENTERPRISE_EMAIL_TEMPLATES) {
+    const existing = await prisma.emailTemplate.findFirst({
+      where: { templateKey: seed.templateKey, locale: null, countryCode: null, version: 1 },
+    });
+    const templateData = {
+      name: seed.name,
+      description: seed.description ?? null,
+      category: seed.category,
+      subject: seed.subject,
+      preheader: seed.preheader ?? null,
+      htmlBody: plainTextToSeedEmailHtml(seed.body),
+      textBody: seed.body,
+      status: EmailTemplateStatus.active,
+      isSystem: true,
+      updatedById: createdById,
+    };
+    const template = existing
+      ? await prisma.emailTemplate.update({ where: { id: existing.id }, data: templateData })
+      : await prisma.emailTemplate.create({
+          data: {
+            ...templateData,
+            templateKey: seed.templateKey,
+            version: 1,
+            createdById,
+          },
+        });
+
+    for (const variable of seed.variables ?? []) {
+      await prisma.emailTemplateVariable.upsert({
+        where: { templateId_variableKey: { templateId: template.id, variableKey: variable.key } },
+        update: {
+          description: variable.description ?? null,
+          exampleValue: variable.example ?? null,
+          isRequired: variable.required ?? false,
+        },
+        create: {
+          templateId: template.id,
+          variableKey: variable.key,
+          description: variable.description ?? null,
+          exampleValue: variable.example ?? null,
+          isRequired: variable.required ?? false,
+        },
+      });
+    }
+  }
+}
+
+function plainTextToSeedEmailHtml(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 16px 0;">${escapeSeedHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("\n");
+}
+
+function escapeSeedHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function seedDefaultFeePolicies(ownerUserId: string) {
+  const policies = [
+    {
+      name: "US food order default pricing",
+      description: "Default US/USD service, delivery, small order, and commission policy for home catering and restaurant checkout.",
+      module: "food_order",
+      sellerType: null,
+      fulfillmentType: null,
+      priority: 100,
+      rules: [
+        { feeType: "platform_service_fee", calculationType: "percentage", percentage: 10, minAmount: 2.5, maxAmount: 6.5, fixedAmount: null, thresholdAmount: null, displayName: "Service fee", sortOrder: 20 },
+        { feeType: "delivery_fee", calculationType: "fixed", percentage: null, minAmount: null, maxAmount: null, fixedAmount: 3.99, thresholdAmount: null, displayName: "Delivery fee", sortOrder: 30 },
+        { feeType: "small_order_fee", calculationType: "threshold_based", percentage: null, minAmount: null, maxAmount: null, fixedAmount: 2.99, thresholdAmount: 15, displayName: "Small order fee", sortOrder: 40 },
+        { feeType: "platform_commission", calculationType: "percentage", percentage: 15, minAmount: null, maxAmount: null, fixedAmount: null, thresholdAmount: null, displayName: "Platform commission", sortOrder: 900 },
+      ],
+    },
+    {
+      name: "US home chef default pricing",
+      description: "Default US/USD home chef request pricing policy with configurable service fee and commission.",
+      module: "home_chef_request",
+      sellerType: "chef_staff",
+      fulfillmentType: "home_service",
+      priority: 100,
+      rules: [
+        { feeType: "platform_service_fee", calculationType: "percentage", percentage: 10, minAmount: 2.5, maxAmount: null, fixedAmount: null, thresholdAmount: null, displayName: "Home chef service fee", sortOrder: 20 },
+        { feeType: "platform_commission", calculationType: "percentage", percentage: 15, minAmount: null, maxAmount: null, fixedAmount: null, thresholdAmount: null, displayName: "Home chef commission", sortOrder: 900 },
+      ],
+    },
+    {
+      name: "US subscription default pricing",
+      description: "Default policy for subscription checkout. Service fee is intentionally zero.",
+      module: "subscription",
+      sellerType: "platform",
+      fulfillmentType: "digital_subscription",
+      priority: 100,
+      rules: [
+        { feeType: "platform_service_fee", calculationType: "fixed", percentage: null, minAmount: null, maxAmount: null, fixedAmount: 0, thresholdAmount: null, displayName: "Subscription service fee", sortOrder: 20 },
+      ],
+    },
+  ];
+
+  for (const policySeed of policies) {
+    const policy = await prisma.feePolicy.upsert({
+      where: { name: policySeed.name },
+      update: {
+        description: policySeed.description,
+        status: "active",
+        priority: policySeed.priority,
+        countryCode: "US",
+        region: null,
+        city: null,
+        module: policySeed.module as never,
+        sellerType: policySeed.sellerType as never,
+        fulfillmentType: policySeed.fulfillmentType as never,
+        updatedById: ownerUserId,
+      },
+      create: {
+        name: policySeed.name,
+        description: policySeed.description,
+        status: "active",
+        priority: policySeed.priority,
+        countryCode: "US",
+        region: null,
+        city: null,
+        module: policySeed.module as never,
+        sellerType: policySeed.sellerType as never,
+        fulfillmentType: policySeed.fulfillmentType as never,
+        rulesJson: {},
+        createdById: ownerUserId,
+      },
+    });
+    for (const ruleSeed of policySeed.rules) {
+      const existing = await prisma.feeRule.findFirst({
+        where: { feePolicyId: policy.id, feeType: ruleSeed.feeType as never, displayName: ruleSeed.displayName },
+      });
+      const data = {
+        calculationType: ruleSeed.calculationType as never,
+        percentage: ruleSeed.percentage,
+        fixedAmount: ruleSeed.fixedAmount,
+        minAmount: ruleSeed.minAmount,
+        maxAmount: ruleSeed.maxAmount,
+        thresholdAmount: ruleSeed.thresholdAmount,
+        currencyCode: "USD",
+        appliesBeforeDiscount: true,
+        taxable: ruleSeed.feeType !== "platform_commission",
+        displayToCustomer: !["platform_commission"].includes(ruleSeed.feeType),
+        displayName: ruleSeed.displayName,
+        sortOrder: ruleSeed.sortOrder,
+        isActive: true,
+      };
+      if (existing) {
+        await prisma.feeRule.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.feeRule.create({ data: { feePolicyId: policy.id, feeType: ruleSeed.feeType as never, ...data } });
+      }
+    }
   }
 }
 

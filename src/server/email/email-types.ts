@@ -43,6 +43,7 @@ export type SendEmailInput = EmailRenderInput & {
   category?: EmailTemplateCategory;
   metadata?: Record<string, unknown>;
   idempotencyKey?: string;
+  deliveryTimeoutMs?: number;
 };
 
 export type EmailProviderSendInput = {
@@ -50,6 +51,7 @@ export type EmailProviderSendInput = {
   subject: string;
   html: string;
   text: string;
+  timeoutMs?: number;
 };
 
 export type EmailProviderSendResult = {

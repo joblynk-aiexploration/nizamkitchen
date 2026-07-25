@@ -19,6 +19,7 @@ import {
 import { createAuditEvent } from "@/server/audit";
 import { recordFulfillmentEvent, resolveOrderFulfillment } from "@/server/fulfillment/fulfillment-service";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
+import type { EmailTemplateKey } from "@/server/notifications/email-service";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
 import { redeemPromotion, validatePromotionForCheckout } from "@/server/promotions";
 import { assertSellerGate } from "@/server/seller-verification-gates";
@@ -390,6 +391,7 @@ export async function createFoodOrderMessage(params: {
   if (params.audience === "customer") {
     await notifySellerMembers(order, "food_order.message_created", "New order message", `${order.customerOrganization.name} sent a message.`, sellerOrderPath(order));
   } else {
+    const actionUrl = `/orders/${order.id}`;
     await createNotification({
       organizationId: order.customerOrganizationId,
       userId: order.customerUserId,
@@ -397,8 +399,10 @@ export async function createFoodOrderMessage(params: {
       type: "food_order.message_created",
       title: "New order message",
       body: `${order.sellerOrganization.name} sent a message about your order.`,
-      actionUrl: `/orders/${order.id}`,
+      actionUrl,
       priority: "normal",
+      emailTemplateKey: "food_order_message_received",
+      emailVariables: foodOrderEmailVariables(order, actionUrl),
     });
   }
   return message;
@@ -564,6 +568,7 @@ async function notifySellerMembers(order: FoodOrderDetail, type: string, title: 
     where: { organizationId: order.sellerOrganizationId, status: "active" },
     select: { userId: true },
   });
+  const emailTemplateKey = sellerFoodOrderEmailTemplateKey(order, type);
   await Promise.all(members.map((member) => createNotification({
     organizationId: order.sellerOrganizationId,
     userId: member.userId,
@@ -573,10 +578,13 @@ async function notifySellerMembers(order: FoodOrderDetail, type: string, title: 
     body,
     actionUrl,
     priority: "normal",
+    emailTemplateKey,
+    emailVariables: foodOrderEmailVariables(order, actionUrl),
   })));
 }
 
 async function notifyFoodOrderStatus(order: FoodOrderDetail) {
+  const actionUrl = `/orders/${order.id}`;
   await createNotification({
     organizationId: order.customerOrganizationId,
     userId: order.customerUserId,
@@ -584,11 +592,53 @@ async function notifyFoodOrderStatus(order: FoodOrderDetail) {
     type: "food_order.status_changed",
     title: "Food order status updated",
     body: `${order.sellerOrganization.name} marked your order ${order.status.replace(/_/g, " ")}.`,
-    actionUrl: `/orders/${order.id}`,
+    actionUrl,
     priority: order.status === "declined" || order.status === "cancelled" ? "high" : "normal",
+    emailTemplateKey: customerFoodOrderStatusEmailTemplateKey(order.status),
+    emailVariables: foodOrderEmailVariables(order, actionUrl),
   });
 }
 
 export function sellerOrderPath(order: Pick<FoodOrderDetail, "id" | "sellerType">) {
   return order.sellerType === "home_catering" ? `/catering/orders/${order.id}` : `/restaurant/orders/${order.id}`;
+}
+
+function sellerFoodOrderEmailTemplateKey(order: FoodOrderDetail, type: string): EmailTemplateKey | undefined {
+  if (type === "food_order.submitted") {
+    return order.sellerType === "home_catering" ? "catering_new_order" : "restaurant_new_order";
+  }
+  if (type === "food_order.cancelled") {
+    return order.sellerType === "home_catering" ? "catering_order_cancelled" : "restaurant_order_cancelled";
+  }
+  if (type === "food_order.message_created") return "food_order_message_received";
+  return undefined;
+}
+
+function customerFoodOrderStatusEmailTemplateKey(status: FoodOrderStatus): EmailTemplateKey | undefined {
+  const map: Partial<Record<FoodOrderStatus, EmailTemplateKey>> = {
+    accepted: "food_order_accepted",
+    declined: "food_order_declined",
+    preparing: "food_order_preparing",
+    ready_for_pickup: "food_order_ready_for_pickup",
+    out_for_delivery: "food_order_out_for_delivery",
+    completed: "food_order_completed",
+    cancelled: "food_order_cancelled",
+  };
+  return map[status];
+}
+
+function foodOrderEmailVariables(order: FoodOrderDetail, actionUrl: string) {
+  const totalAmount = roundMoney((order.subtotalAmount ?? 0) + (order.deliveryFeeAmount ?? 0) - (order.promotionDiscountAmount ?? 0));
+  return {
+    orderNumber: `NK-${order.id.slice(-8).toUpperCase()}`,
+    orderStatus: order.status.replace(/_/g, " "),
+    sellerName: order.sellerOrganization.name,
+    customerName: order.customerOrganization.name,
+    orderUrl: actionUrl,
+    requestedDate: order.requestedDate ? order.requestedDate.toLocaleString("en-US", { timeZone: "America/Chicago" }) : "Not scheduled",
+    fulfillmentType: order.fulfillmentType.replace(/_/g, " "),
+    totalAmount: totalAmount.toFixed(2),
+    currencyCode: order.currencyCode,
+    primaryActionLabel: "View order",
+  };
 }

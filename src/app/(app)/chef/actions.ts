@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { requireMembership } from "@/lib/auth/session";
 import { normalizePhoneFromForm } from "@/lib/phone";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
@@ -224,7 +225,7 @@ export async function acceptChefOrderAction(formData: FormData) {
     revalidateChefPaths();
     revalidatePath(`/chef/requests/${requestId}`);
     revalidatePath(`/home-chef/requests/${requestId}`);
-    redirect(`/chef/requests/${requestId}?message=Order accepted.`);
+    redirect(withAnalyticsEvent(`/chef/requests/${requestId}?message=Order accepted.`, "home_chef_request_confirmed"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/chef/requests/${requestId}?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to accept order."))}`);

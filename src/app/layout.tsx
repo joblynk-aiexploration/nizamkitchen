@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, Playfair_Display } from "next/font/google";
+import { SecurePrivacyScripts } from "@/components/privacy/secure-privacy-scripts";
+import { SecurePrivacyWidgetCleanup } from "@/components/privacy/secure-privacy-widget-cleanup";
 import { PwaRegister } from "@/components/pwa/pwa-register";
+import { GooglePlatformScripts } from "@/components/seo/google-platform-scripts";
 import { buildSeoMetadata, getGooglePlatformPublicConfig } from "@/server/seo/seo-service";
 import "./globals.css";
 
@@ -49,8 +52,11 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${sans.variable} ${serif.variable} h-full antialiased`}>
       <body className="min-h-full bg-[var(--color-app-surface)] text-[var(--color-ink)]">
+        <SecurePrivacyScripts />
+        <SecurePrivacyWidgetCleanup />
         <PwaRegister />
         {children}
+        <GooglePlatformScripts />
       </body>
     </html>
   );

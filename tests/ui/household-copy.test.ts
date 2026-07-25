@@ -17,7 +17,8 @@ describe("household-facing copy", () => {
     expect(newRecipePage).toContain("My household");
     expect(newRecipePage).toContain("Workspace only");
     expect(newRecipePage).not.toContain("Organization only");
-    expect(recipesPage).toContain("recipes saved for your household");
+    expect(recipesPage).toContain("Global Recipe Templates");
+    expect(recipesPage).toContain("Add a template to My Recipes before customizing your household version.");
     expect(recipesPage).not.toContain("organization recipes");
   });
 

@@ -55,6 +55,11 @@ export default async function HouseholdMembersPage({ searchParams }: { searchPar
     cookMinutes: recipe.cookMinutes,
     totalMinutes: getTotalMinutes(recipe),
   }));
+  const memberOptions = members.map((member) => ({
+    userId: member.user.id,
+    fullName: member.user.fullName,
+    email: member.user.email,
+  }));
 
   return (
     <div className="space-y-8">
@@ -152,7 +157,7 @@ export default async function HouseholdMembersPage({ searchParams }: { searchPar
           </p>
         ) : (
           <div className="mt-6">
-            <ShareHouseholdRecipeForm recipes={recipeOptions} action={shareHouseholdRecipeAction} />
+            <ShareHouseholdRecipeForm recipes={recipeOptions} members={memberOptions} action={shareHouseholdRecipeAction} />
           </div>
         )}
 
@@ -161,7 +166,7 @@ export default async function HouseholdMembersPage({ searchParams }: { searchPar
         </div>
         {sharedRecipes.length === 0 ? (
           <p className="mt-6 rounded-2xl border border-dashed border-[var(--color-border)] bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
-            No shared household recipes yet. Select a recipe above to share it with every active family member.
+            No shared household recipes yet. Select a recipe above to share it with the whole family or one specific family member.
           </p>
         ) : (
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -176,9 +181,14 @@ export default async function HouseholdMembersPage({ searchParams }: { searchPar
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{sharedRecipe.recipe.cuisine.name}</p>
                     <h3 className="mt-2 font-semibold text-[var(--color-ink)]">{sharedRecipe.recipe.name}</h3>
                   </div>
-                  <Badge tone="success">Shared</Badge>
+                  <Badge tone="success">{sharedRecipe.recipientUser ? "Member" : "Whole family"}</Badge>
                 </div>
                 <p className="mt-3 line-clamp-2 text-sm text-[var(--color-muted)]">{sharedRecipe.recipe.description ?? "No description yet."}</p>
+                <p className="mt-3 text-xs font-semibold text-[var(--color-primary)]">
+                  {sharedRecipe.recipientUser
+                    ? `Shared with ${sharedRecipe.recipientUser.fullName}`
+                    : "Shared with every active family member"}
+                </p>
                 <p className="mt-3 text-xs font-semibold text-[var(--color-muted)]">
                   {sharedRecipe.targetServings ?? sharedRecipe.recipe.servings} serving{(sharedRecipe.targetServings ?? sharedRecipe.recipe.servings) === 1 ? "" : "s"} · Prep {sharedRecipe.recipe.prepMinutes} min · Cook {sharedRecipe.recipe.cookMinutes} min
                 </p>

@@ -14,7 +14,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { listRecipes } from "@/server/recipes";
 import { canAccessMealPlanner, listMealPlans } from "@/server/meal-plans";
-import { canAccessHomeChefs, isHouseholdRequestOrganization } from "@/server/home-chef";
+import { canAccessHomeChefs, formatHomeChefResponseWindow, isHouseholdRequestOrganization } from "@/server/home-chef";
 import { listEnabledCountryPhoneOptions, listEnabledLanguageOptions } from "@/server/localization/localization-service";
 import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { createHomeChefRequestAction } from "../actions";
@@ -117,9 +117,10 @@ export default async function NewHomeChefRequestPage({
             <h2 className="text-lg font-semibold text-[var(--color-ink)]">Service details</h2>
             <div className="space-y-4">
               <LocationPicker
-                label="Service location"
+                label="Home address"
                 mapsConfig={mapsConfig}
-                hint="Google autocomplete helps fill the address when configured. Manual entry always stays available."
+                hint="The chef sees only your city before accepting. Your full address is shown only after the chef accepts the request."
+                required
                 fieldNames={{
                   addressLine1: "serviceAddressLine1",
                   addressLine2: "serviceAddressLine2",
@@ -173,8 +174,14 @@ export default async function NewHomeChefRequestPage({
           <Card className="space-y-4">
             <h2 className="font-semibold text-[var(--color-ink)]">Submit request</h2>
             <p className="text-sm leading-6 text-[var(--color-muted)]">
-              Save a draft if details are incomplete, or submit to send it to platform support for manual review.
+              Save a draft if details are incomplete, or submit to send it to platform support for review and chef matching.
             </p>
+            <div className="rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+              <p className="font-semibold">Expected response window</p>
+              <p>
+                Same-day requests are usually offered to chefs for {formatHomeChefResponseWindow(30)}. Short-term requests use a few hours, and advance or recurring requests use longer review windows.
+              </p>
+            </div>
             <Button type="submit" name="intent" value="submit" className="w-full justify-center">
               Submit request
             </Button>

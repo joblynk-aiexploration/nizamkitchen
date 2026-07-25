@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FoodRequestFields } from "@/components/home-chef/food-request-fields";
+import { LocationPicker } from "@/components/maps/LocationPicker";
 import { RequestScheduleFields } from "@/components/home-chef/request-schedule-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessChefMarketplace, getPublicChefProfile } from "@/server/chefs";
 import { listEnabledCountryPhoneOptions, listEnabledLanguageOptions } from "@/server/localization/localization-service";
+import { getGoogleMapsPublicConfig } from "@/server/maps/google-maps-config";
 import { listRecipes } from "@/server/recipes";
 import { requestSpecificChefAction } from "../../actions";
 
@@ -35,7 +37,7 @@ export default async function RequestChefPage({
   const query = await searchParams;
   const enabled = await canAccessChefMarketplace({ organizationId: session.activeOrganization.id, platformRole: session.user.platformRole });
   if (!enabled) notFound();
-  const [chef, recipes, languageOptions, phoneOptions] = await Promise.all([
+  const [chef, recipes, languageOptions, phoneOptions, mapsConfig] = await Promise.all([
     getPublicChefProfile(slug, session.activeOrganization.id),
     listRecipes({
       organizationId: session.activeOrganization.id,
@@ -44,6 +46,7 @@ export default async function RequestChefPage({
     }),
     listEnabledLanguageOptions(),
     listEnabledCountryPhoneOptions(),
+    getGoogleMapsPublicConfig(session.activeOrganization.countryCode),
   ]);
   if (!chef) notFound();
   const selectedRecipe = recipes.find((recipe) => recipe.id === query.recipeId);
@@ -78,11 +81,27 @@ export default async function RequestChefPage({
                 ...languageOptions.map((option) => ({ value: option.value, label: option.label })),
               ]}
             />
-            <TextInput label="City" name="city" />
-            <TextInput label="Region" name="region" />
             <TextInput label="Budget amount" name="budgetAmount" type="number" min={0} step="0.01" />
             <TextInput label="Budget currency" name="budgetCurrency" defaultValue={session.activeOrganization.currencyCode} maxLength={3} />
           </div>
+          <LocationPicker
+            label="Home address"
+            mapsConfig={mapsConfig}
+            hint="The chef sees only your city before accepting. Your full address is shown only after the chef accepts the request."
+            required
+            fieldNames={{
+              addressLine1: "serviceAddressLine1",
+              addressLine2: "serviceAddressLine2",
+              city: "city",
+              region: "region",
+              countryCode: "locationCountryCode",
+              postalCode: "postalCode",
+              latitude: "locationLatitude",
+              longitude: "locationLongitude",
+              providerPlaceId: "locationProviderPlaceId",
+            }}
+            defaultValue={{ countryCode: session.activeOrganization.countryCode }}
+          />
           <TextArea label="Anything else the chef should know?" name="description" placeholder="Share timing, allergies, spice level, occasion details, or household needs." />
           <TextArea label="Notes" name="notes" placeholder="Dietary, timing, family, or support notes." />
         </Card>

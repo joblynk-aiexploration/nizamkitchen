@@ -32,6 +32,7 @@ export default async function AdminNewRecipePage() {
         visibility: "global",
         sourceType: "platform",
         isGlobal: true,
+        isTemplate: true,
         isPublished: false,
       });
       redirect(`/admin/recipe-library/${recipe.id}`);

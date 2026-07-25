@@ -12,7 +12,7 @@ import {
   createEmailTemplate,
   updateEmailTemplateDraft,
 } from "@/server/email/email-template-service";
-import { sendTemplateEmail } from "@/server/email/email-service";
+import { sendAllSystemTemplateTestEmails, sendTemplateEmail } from "@/server/email/email-service";
 
 function formText(formData: FormData, key: string) {
   return formData.get(key)?.toString().trim() ?? "";
@@ -140,5 +140,26 @@ export async function sendTestEmailAction(formData: FormData) {
   } catch (error) {
     rethrowIfRedirectError(error);
     redirectWithMessage("/admin/emails/test-send", getActionErrorMessage(error, "Unable to send test email."));
+  }
+}
+
+export async function sendAllTestEmailsAction(formData: FormData) {
+  try {
+    const session = await requirePlatformRole(["platform_owner"]);
+    const result = await sendAllSystemTemplateTestEmails({
+      requestedById: session.user.id,
+      recipientEmail: formText(formData, "recipientEmail") || "learnasurah@gmail.com",
+      countryCode: optionalText(formData, "countryCode"),
+    });
+    revalidatePath("/admin/emails");
+    revalidatePath("/admin/emails/logs");
+    revalidatePath("/admin/emails/test-send");
+    redirectWithMessage(
+      "/admin/emails/test-send",
+      `Test email batch processed for ${result.recipientEmail}: ${result.sent} sent, ${result.skipped} skipped/logged across ${result.total} templates.`,
+    );
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    redirectWithMessage("/admin/emails/test-send", getActionErrorMessage(error, "Unable to send all test emails."));
   }
 }

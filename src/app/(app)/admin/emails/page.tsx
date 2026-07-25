@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { listEmailLogs, listEmailTemplates } from "@/server/email/email-template-service";
+import { sendAllTestEmailsAction } from "./actions";
 import { EmailCenterTabs, EmailStatusBadge } from "./_components";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function AdminEmailCenterPage() {
   ]);
   const activeTemplates = templates.filter((template) => template.status === EmailTemplateStatus.active).length;
   const failedLogs = logs.filter((log) => log.status === EmailDeliveryStatus.failed).length;
+  const canSendAllTests = session.user.platformRole === "platform_owner";
 
   return (
     <AdminShell
@@ -45,6 +47,22 @@ export default async function AdminEmailCenterPage() {
           <Button asChild variant="secondary"><Link href="/settings/notifications">Notification preferences</Link></Button>
         </div>
       </Card>
+      {canSendAllTests ? (
+        <Card className="border-emerald-200 bg-emerald-50/70">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--color-ink)]">Full template test</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                Send every system communication template to learnasurah@gmail.com with safe sample data. Each attempt is recorded in email logs, including skipped delivery if SMTP is not configured.
+              </p>
+            </div>
+            <form action={sendAllTestEmailsAction}>
+              <input type="hidden" name="recipientEmail" value="learnasurah@gmail.com" />
+              <Button type="submit">Test email</Button>
+            </form>
+          </div>
+        </Card>
+      ) : null}
       <Card>
         <h2 className="text-lg font-semibold text-[var(--color-ink)]">Recent email activity</h2>
         <div className="mt-4 space-y-3">

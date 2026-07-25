@@ -5,6 +5,9 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     paymentGateway: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
     paymentConfiguration: { findUnique: vi.fn() },
+    feePolicy: { findMany: vi.fn() },
+    taxConfiguration: { findFirst: vi.fn() },
+    checkoutQuote: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     paymentOrder: { findUnique: vi.fn(), findFirstOrThrow: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     paymentTransaction: { create: vi.fn(), findFirst: vi.fn() },
     paymentRefund: { create: vi.fn() },
@@ -50,6 +53,8 @@ function paypalGateway() {
 }
 
 describe("PayPal and wallet gateway framework", () => {
+  let checkoutQuoteRecord: Record<string, unknown>;
+
   beforeEach(() => {
     vi.resetAllMocks();
     global.fetch = vi.fn(async (url: string) => {
@@ -67,6 +72,22 @@ describe("PayPal and wallet gateway framework", () => {
     mockPrisma.paymentGateway.findFirst.mockResolvedValue(paypalGateway());
     mockPrisma.paymentGateway.findUnique.mockResolvedValue(paypalGateway());
     mockPrisma.paymentConfiguration.findUnique.mockResolvedValue({ allowStripe: true, allowPayPal: true, allowGooglePay: true, allowManualPayment: true, platformCommissionPercent: "10", fixedCommissionAmount: "0", taxPercent: "0" });
+    mockPrisma.feePolicy.findMany.mockResolvedValue([]);
+    mockPrisma.taxConfiguration.findFirst.mockResolvedValue(null);
+    mockPrisma.checkoutQuote.create.mockImplementation(async ({ data }) => {
+      checkoutQuoteRecord = {
+        id: "checkout-quote-1",
+        ...data,
+        status: data.status,
+        lines: data.lines?.create ?? [],
+      };
+      return checkoutQuoteRecord;
+    });
+    mockPrisma.checkoutQuote.findUnique.mockImplementation(async () => checkoutQuoteRecord);
+    mockPrisma.checkoutQuote.update.mockImplementation(async ({ data }) => {
+      checkoutQuoteRecord = { ...checkoutQuoteRecord, ...data };
+      return checkoutQuoteRecord;
+    });
     mockPrisma.paymentOrder.findUnique.mockResolvedValue(null);
     mockPrisma.organization.findUnique.mockResolvedValue({ id: "seller-1", organizationType: "home_catering", countryCode: "US" });
     mockPrisma.sellerVerificationPolicy.findMany.mockResolvedValue([]);
@@ -84,6 +105,7 @@ describe("PayPal and wallet gateway framework", () => {
     const result = await createPayPalFoodOrderCheckout({ foodOrderId: "food-1", userId: "user-1", appUrl: "http://localhost:3000" });
     expect(result.checkoutUrl).toBe("https://paypal.test/approve");
     expect(mockPrisma.paymentOrder.create.mock.calls[0][0].data.provider).toBe("paypal");
+    expect(mockPrisma.paymentOrder.create.mock.calls[0][0].data.checkoutQuoteId).toBe("checkout-quote-1");
     expect(String(global.fetch)).not.toContain("paypal-client-secret");
   });
 

@@ -9,8 +9,8 @@ const seededEmail = (name: string) => `${name}@${seededDomain}`;
 export const testUsers = {
   owner: { email: seededEmail("owner"), password: seededPassword },
   household: { email: seededEmail("household"), password: seededPassword },
-  chef: { email: seededEmail("chef"), password: seededPassword },
-  catering: { email: seededEmail("catering"), password: seededPassword },
+  chef: { email: seededEmail("chefstaff"), password: seededPassword },
+  catering: { email: seededEmail("cateringstaff"), password: seededPassword },
   restaurant: { email: seededEmail("restaurant"), password: seededPassword },
 } as const;
 
@@ -35,6 +35,7 @@ export async function loginAs(page: Page, user: keyof typeof testUsers) {
   await assertHealthyPage(page);
   await fillInput(page, "email", testUsers[user].email);
   await fillInput(page, "password", testUsers[user].password);
+  await dismissCookieBanner(page);
   await page.getByRole("button", { name: /^sign in$/i }).click();
   await page.waitForLoadState("networkidle");
   await expect(page).not.toHaveURL(/\/login\?message=Invalid credentials/i);
@@ -47,6 +48,7 @@ export async function logout(page: Page) {
   const signOutButton = page.getByRole("button", { name: /sign out/i });
   const signOutLink = page.getByRole("link", { name: /sign out/i });
   if (await signOutButton.count() > 0) {
+    await dismissCookieBanner(page);
     await signOutButton.click();
     try {
       await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
@@ -59,6 +61,7 @@ export async function logout(page: Page) {
   }
 
   if (await signOutLink.count() > 0) {
+    await dismissCookieBanner(page);
     await signOutLink.click();
     await expect(page).toHaveURL(/\/login/);
     return;
@@ -76,10 +79,58 @@ export async function visitAndAssertHealthy(page: Page, path: string) {
 }
 
 export async function assertHealthyPage(page: Page) {
+  await dismissCookieBanner(page);
   await expect(page.locator("body")).toBeVisible();
   for (const pattern of forbiddenPageText) {
     await expect(page.locator("body")).not.toContainText(pattern);
   }
+}
+
+export async function dismissCookieBanner(page: Page) {
+  const buttonNames = [
+    /accept all/i,
+    /^accept$/i,
+    /allow all/i,
+    /reject all/i,
+    /^reject$/i,
+    /save/i,
+    /close/i,
+    /continue/i,
+    /got it/i,
+  ];
+
+  for (const name of buttonNames) {
+    const topLevelButton = page.getByRole("button", { name });
+    if ((await topLevelButton.count()) > 0) {
+      await topLevelButton.first().click({ timeout: 1_000 }).catch(() => undefined);
+      break;
+    }
+
+    const bannerFrameButton = page
+      .frameLocator("iframe")
+      .getByRole("button", { name });
+    if ((await bannerFrameButton.count()) > 0) {
+      await bannerFrameButton.first().click({ timeout: 1_000 }).catch(() => undefined);
+      break;
+    }
+  }
+
+  await page
+    .addStyleTag({
+      content: `
+        #sp-overlay,
+        #main-cookie-banner,
+        iframe[id*="sp"],
+        iframe[src*="secureprivacy"],
+        iframe[title*="Cookie"],
+        iframe[aria-label*="Cookie"] {
+          display: none !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+        }
+      `,
+    })
+    .catch(() => undefined);
 }
 
 async function restoreCachedSession(page: Page, user: keyof typeof testUsers) {

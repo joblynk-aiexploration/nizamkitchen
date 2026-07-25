@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { FormMessage } from "@/components/ui/form-message";
+import { CheckoutQuoteLines } from "@/components/payments/checkout-quote-lines";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { formatDate } from "@/lib/utils";
@@ -137,6 +138,14 @@ export default async function NewBillingRefundPage({
                 <DetailRow label="Refundable" value={formatMoney(selectedOrder.currencyCode, selectedOrder.remainingRefundAmount)} />
               </div>
             </Card>
+          ) : null}
+          {selectedOrder?.checkoutQuoteLines.length ? (
+            <CheckoutQuoteLines
+              title="Original checkout"
+              description="Line items from the immutable checkout quote used for this payment."
+              currencyCode={selectedOrder.currencyCode}
+              lines={selectedOrder.checkoutQuoteLines}
+            />
           ) : null}
         </div>
       </section>

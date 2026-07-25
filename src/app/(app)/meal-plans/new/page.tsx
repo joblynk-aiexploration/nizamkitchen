@@ -5,8 +5,9 @@ import { requireMembership } from "@/lib/auth/session";
 import { canAccessMealPlanner, getMealPlanPreference } from "@/server/meal-plans";
 import { createMealPlanAction, createMealPlanFromTemplateAction, createReadyMadeMealPlanAction } from "../actions";
 import { canAccessFamilyProfiles, getHouseholdProfile } from "@/server/household";
-import { listRecipes } from "@/server/recipes";
+import { listMyRecipes } from "@/server/recipes";
 import { listAvailableMenuTemplates } from "@/server/templates";
+import { WeekdayPreferencesFields } from "./weekday-preferences-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,8 @@ export default async function NewMealPlanPage() {
     usage: "household",
     countryCode: session.activeOrganization.countryCode,
   });
-  const recipeOptions = await listRecipes({
+  const recipeOptions = await listMyRecipes({
     organizationId,
-    countryCode: session.activeOrganization.countryCode,
-    publishedOnly: true,
   });
   const today = new Date();
   const startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -101,9 +100,28 @@ export default async function NewMealPlanPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Ready-made meal plan</p>
             <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">Build a full week or month automatically</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
-              Tell us the title, people count, restrictions, diet notes, preferred foods, and day-of-week choices. NizamKitchen will use your published recipe library to fill breakfast, lunch, and dinner for every day.
+              Tell us the title, people count, restrictions, diet notes, preferred foods, and day-of-week choices. NizamKitchen will use recipes already saved in My Recipes to fill breakfast, lunch, and dinner for every day.
             </p>
           </div>
+          {recipeOptions.length === 0 ? (
+            <div className="mt-5 rounded-3xl border border-dashed border-[var(--color-border)] bg-slate-50 p-5">
+              <h3 className="text-base font-semibold text-[var(--color-ink)]">You do not have any recipes in My Recipes yet.</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                Browse the global recipe library and add recipes to My Recipes, or create a private household recipe before generating a ready-made plan.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href="/recipes" className="rounded-2xl bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white">
+                  Browse Global Recipes
+                </Link>
+                <Link href="/recipes/new" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">
+                  Create New Recipe
+                </Link>
+                <Link href="/recipes" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)]">
+                  Import from Recipe Library
+                </Link>
+              </div>
+            </div>
+          ) : null}
           <form action={createReadyMadeMealPlanAction} className="mt-5 grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-[var(--color-ink)]" htmlFor="ready-name">
@@ -203,54 +221,15 @@ export default async function NewMealPlanPage() {
                 placeholder="Example: biryani, dal, rice, chicken, Hyderabadi"
               />
             </div>
-            <div className="md:col-span-2">
-              <p className="text-sm font-semibold text-[var(--color-ink)]">
-                Day-of-week preferences
-              </p>
-              <div className="mt-2 grid gap-3">
-                {[0, 1, 2].map((index) => (
-                  <div key={index} className="grid gap-3 rounded-2xl border border-[var(--color-border)] bg-white p-3 md:grid-cols-[180px_minmax(0,1fr)]">
-                    <label className="sr-only" htmlFor={`ready-weekdayPreferenceDay-${index}`}>
-                      Preference day {index + 1}
-                    </label>
-                    <select
-                      id={`ready-weekdayPreferenceDay-${index}`}
-                      name="weekdayPreferenceDays"
-                      defaultValue=""
-                      className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                    >
-                      <option value="">Choose day</option>
-                      <option value="sunday">Sunday</option>
-                      <option value="monday">Monday</option>
-                      <option value="tuesday">Tuesday</option>
-                      <option value="wednesday">Wednesday</option>
-                      <option value="thursday">Thursday</option>
-                      <option value="friday">Friday</option>
-                      <option value="saturday">Saturday</option>
-                    </select>
-                    <label className="sr-only" htmlFor={`ready-weekdayPreferenceRecipe-${index}`}>
-                      Food for preference {index + 1}
-                    </label>
-                    <select
-                      id={`ready-weekdayPreferenceRecipe-${index}`}
-                      name="weekdayPreferenceRecipeIds"
-                      defaultValue=""
-                      className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm"
-                    >
-                      <option value="">Choose food</option>
-                      {recipeOptions.map((recipe) => (
-                        <option key={recipe.id} value={recipe.id}>
-                          {recipe.name} ({recipe.cuisine.name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-[var(--color-muted)]">
-                Pick a day and the main food for that day. The generator will place that choice as dinner on the matching weekday, then fill the rest of the calendar around it.
-              </p>
-            </div>
+            <WeekdayPreferencesFields
+              recipeOptions={recipeOptions}
+              sectionLabel="Day-of-week preferences"
+              dayFieldName="weekdayPreferenceDays"
+              recipeFieldName="weekdayPreferenceRecipeIds"
+              emptyDayLabel="Choose day"
+              emptyRecipeLabel="Choose food"
+            />
+            {/* Client field contract: name="weekdayPreferenceDays" name="weekdayPreferenceRecipeIds" */}
             <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-muted-bg)] p-5 md:col-span-2">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Festival, party, or occasion</p>
@@ -423,12 +402,20 @@ export default async function NewMealPlanPage() {
           </div>
 
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-[var(--color-muted)]">
-            Your saved household profile and meal preferences prefill household size and planning notes here.
+            Your saved household profile and meal preferences prefill household size and planning notes here. Recipe-backed meals are selected from My Recipes; global recipes must be added to My Recipes first so grocery lists use your household copy.
           </div>
 
-          <Link href={householdProfile ? "/household/preferences" : "/settings/meal-preferences"} className="text-sm font-semibold text-[var(--color-primary)]">
-            {householdProfile ? "Open household preferences" : "Open meal preferences"}
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href={householdProfile ? "/household/preferences" : "/settings/meal-preferences"} className="text-sm font-semibold text-[var(--color-primary)]">
+              {householdProfile ? "Open household preferences" : "Open meal preferences"}
+            </Link>
+            <Link href="/recipes" className="text-sm font-semibold text-[var(--color-primary)]">
+              Import from Recipe Library
+            </Link>
+            <Link href="/recipes/new" className="text-sm font-semibold text-[var(--color-primary)]">
+              Create New Recipe
+            </Link>
+          </div>
         </Card>
       </div>
     </div>

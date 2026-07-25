@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockPrisma, mockAudit } = vi.hoisted(() => ({
   mockPrisma: {
-    user: { update: vi.fn() },
+    user: { findUnique: vi.fn(), update: vi.fn() },
+    localizationLocale: { findMany: vi.fn() },
     storageFile: { findFirst: vi.fn() },
     menu: { findFirst: vi.fn() },
     menuItem: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
@@ -34,6 +35,8 @@ describe("S3 upload wiring across product modules", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockPrisma.storageFile.findFirst.mockResolvedValue({ id: "file-1", purpose: "menu_item_photo", module: "menus" });
+    mockPrisma.localizationLocale.findMany.mockResolvedValue([]);
+    mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.user.update.mockImplementation(async ({ data }) => ({ id: "user-1", ...data }));
     mockPrisma.menu.findFirst.mockResolvedValue({ id: "menu-1" });
     mockPrisma.menuItem.findFirst.mockResolvedValue(null);
@@ -59,6 +62,7 @@ describe("S3 upload wiring across product modules", () => {
       userId: "user-1",
       input: {
         fullName: "Household Owner",
+        email: "household@nizamkitchen.dev",
         profilePhotoFileId: "profile-file",
         coverPhotoFileId: "cover-file",
         headline: "Family cook",
@@ -139,7 +143,11 @@ describe("S3 upload wiring across product modules", () => {
 
   it("uses storage API routes from upload components and never embeds S3 secrets in UI source", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src/components/storage/file-upload-field.tsx"), "utf8");
+    const uploadRoute = fs.readFileSync(path.join(process.cwd(), "src/app/api/storage/upload/route.ts"), "utf8");
     expect(source).toContain('fetch("/api/storage/upload"');
+    expect(uploadRoute).toContain("requireUser");
+    expect(uploadRoute).toContain('uploadModule !== "users"');
+    expect(uploadRoute).not.toContain("requireMembership");
     expect(source).not.toContain(["AWS", "ACCESS", "KEY", "ID"].join("_"));
     expect(source).not.toContain(["AWS", "SECRET", "ACCESS", "KEY"].join("_"));
     expect(source).not.toContain("secretAccessKey");

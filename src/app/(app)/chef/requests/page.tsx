@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
-import { isChefOrganization, listChefRequestInbox } from "@/server/home-chef";
+import { isChefOrganization, listChefHomeChefRequestsForViewer } from "@/server/home-chef";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +20,7 @@ export default async function ChefRequestsPage() {
     );
   }
 
-  const requests = await listChefRequestInbox({
-    organizationId: session.activeOrganization.id,
-    countryCode: session.activeOrganization.countryCode,
-  });
+  const requests = await listChefHomeChefRequestsForViewer({ session });
 
   return (
     <div className="space-y-8">
@@ -61,7 +58,7 @@ function RequestSection({
   title: string;
   description: string;
   emptyMessage: string;
-  requests: Awaited<ReturnType<typeof listChefRequestInbox>>;
+  requests: Awaited<ReturnType<typeof listChefHomeChefRequestsForViewer>>;
 }) {
   return (
     <section className="space-y-4">
@@ -78,17 +75,19 @@ function RequestSection({
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone="success">Assigned to you</Badge>
+                    <Badge tone={request.currentOffer?.status === "pending" ? "warning" : "success"}>
+                      {request.currentOffer?.status === "pending" ? "Offer pending" : "Assigned to you"}
+                    </Badge>
                     <Badge tone="info">{request.requestType.replace(/_/g, " ")}</Badge>
                     <Badge tone="neutral">{request.status}</Badge>
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-[var(--color-ink)]">{request.title}</h3>
                   <p className="mt-2 text-sm text-[var(--color-muted)]">
-                    {request.requestedDate.toLocaleDateString()} · {request.guestCount} guests · {request.countryCode}
+                    {request.requestedDate.toLocaleDateString()} · {request.guestCount} guests · {request.generalLocation}
                   </p>
-                  {request.organization?.name ? (
-                    <p className="mt-1 text-xs text-[var(--color-muted)]">
-                      Household: {request.organization.name}
+                  {request.currentOffer?.status === "pending" ? (
+                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                      Respond by {request.currentOffer.responseDeadlineAt.toLocaleString()}
                     </p>
                   ) : null}
                 </div>

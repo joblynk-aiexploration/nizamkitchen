@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { IngredientSelect, UnitSelect } from "@/components/recipes/ingredient-select";
 import { requireMembership } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { listIngredients } from "@/server/ingredients";
 import { canAccessFamilyProfiles, listPantryItems } from "@/server/household";
 import { addPantryItemAction, deletePantryItemAction, updatePantryItemAction } from "../actions";
 import { ComingSoonFamilyProfiles, HouseholdNav, NonHouseholdState } from "../_components";
@@ -20,7 +22,7 @@ export default async function HouseholdPantryPage({ searchParams }: { searchPara
 
   const [items, ingredients, units] = await Promise.all([
     listPantryItems(org.id),
-    prisma.ingredient.findMany({ where: { isActive: true, OR: [{ organizationId: org.id }, { organizationId: null }] }, orderBy: { name: "asc" }, take: 200 }),
+    listIngredients({ organizationId: org.id }),
     prisma.unit.findMany({ orderBy: { name: "asc" } }),
   ]);
 
@@ -31,15 +33,9 @@ export default async function HouseholdPantryPage({ searchParams }: { searchPara
       <FormMessage message={message} />
       <Card>
         <form action={addPantryItemAction} className="grid gap-4 md:grid-cols-[1fr_120px_160px_160px_auto]">
-          <select name="ingredientId" required className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-            <option value="">Choose ingredient</option>
-            {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
-          </select>
+          <IngredientSelect ingredients={ingredients} />
           <input name="quantity" type="number" min="0" step="0.01" placeholder="Qty" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
-          <select name="unitId" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-            <option value="">Unit</option>
-            {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-          </select>
+          <UnitSelect units={units} required={false} />
           <input name="expiresAt" type="date" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
           <Button type="submit">Add</Button>
           <input name="notes" placeholder="Notes (optional)" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm md:col-span-5" />
@@ -61,14 +57,9 @@ export default async function HouseholdPantryPage({ searchParams }: { searchPara
             </div>
             <form action={updatePantryItemAction} className="grid gap-3 rounded-2xl bg-slate-50 p-3 md:grid-cols-[1fr_110px_150px_150px_auto]">
               <input type="hidden" name="pantryItemId" value={item.id} />
-              <select name="ingredientId" defaultValue={item.ingredientId} required className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-                {ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
-              </select>
+              <IngredientSelect ingredients={ingredients} defaultValue={item.ingredientId} />
               <input name="quantity" type="number" min="0" step="0.01" defaultValue={item.quantity?.toString() ?? ""} placeholder="Qty" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
-              <select name="unitId" defaultValue={item.unitId ?? ""} className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-                <option value="">Unit</option>
-                {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-              </select>
+              <UnitSelect units={units} defaultValue={item.unitId} required={false} />
               <input name="expiresAt" type="date" defaultValue={item.expiresAt?.toISOString().slice(0, 10) ?? ""} className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" />
               <Button type="submit" variant="secondary">Update</Button>
               <input name="notes" defaultValue={item.notes ?? ""} placeholder="Notes (optional)" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm md:col-span-5" />

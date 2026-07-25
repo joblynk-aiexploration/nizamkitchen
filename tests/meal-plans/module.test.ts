@@ -162,6 +162,14 @@ describe("meal planner server flows", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "meal_plan.ready_made_created", targetId: "plan-ready" }),
     );
+    expect(mockPrisma.recipe.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: "org-1",
+          isPublished: true,
+        }),
+      }),
+    );
   });
 
   it("adds a recipe-backed meal plan entry", async () => {
@@ -202,6 +210,56 @@ describe("meal planner server flows", () => {
     expect(createAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "meal_plan_entry.created" }),
     );
+  });
+
+  it("rejects a tampered raw global recipe when adding an entry", async () => {
+    mockPrisma.mealPlanDay.findFirst.mockResolvedValue({
+      id: "cday3003",
+      mealPlan: { id: "plan-1", countryCode: "US" },
+      entries: [],
+    });
+    mockPrisma.recipe.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "cglobal1" });
+
+    await expect(
+      addMealPlanEntry({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        input: {
+          mealPlanDayId: "cday3003",
+          recipeId: "cglobal1",
+          mealType: "dinner",
+          targetServings: 4,
+        },
+      }),
+    ).rejects.toThrow(/Add this recipe to My Recipes/i);
+    expect(mockPrisma.mealPlanEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects another household recipe when adding an entry", async () => {
+    mockPrisma.mealPlanDay.findFirst.mockResolvedValue({
+      id: "cday4004",
+      mealPlan: { id: "plan-1", countryCode: "US" },
+      entries: [],
+    });
+    mockPrisma.recipe.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      addMealPlanEntry({
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        input: {
+          mealPlanDayId: "cday4004",
+          recipeId: "cother1",
+          mealType: "dinner",
+          targetServings: 4,
+        },
+      }),
+    ).rejects.toThrow(/not available for this household/i);
+    expect(mockPrisma.mealPlanEntry.create).not.toHaveBeenCalled();
   });
 
   it("adds a custom meal entry without forcing a recipe", async () => {
@@ -404,9 +462,32 @@ describe("meal planner server flows", () => {
     expect(newPage).toContain('name="weekdayPreferenceRecipeIds"');
     expect(newPage).toContain("Choose day");
     expect(newPage).toContain("Choose food");
+    expect(newPage).toContain("Import from Recipe Library");
+    expect(newPage).toContain("listMyRecipes");
     expect(newPage).toContain("Festival, party, or occasion");
     expect(newPage).toContain('name="occasionDate"');
     expect(newPage).toContain('type="date"');
     expect(newPage).not.toContain('name="weekdayPreferences"');
+  });
+
+  it("keeps meal plan recipe selection scoped to My Recipes with a copy-first global helper", () => {
+    const drawer = fs.readFileSync(path.join(process.cwd(), "src/components/meal-plans/meal-plan-entry-drawer.tsx"), "utf8");
+    const editPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/meal-plans/[id]/edit/page.tsx"), "utf8");
+
+    expect(drawer).toContain("Choose from My Recipes");
+    expect(drawer).toContain("Only household-owned recipes appear here.");
+    expect(drawer).toContain("All cuisines");
+    expect(drawer).toContain("Favorites");
+    expect(drawer).toContain("Customized from global");
+    expect(drawer).toContain("Created by me");
+    expect(drawer).toContain("All spice levels");
+    expect(drawer).toContain("Any time");
+    expect(drawer).toContain("Add from Global Recipes");
+    expect(drawer).toContain("Add to My Recipes and use");
+    expect(drawer).toContain("Import from Recipe Library");
+    expect(editPage).toContain("listMyRecipes");
+    expect(editPage).toContain("listGlobalRecipeTemplates");
+    expect(editPage).toContain("replaceLegacyGlobalRecipeEntryAction");
+    expect(editPage).toContain("Copy to My Recipes and replace entry");
   });
 });

@@ -5,6 +5,7 @@ import { createAuditEvent } from "@/server/audit";
 import { generateAccountingForPaymentOrder } from "@/server/accounting/accounting-service";
 import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { createAdminNotification } from "@/server/notifications/notification-service";
+import { lockPaidHomeChefRequestsForPaymentOrder } from "@/server/home-chef/home-chef-booking-lock-service";
 import { notifyPaymentSucceeded } from "@/server/payments/payment-confirmation";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
 
@@ -57,7 +58,7 @@ export async function handleStripeWebhook(params: { rawBody: string; signature?:
       severity: "critical",
       metadataJson: { eventId: event.id, eventType: event.type, provider: "stripe" },
     });
-    throw error;
+    return { status: "failed" as const, eventId: event.id };
   }
 }
 
@@ -240,6 +241,7 @@ async function markPaymentOrderPaid(paymentOrderId: string, providerIds: { provi
   });
   await prisma.foodOrder.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
   await prisma.homeChefRequest.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  await lockPaidHomeChefRequestsForPaymentOrder(paymentOrderId);
   if (order.module === "subscription") {
     await prisma.billingSubscription.updateMany({
       where: { id: order.moduleEntityId },

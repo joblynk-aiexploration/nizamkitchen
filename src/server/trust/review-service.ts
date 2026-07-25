@@ -9,6 +9,7 @@ import { z } from "zod";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import type { EmailTemplateKey } from "@/server/notifications/email-service";
 import { createAdminNotification, createNotification } from "@/server/notifications/notification-service";
 
 const TRUST_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"];
@@ -301,7 +302,7 @@ async function createFoodOrderReview(params: {
       verifiedPurchase: true,
     },
   });
-  await afterReviewCreated(params.session, review.id, order.countryCode, order.sellerOrganizationId);
+  await afterReviewCreated(params.session, review.id, order.countryCode, order.sellerOrganizationId, review.sellerType);
   return review;
 }
 
@@ -337,11 +338,11 @@ async function createHomeChefRequestReview(params: {
       verifiedPurchase: true,
     },
   });
-  await afterReviewCreated(params.session, review.id, request.countryCode, request.assignedChefOrganizationId);
+  await afterReviewCreated(params.session, review.id, request.countryCode, request.assignedChefOrganizationId, review.sellerType);
   return review;
 }
 
-async function afterReviewCreated(session: MemberSession, reviewId: string, countryCode: string, sellerOrganizationId: string) {
+async function afterReviewCreated(session: MemberSession, reviewId: string, countryCode: string, sellerOrganizationId: string, sellerType: MarketplaceReviewSellerType) {
   await createAuditEvent({
     actorUserId: session.user.id,
     organizationId: session.activeOrganization.id,
@@ -360,11 +361,12 @@ async function afterReviewCreated(session: MemberSession, reviewId: string, coun
     actionUrl: `/admin/reviews/${reviewId}`,
     priority: "normal",
   });
-  await notifySellerMembers(sellerOrganizationId, countryCode, reviewId);
+  await notifySellerMembers(sellerOrganizationId, countryCode, reviewId, sellerType);
 }
 
-async function notifySellerMembers(sellerOrganizationId: string, countryCode: string, reviewId: string) {
+async function notifySellerMembers(sellerOrganizationId: string, countryCode: string, reviewId: string, sellerType: MarketplaceReviewSellerType) {
   const members = await prisma.membership.findMany({ where: { organizationId: sellerOrganizationId, status: "active" }, select: { userId: true } });
+  const emailTemplateKey = reviewReceivedEmailTemplateKey(sellerType);
   await Promise.all(members.map((member) => createNotification({
     organizationId: sellerOrganizationId,
     userId: member.userId,
@@ -374,7 +376,20 @@ async function notifySellerMembers(sellerOrganizationId: string, countryCode: st
     body: "A customer submitted a verified-purchase review. It will appear publicly after moderation.",
     actionUrl: `/admin/reviews/${reviewId}`,
     priority: "normal",
+    emailTemplateKey,
+    emailVariables: {
+      sellerName: "Your seller profile",
+      verificationUrl: `/admin/reviews/${reviewId}`,
+      dashboardUrl: `/admin/reviews/${reviewId}`,
+      primaryActionLabel: "Review moderation",
+    },
   })));
+}
+
+function reviewReceivedEmailTemplateKey(sellerType: MarketplaceReviewSellerType): EmailTemplateKey | undefined {
+  if (sellerType === "home_catering") return "catering_review_received";
+  if (sellerType === "restaurant") return "restaurant_review_received";
+  return undefined;
 }
 
 async function updateSellerRatingAggregate(sellerOrganizationId: string, sellerType: MarketplaceReviewSellerType) {

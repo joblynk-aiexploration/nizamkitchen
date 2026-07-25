@@ -2,12 +2,18 @@ import { PaymentOrderStatus, Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { generateAccountingForPaymentOrder } from "@/server/accounting/accounting-service";
+import { assertPlanAudienceAllowed } from "@/server/billing/plan-audience";
+import { lockPaidHomeChefRequestsForPaymentOrder } from "@/server/home-chef/home-chef-booking-lock-service";
 import { createPaymentOrderForModule } from "@/server/payments/payment-service";
 import { syncModulePaymentStatus, validateRefundAmount } from "@/server/payments/operations";
 import { PaymentConfigurationError } from "@/server/payments/payment-errors";
 import { createAuditEvent } from "@/server/audit";
-import { calculateNetPayable } from "@/server/promotions";
 import { notifyPaymentSucceeded } from "@/server/payments/payment-confirmation";
+import {
+  createAcceptedFoodOrderQuote,
+  createAcceptedHomeChefQuote,
+  createAcceptedSubscriptionQuote,
+} from "@/server/pricing/checkout-quote-workflow";
 import type { PaymentGatewayAdapter } from "@/server/payments/payment-gateway";
 import type { CreateCheckoutSessionInput, CreatePaymentIntentInput, RefundPaymentInput, WebhookHandleInput, WebhookValidationInput } from "@/server/payments/types";
 import { createStripeClient, getStripeGateway, getStripeSecrets } from "@/server/payments/providers/stripe/stripe-client";
@@ -314,9 +320,19 @@ export async function createStripeCheckoutForPaymentOrder(paymentOrderId: string
 }
 
 export async function createStripeFoodOrderCheckout(params: { foodOrderId: string; userId: string; appUrl: string }) {
-  const order = await prisma.foodOrder.findUniqueOrThrow({ where: { id: params.foodOrderId } });
+  const order = await prisma.foodOrder.findUniqueOrThrow({
+    where: { id: params.foodOrderId },
+    include: { items: true },
+  });
   if (!order.subtotalAmount || order.subtotalAmount <= 0) throw new Error("This order does not have a payable amount.");
-  const payableAmount = calculateNetPayable(order.subtotalAmount, order.promotionDiscountAmount, order.platformCreditAppliedAmount);
+  const idempotencyKey = `food-order:${order.id}`;
+  const existingPaymentOrder = await prisma.paymentOrder.findUnique({ where: { idempotencyKey } });
+  if (existingPaymentOrder) {
+    await prisma.foodOrder.update({ where: { id: order.id }, data: { paymentRequired: true, paymentStatus: "pending", paymentOrderId: existingPaymentOrder.id } });
+    return createStripeCheckoutForPaymentOrder(existingPaymentOrder.id, `${params.appUrl}/orders/${order.id}?payment=success`, `${params.appUrl}/orders/${order.id}?payment=cancelled`);
+  }
+  const quote = await createAcceptedFoodOrderQuote({ order, userId: params.userId });
+  const payableAmount = Number(quote.totalAmount);
   if (payableAmount <= 0) throw new Error("This order total is zero after discounts. Hosted checkout is not required.");
   const paymentOrder = await createPaymentOrderForModule({
     organizationId: order.organizationId,
@@ -329,13 +345,14 @@ export async function createStripeFoodOrderCheckout(params: { foodOrderId: strin
     provider: "stripe",
     amount: payableAmount,
     currencyCode: order.currencyCode,
-    idempotencyKey: `food-order:${order.id}`,
+    checkoutQuoteId: quote.id,
+    idempotencyKey,
   });
   await prisma.paymentOrder.update({
     where: { id: paymentOrder.id },
     data: {
-      promotionCode: order.promotionCode,
-      discountAmount: new Prisma.Decimal(order.promotionDiscountAmount ?? 0),
+      promotionCode: order.promotionCode ?? paymentOrder.promotionCode,
+      discountAmount: quote.discountAmount,
       platformCreditAmount: new Prisma.Decimal(order.platformCreditAppliedAmount ?? 0),
     },
   });
@@ -347,6 +364,26 @@ export async function createStripeHomeChefCheckout(params: { requestId: string; 
   const request = await prisma.homeChefRequest.findUniqueOrThrow({ where: { id: params.requestId } });
   const amount = params.paymentType === "deposit" ? request.depositAmount : request.quotedAmount;
   if (!amount || amount <= 0) throw new Error("This home chef request does not have a payable quote yet.");
+  const idempotencyKey = `home-chef:${request.id}:${params.paymentType}`;
+  const existingPaymentOrder = await prisma.paymentOrder.findUnique({ where: { idempotencyKey } });
+  if (existingPaymentOrder) {
+    await prisma.homeChefRequest.update({
+      where: { id: request.id },
+      data: {
+        paymentRequired: true,
+        paymentStatus: "pending",
+        paymentOrderId: existingPaymentOrder.id,
+        promotionCode: existingPaymentOrder.promotionCode,
+      },
+    });
+    return createStripeCheckoutForPaymentOrder(existingPaymentOrder.id, `${params.appUrl}/home-chef/requests/${request.id}?payment=success`, `${params.appUrl}/home-chef/requests/${request.id}?payment=cancelled`);
+  }
+  const quote = await createAcceptedHomeChefQuote({
+    request,
+    userId: params.userId,
+    paymentType: params.paymentType,
+    promotionCode: params.promotionCode,
+  });
   const paymentOrder = await createPaymentOrderForModule({
     organizationId: request.organizationId,
     countryCode: request.countryCode,
@@ -356,9 +393,10 @@ export async function createStripeHomeChefCheckout(params: { requestId: string; 
     module: "home_chef_request",
     moduleEntityId: request.id,
     provider: "stripe",
-    amount,
+    amount: Number(quote.totalAmount),
     currencyCode: request.currencyCode,
-    idempotencyKey: `home-chef:${request.id}:${params.paymentType}`,
+    checkoutQuoteId: quote.id,
+    idempotencyKey,
     promotionCode: params.promotionCode ?? undefined,
     metadataJson: { paymentType: params.paymentType },
   });
@@ -369,7 +407,7 @@ export async function createStripeHomeChefCheckout(params: { requestId: string; 
       paymentStatus: "pending",
       paymentOrderId: paymentOrder.id,
       promotionCode: paymentOrder.promotionCode,
-      promotionDiscountAmount: paymentOrder.discountAmount ? Number(paymentOrder.discountAmount) : null,
+      promotionDiscountAmount: Number(quote.discountAmount) || null,
     },
   });
   return createStripeCheckoutForPaymentOrder(paymentOrder.id, `${params.appUrl}/home-chef/requests/${request.id}?payment=success`, `${params.appUrl}/home-chef/requests/${request.id}?payment=cancelled`);
@@ -391,16 +429,38 @@ export async function createStripeSubscriptionCheckout(params: {
   if (!plan.stripePriceId && plan.billingInterval === "custom") {
     throw new Error("Custom billing plans require manual setup.");
   }
-  const organization = await prisma.organization.findUnique({
-    where: { id: params.organizationId },
-    select: { countryCode: true },
+  const [organization, user] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: params.organizationId },
+      select: { countryCode: true, currencyCode: true, organizationType: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { platformRole: true },
+    }),
+  ]);
+  assertPlanAudienceAllowed({
+    planAudience: plan.planAudience,
+    organizationType: organization?.organizationType,
+    platformRole: user?.platformRole,
   });
+  if (organization?.currencyCode && organization.currencyCode !== plan.currencyCode) {
+    throw new Error("This plan is not available for your account currency.");
+  }
   const countryCode = organization?.countryCode ?? "US";
   const gateway = await getStripeGateway(undefined, countryCode, plan.currencyCode);
   const secrets = getStripeSecrets(gateway);
   const stripe = createStripeClient(secrets.secretKey);
   const subscription = await prisma.billingSubscription.create({
     data: { organizationId: params.organizationId, planId: plan.id, status: "unpaid", provider: "stripe" },
+  });
+  const quote = await createAcceptedSubscriptionQuote({
+    plan,
+    subscriptionId: subscription.id,
+    organizationId: params.organizationId,
+    userId: params.userId,
+    countryCode,
+    promotionCode: params.promotionCode,
   });
   const paymentOrder = await createPaymentOrderForModule({
     organizationId: params.organizationId,
@@ -410,8 +470,9 @@ export async function createStripeSubscriptionCheckout(params: {
     module: "subscription",
     moduleEntityId: subscription.id,
     provider: "stripe",
-    amount: Number(plan.priceAmount),
+    amount: Number(quote.totalAmount),
     currencyCode: plan.currencyCode,
+    checkoutQuoteId: quote.id,
     idempotencyKey: `subscription:${subscription.id}`,
     promotionCode: params.promotionCode ?? undefined,
     metadataJson: { billingSubscriptionId: subscription.id, planId: plan.id },
@@ -616,6 +677,7 @@ export async function markStripePaymentOrderPaid(paymentOrderId: string, provide
   });
   await prisma.foodOrder.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
   await prisma.homeChefRequest.updateMany({ where: { paymentOrderId }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  await lockPaidHomeChefRequestsForPaymentOrder(paymentOrderId);
   await createAuditEvent({ action: "payment_order.paid", targetType: "payment_order", targetId: order.id, organizationId: order.organizationId, countryCode: order.countryCode });
   return order;
 }

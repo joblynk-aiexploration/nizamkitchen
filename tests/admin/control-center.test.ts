@@ -4,17 +4,21 @@ const { mockPrisma, recordAdminAuditLog } = vi.hoisted(() => ({
   mockPrisma: {
     user: {
       count: vi.fn(),
+      create: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       groupBy: vi.fn(),
     },
     organization: {
       count: vi.fn(),
       groupBy: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
     },
     country: {
       count: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
     },
     membership: {
@@ -51,13 +55,16 @@ vi.mock("@/server/audit/audit-service", () => ({
   recordAdminAuditLog,
   getAuditSeverity: (action: string) => (action === "access.denied" ? "warning" : "info"),
 }));
+vi.mock("@/lib/auth/password", () => ({ hashPassword: vi.fn(async () => "hashed-password") }));
 
 import { AccessDeniedError } from "../../src/lib/auth";
+import { listAdminAuditLogs } from "../../src/server/admin/audit-logs";
 import { getAdminDashboardData } from "../../src/server/admin/dashboard";
 import { updateCountry } from "../../src/server/admin/countries";
 import { updateFeatureFlag } from "../../src/server/admin/feature-flags";
 import { updateOrganizationStatus } from "../../src/server/admin/organizations";
 import { updateSystemSetting } from "../../src/server/admin/system-settings";
+import { createAdminUser, getAdminUserDetail, listAdminUsers } from "../../src/server/admin/users";
 
 type AdminSession = Parameters<typeof getAdminDashboardData>[0];
 
@@ -84,7 +91,7 @@ function buildSession(overrides?: Partial<{
     memberships: [],
     user: {
       id: "user-1",
-      email: "admin@nizamkitchen.dev",
+      email: "platform-admin@example.test",
       status: "active" as const,
       platformRole: "platform_admin" as const,
       ...overrides?.user,
@@ -100,8 +107,12 @@ describe("admin control center permissions and auditing", () => {
     vi.clearAllMocks();
 
     mockPrisma.user.count.mockResolvedValue(10);
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.user.create.mockImplementation(async ({ data }) => ({ id: "new-user-1", ...data }));
     mockPrisma.organization.count.mockResolvedValue(3);
+    mockPrisma.organization.findUnique.mockResolvedValue({ id: "org-1" });
     mockPrisma.country.count.mockResolvedValue(2);
+    mockPrisma.country.findMany.mockResolvedValue([{ countryCode: "US" }]);
     mockPrisma.auditLog.count.mockResolvedValue(1);
     mockPrisma.auditLog.findMany.mockResolvedValue([]);
     mockPrisma.user.findMany.mockResolvedValue([]);
@@ -118,6 +129,49 @@ describe("admin control center permissions and auditing", () => {
 
     expect(result.totalUsers).toBe(10);
     expect(mockPrisma.user.count).toHaveBeenCalled();
+    expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 5 }),
+    );
+  });
+
+  it("paginates the full admin audit log page", async () => {
+    const createdAt = new Date("2026-05-26T12:00:00.000Z");
+    mockPrisma.auditLog.count.mockResolvedValue(61);
+    mockPrisma.auditLog.findMany.mockResolvedValue([
+      {
+        id: "audit-26",
+        action: "user.updated",
+        targetType: "user",
+        targetId: "user-1",
+        actorUserId: "admin-1",
+        organizationId: null,
+        countryCode: "US",
+        details: {},
+        ipAddress: null,
+        userAgent: null,
+        createdAt,
+      },
+    ]);
+
+    const result = await listAdminAuditLogs(buildSession(), { page: "2" });
+
+    expect(mockPrisma.auditLog.count).toHaveBeenCalled();
+    expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 10,
+        take: 10,
+        orderBy: { createdAt: "desc" },
+      }),
+    );
+    expect(result.pagination).toMatchObject({
+      page: 2,
+      pageSize: 10,
+      totalLogs: 61,
+      totalPages: 7,
+      hasPreviousPage: true,
+      hasNextPage: true,
+    });
+    expect(result.logs).toHaveLength(1);
   });
 
   it("prevents a regular organization user from accessing the admin dashboard", async () => {
@@ -141,7 +195,7 @@ describe("admin control center permissions and auditing", () => {
         buildSession({
           user: {
             id: "user-3",
-            email: "orgadmin@nizamkitchen.dev",
+            email: "org-admin@example.test",
             status: "active",
             platformRole: null,
           },
@@ -167,7 +221,7 @@ describe("admin control center permissions and auditing", () => {
         buildSession({
           user: {
             id: "user-country",
-            email: "country@nizamkitchen.dev",
+            email: "country-manager@example.test",
             status: "active",
             platformRole: "country_manager",
           },
@@ -191,7 +245,7 @@ describe("admin control center permissions and auditing", () => {
         buildSession({
           user: {
             id: "user-country",
-            email: "country@nizamkitchen.dev",
+            email: "country-manager@example.test",
             status: "active",
             platformRole: "country_manager",
           },
@@ -277,5 +331,94 @@ describe("admin control center permissions and auditing", () => {
         targetId: "platform.name",
       }),
     );
+  });
+
+  it("allows a platform admin to create a user with membership and country access", async () => {
+    const user = await createAdminUser(buildSession(), {
+      fullName: "Support User",
+      email: "support@example.test",
+      password: "Vitest#2026!",
+      status: "active",
+      platformRole: "support_admin",
+      organizationId: "org-1",
+      organizationRole: "org_admin",
+      countryCodes: ["US"],
+    });
+
+    expect(user.id).toBe("new-user-1");
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        email: "support@example.test",
+        passwordHash: "hashed-password",
+        platformRole: "support_admin",
+        memberships: expect.objectContaining({
+          create: expect.objectContaining({ organizationId: "org-1", role: "org_admin" }),
+        }),
+        countryAssignments: expect.objectContaining({
+          create: [{ countryCode: "US" }],
+        }),
+      }),
+    }));
+    expect(recordAdminAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "user.created" }));
+  });
+
+  it("hides safe-deleted users from platform user management", async () => {
+    mockPrisma.user.count.mockResolvedValueOnce(0);
+    mockPrisma.user.findMany.mockResolvedValueOnce([]);
+
+    const result = await listAdminUsers(buildSession({ user: { id: "owner-1", email: "owner@example.test", status: "active", platformRole: "platform_owner" } }), {
+      search: "Deleted User",
+    });
+
+    expect(result.items).toEqual([]);
+    const where = mockPrisma.user.count.mock.calls.at(-1)?.[0]?.where;
+    expect(where).toMatchObject({
+      AND: expect.arrayContaining([
+        expect.objectContaining({
+          NOT: expect.arrayContaining([
+            expect.objectContaining({ email: expect.objectContaining({ endsWith: "@nizamkitchen.deleted" }) }),
+            expect.objectContaining({ email: expect.objectContaining({ endsWith: "@nizamkitchen.invalid" }) }),
+          ]),
+        }),
+        expect.objectContaining({
+          OR: expect.arrayContaining([
+            expect.objectContaining({ email: expect.objectContaining({ contains: "Deleted User" }) }),
+            expect.objectContaining({ fullName: expect.objectContaining({ contains: "Deleted User" }) }),
+          ]),
+        }),
+      ]),
+    });
+  });
+
+  it("treats safe-deleted user detail routes as not found", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce({
+      id: "deleted-user-1",
+      email: "deleted-user-1@nizamkitchen.deleted",
+      fullName: "Deleted User",
+      status: "disabled",
+      platformRole: null,
+      memberships: [],
+      countryAssignments: [],
+      sessions: [],
+      oauthAccounts: [],
+      auditLogs: [],
+    });
+
+    await expect(
+      getAdminUserDetail(
+        buildSession({ user: { id: "owner-1", email: "owner@example.test", status: "active", platformRole: "platform_owner" } }),
+        "deleted-user-1",
+      ),
+    ).rejects.toThrow("User not found.");
+  });
+
+  it("prevents platform admins from creating another platform owner", async () => {
+    await expect(createAdminUser(buildSession(), {
+      fullName: "Owner Two",
+      email: "owner2@example.test",
+      password: "Vitest#2026!",
+      platformRole: "platform_owner",
+      countryCodes: [],
+    })).rejects.toThrow("Only the platform owner");
   });
 });

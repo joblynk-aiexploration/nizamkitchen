@@ -9,6 +9,7 @@ const { mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       upsert: vi.fn(),
       count: vi.fn(),
       groupBy: vi.fn(),
@@ -67,6 +68,8 @@ const freePlan = {
   currencyCode: "USD",
   billingInterval: "monthly" as const,
   status: "active" as const,
+  planAudience: "household" as const,
+  isPopular: false,
   limitsJson: {},
   featuresJson: [],
   createdAt: new Date(),
@@ -80,6 +83,8 @@ const familyPlusPlan = {
   name: "Family Plus",
   priceAmount: 9.99,
   limitsJson: {},
+  planAudience: "household" as const,
+  isPopular: true,
 };
 
 const platformAdminSession = {
@@ -209,6 +214,14 @@ describe("billing plans service", () => {
     );
   });
 
+  it("listActiveBillingPlans can filter by plan audience", async () => {
+    mockPrisma.billingPlan.findMany.mockResolvedValue([familyPlusPlan]);
+    await listActiveBillingPlans("household");
+    expect(mockPrisma.billingPlan.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: "active", planAudience: "household" } }),
+    );
+  });
+
   it("listBillingPlans without filter queries all plans", async () => {
     mockPrisma.billingPlan.findMany.mockResolvedValue([freePlan]);
     await listBillingPlans();
@@ -238,6 +251,7 @@ describe("billing plans service", () => {
   it("platform admin can create and update pricing plans including Stripe Price IDs", async () => {
     mockPrisma.billingPlan.create.mockResolvedValue({ ...familyPlusPlan, stripePriceId: "price_family_plus" });
     mockPrisma.billingPlan.update.mockResolvedValue({ ...familyPlusPlan, priceAmount: 12.99, stripePriceId: "price_updated" });
+    mockPrisma.billingPlan.updateMany.mockResolvedValue({ count: 1 });
 
     await createBillingPlan(platformAdminSession as never, {
       name: "Family Plus",
@@ -246,6 +260,8 @@ describe("billing plans service", () => {
       currencyCode: "USD",
       billingInterval: "monthly",
       status: "active",
+      planAudience: "household",
+      isPopular: true,
       stripePriceId: "price_family_plus",
       limitsJson: { maxMealPlans: 10 },
       featuresJson: ["Advanced grocery exports"],
@@ -254,12 +270,20 @@ describe("billing plans service", () => {
     expect(mockPrisma.billingPlan.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         priceAmount: 4.99,
+        planAudience: "household",
+        isPopular: true,
         stripePriceId: "price_family_plus",
       }),
     }));
+    expect(mockPrisma.billingPlan.updateMany).toHaveBeenCalledWith({
+      where: { planAudience: "household", isPopular: true, id: { not: "plan-family-plus" } },
+      data: { isPopular: false },
+    });
 
     await updateBillingPlan(platformAdminSession as never, "plan-family-plus", {
       priceAmount: 12.99,
+      planAudience: "home_catering",
+      isPopular: false,
       stripePriceId: "price_updated",
     });
 
@@ -267,9 +291,40 @@ describe("billing plans service", () => {
       where: { id: "plan-family-plus" },
       data: expect.objectContaining({
         priceAmount: 12.99,
+        planAudience: "home_catering",
+        isPopular: false,
         stripePriceId: "price_updated",
       }),
     }));
+  });
+
+  it("platform admin can feature one popular pricing plan per audience", async () => {
+    mockPrisma.billingPlan.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.billingPlan.update.mockResolvedValue({ ...familyPlusPlan, isPopular: true });
+
+    await updateBillingPlan(platformAdminSession as never, "plan-family-plus", {
+      planAudience: "household",
+      isPopular: true,
+    });
+
+    expect(mockPrisma.billingPlan.updateMany).toHaveBeenCalledWith({
+      where: { planAudience: "household", isPopular: true, id: { not: "plan-family-plus" } },
+      data: { isPopular: false },
+    });
+    expect(mockPrisma.billingPlan.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "plan-family-plus" },
+      data: expect.objectContaining({ planAudience: "household", isPopular: true }),
+    }));
+  });
+
+  it("admin pricing plan form exposes popular plan control for public pricing", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/(app)/admin/billing/plans/page.tsx", "utf8");
+
+    expect(src).toContain('name="isPopular"');
+    expect(src).toContain("Feature as Popular plan");
+    expect(src).toContain("Featured popular plan");
+    expect(src).toContain("turns the public pricing card green");
   });
 
   it("billing admin summary returns setup state instead of crashing when billing delegate is missing", async () => {

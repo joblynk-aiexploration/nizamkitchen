@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { listBillingPlans } from "@/server/billing/plans";
+import { billingPlanAudienceForOrganizationType, billingPlanAudienceLabel, isPlatformBillingUser } from "@/server/billing/plan-audience";
 import { getSubscriptionForOrg } from "@/server/billing/subscriptions";
 import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 import { createSubscriptionCheckoutAction } from "../actions";
@@ -13,8 +14,10 @@ export const dynamic = "force-dynamic";
 
 export default async function BillingPlansPage({ searchParams }: { searchParams: Promise<{ message?: string; payment?: string }> }) {
   const session = await requireMembership();
+  const canViewAllPlans = isPlatformBillingUser(session.user.platformRole);
+  const audienceFilter = canViewAllPlans ? undefined : billingPlanAudienceForOrganizationType(session.activeOrganization.organizationType) ?? undefined;
   const [plans, subscription, stripeReadiness, query] = await Promise.all([
-    listBillingPlans("active"),
+    listBillingPlans("active", audienceFilter),
     getSubscriptionForOrg(session.activeOrganization.id),
     getStripePaymentReadiness({
       countryCode: session.activeOrganization.countryCode,
@@ -31,6 +34,11 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
   const payablePlans = plans.filter((plan) => Number(plan.priceAmount) > 0 && plan.billingInterval !== "custom").length;
   const freePlans = plans.filter((plan) => Number(plan.priceAmount) === 0).length;
   const customPlans = plans.filter((plan) => plan.billingInterval === "custom").length;
+  const displayPlans = canViewAllPlans ? plans : [...plans].sort((a, b) => {
+    if (a.billingInterval === "custom" && b.billingInterval !== "custom") return 1;
+    if (a.billingInterval !== "custom" && b.billingInterval === "custom") return -1;
+    return Number(a.priceAmount) - Number(b.priceAmount) || a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="space-y-8">
@@ -113,7 +121,7 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
       </section>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {plans.map((plan) => {
+        {displayPlans.map((plan) => {
           const isCurrent = subscription?.planId === plan.id && ["active", "trialing", "free"].includes(subscription.status);
           const features = Array.isArray(plan.featuresJson)
             ? (plan.featuresJson as string[])
@@ -141,6 +149,9 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
                     {plan.billingInterval === "custom" ? "Custom" : priceNum === 0 ? "Starter" : "Self-service"}
                   </p>
                   <h3 className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">{plan.name}</h3>
+                  <div className="mt-2">
+                    <Badge tone="info">{billingPlanAudienceLabel(plan.planAudience)}</Badge>
+                  </div>
                   {plan.description && (
                     <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">{plan.description}</p>
                   )}
@@ -225,6 +236,15 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
           );
         })}
       </div>
+
+      {plans.length === 0 ? (
+        <Card className="bg-slate-50 text-center">
+          <p className="text-sm font-semibold text-[var(--color-ink)]">No plans are available for your account type yet.</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            Please contact support if you need onboarding help or a manually assigned plan.
+          </p>
+        </Card>
+      ) : null}
 
       <Card className="bg-slate-50">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

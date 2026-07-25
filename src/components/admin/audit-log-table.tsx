@@ -43,11 +43,12 @@ export function AuditLogTable({
           {
             key: "action",
             header: "Action",
+            width: "minmax(220px, 2fr)",
             render: (log) => (
               <div className="space-y-2">
                 <Link
                   href={`${detailHrefBase}${detailSeparator}logId=${log.id}`}
-                  className="font-semibold text-[var(--color-primary)]"
+                  className="break-all font-semibold text-[var(--color-primary)]"
                 >
                   {log.action}
                 </Link>
@@ -58,16 +59,18 @@ export function AuditLogTable({
           {
             key: "actor",
             header: "Actor",
+            width: "minmax(160px, 1.5fr)",
             render: (log) => (
               <div>
                 <p className="font-medium">{log.actorUser?.fullName ?? "System"}</p>
-                <p className="text-[var(--color-muted)]">{log.actorUser?.email ?? "n/a"}</p>
+                <p className="break-all text-[var(--color-muted)]">{log.actorUser?.email ?? "n/a"}</p>
               </div>
             ),
           },
           {
             key: "scope",
             header: "Scope",
+            width: "minmax(150px, 1fr)",
             render: (log) => (
               <div className="space-y-2">
                 {log.country ? (
@@ -85,10 +88,11 @@ export function AuditLogTable({
           {
             key: "createdAt",
             header: "Timestamp",
+            width: "130px",
             render: (log) => (
               <div>
-                <p>{log.createdAt.toLocaleDateString()}</p>
-                <p className="text-[var(--color-muted)]">
+                <p className="whitespace-nowrap">{log.createdAt.toLocaleDateString()}</p>
+                <p className="whitespace-nowrap text-[var(--color-muted)]">
                   {log.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
                 </p>
               </div>

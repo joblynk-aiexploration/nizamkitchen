@@ -5,13 +5,15 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { MealPlanEntryDrawer } from "@/components/meal-plans/meal-plan-entry-drawer";
-import { listRecipes } from "@/server/recipes";
+import { listGlobalRecipeTemplates, listMyRecipes } from "@/server/recipes";
 import { canAccessMealPlanner, getMealPlan, getMealPlanPreference } from "@/server/meal-plans";
 import {
+  addGlobalRecipeToMealPlanAction,
   addMealPlanEntryAction,
   deleteMealPlanAction,
   deleteMealPlanEntryAction,
   moveMealPlanEntryAction,
+  replaceLegacyGlobalRecipeEntryAction,
   updateMealPlanAction,
   updateMealPlanEntryAction,
 } from "../../actions";
@@ -55,12 +57,12 @@ export default async function EditMealPlanPage({
     notFound();
   }
 
-  const [plan, recipes, preference] = await Promise.all([
+  const [plan, recipes, globalRecipes, preference] = await Promise.all([
     getMealPlan(id, session.activeOrganization.id).catch(() => null),
-    listRecipes({
+    listMyRecipes({
       organizationId: session.activeOrganization.id,
-      publishedOnly: true,
     }),
+    listGlobalRecipeTemplates({ countryCode: session.activeOrganization.countryCode }),
     getMealPlanPreference(session.activeOrganization.id),
   ]);
 
@@ -69,6 +71,21 @@ export default async function EditMealPlanPage({
   }
 
   const recipeOptions = recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    servings: recipe.servings,
+    servingUnit: recipe.servingUnit,
+    cuisineName: recipe.cuisine.name,
+    sourceRecipeId: recipe.sourceRecipeId,
+    isUserCustomized: recipe.isUserCustomized,
+    isFavorite: recipe.favoriteRecipes.length > 0,
+    spiceLevel: recipe.spiceLevel,
+    prepMinutes: recipe.prepMinutes,
+    cookMinutes: recipe.cookMinutes,
+    createdById: recipe.createdById,
+    updatedAt: recipe.updatedAt.toISOString(),
+  }));
+  const globalRecipeOptions = globalRecipes.map((recipe) => ({
     id: recipe.id,
     name: recipe.name,
     servings: recipe.servings,
@@ -287,7 +304,10 @@ export default async function EditMealPlanPage({
                         timeZone: "UTC",
                       })}
                       recipes={recipeOptions}
+                      globalRecipes={globalRecipeOptions}
+                      currentUserId={session.user.id}
                       action={addMealPlanEntryAction}
+                      globalAction={addGlobalRecipeToMealPlanAction}
                     />
                   ) : null}
                 </div>
@@ -326,6 +346,19 @@ export default async function EditMealPlanPage({
                           </summary>
 
                           <div className="mt-3 border-t border-slate-200 pt-3">
+                            {entry.recipe?.organizationId === null && entry.recipe.visibility === "global" ? (
+                              <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+                                <p className="font-semibold">This entry uses a global recipe.</p>
+                                <p className="mt-1">Add it to My Recipes to customize or continue using your own household version.</p>
+                                <form action={replaceLegacyGlobalRecipeEntryAction} className="mt-3">
+                                  <input type="hidden" name="mealPlanId" value={plan.id} />
+                                  <input type="hidden" name="entryId" value={entry.id} />
+                                  <Button type="submit" variant="ghost" className="w-full justify-center bg-white">
+                                    Copy to My Recipes and replace entry
+                                  </Button>
+                                </form>
+                              </div>
+                            ) : null}
                             <div className="flex flex-wrap gap-2">
                               <form action={moveMealPlanEntryAction}>
                                 <input type="hidden" name="mealPlanId" value={plan.id} />

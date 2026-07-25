@@ -28,7 +28,7 @@ vi.mock("@/server/email/providers/smtp-provider", () => ({ resolveEmailProvider:
 
 import { ENTERPRISE_EMAIL_TEMPLATES } from "@/server/email/email-events";
 import { renderSeedTemplate } from "@/server/email/email-renderer";
-import { sendTemplateEmail } from "@/server/email/email-service";
+import { sendAllSystemTemplateTestEmails, sendTemplateEmail } from "@/server/email/email-service";
 
 describe("enterprise email system", () => {
   beforeEach(() => {
@@ -123,6 +123,36 @@ describe("enterprise email system", () => {
           status: EmailDeliveryStatus.skipped,
           provider: EmailProvider.disabled,
           deliveryStatus: "skipped_no_smtp",
+        }),
+      }),
+    );
+  });
+
+  it("sends every system template to the Platform Owner test inbox", async () => {
+    const result = await sendAllSystemTemplateTestEmails({
+      requestedById: "owner-1",
+      recipientEmail: "learnasurah@gmail.com",
+      countryCode: "US",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      recipientEmail: "learnasurah@gmail.com",
+      total: ENTERPRISE_EMAIL_TEMPLATES.length,
+      sent: 0,
+      skipped: ENTERPRISE_EMAIL_TEMPLATES.length,
+    }));
+    expect(mockPrisma.emailLog.create).toHaveBeenCalledTimes(ENTERPRISE_EMAIL_TEMPLATES.length);
+    expect(mockPrisma.emailLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recipientEmail: "learnasurah@gmail.com",
+          countryCode: "US",
+          status: EmailDeliveryStatus.skipped,
+          provider: EmailProvider.disabled,
+          metadataJson: expect.objectContaining({
+            source: "admin_all_template_test_send",
+            requestedById: "owner-1",
+          }),
         }),
       }),
     );

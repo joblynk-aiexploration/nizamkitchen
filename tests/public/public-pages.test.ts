@@ -242,10 +242,23 @@ describe("launch content and pricing", () => {
   it("pricing page renders active database plans instead of hardcoded draft pricing", async () => {
     const fs = await import("node:fs/promises");
     const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
+    const scrollerSrc = await fs.readFile("src/app/(public)/pricing/pricing-scroller.tsx", "utf8");
     expect(src).toContain("listActiveBillingPlans");
-    expect(src).toContain("Only active plans approved by the Platform Owner");
-    expect(src).toContain("Draft and archived plans remain private");
-    expect(src).toContain("Sign up");
+    expect(src).toContain("PricingScroller");
+    expect(src).toContain("Active public plans");
+    expect(scrollerSrc).toContain("setInterval");
+    expect(scrollerSrc).toContain("transition-transform");
+    expect(scrollerSrc).toContain("No plans are available for this account type yet.");
+    expect(scrollerSrc).toContain("Household");
+    expect(scrollerSrc).toContain("Home Catering");
+    expect(scrollerSrc).toContain('isPopular ? "Popular" : plan.audienceLabel');
+    expect(scrollerSrc).toContain('data-popular-plan={isPopular ? "true" : undefined}');
+    expect(scrollerSrc).toContain("bg-emerald-100 shadow-[0_28px_95px_rgba(5,150,105,0.32)]");
+    expect(scrollerSrc).toContain("popular pricing plan");
+    expect(scrollerSrc).toContain("Secure hosted checkout, no card data stored by NizamKitchen");
+    expect(src).toContain("PUBLIC_BILLING_PLAN_AUDIENCES");
+    expect(src).toContain("isPopular: plan.isPopular");
+    expect(src).toContain("Choose plan");
     expect(src).toContain("Sign up free");
     expect(src).toContain("Contact us");
     expect(src.toLowerCase()).not.toContain("credit card required");
@@ -266,6 +279,15 @@ describe("launch content and pricing", () => {
     expect(src).toContain('chef: "/chef/profile"');
     expect(src).toContain('restaurant: "/restaurant"');
     expect(src).toContain('return "/admin"');
+  });
+
+  it("registration treats zero-dollar pricing plans as free accounts", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/app/api/auth/register/route.ts", "utf8");
+    expect(src).toContain("FREE_ACCOUNT_READY_MESSAGE");
+    expect(src).toContain("Number(plan.priceAmount) <= 0");
+    expect(src).toContain("destinationWithMessage(destination, FREE_ACCOUNT_READY_MESSAGE");
+    expect(src).not.toContain("Payment checkout could not start, so please choose your plan again from Billing.");
   });
 
   it("public pages do not reintroduce removed video-analysis marketing", async () => {

@@ -4,6 +4,11 @@ import { loginAs, visitAndAssertHealthy } from "./helpers";
 const publicRoutes = [
   "/",
   "/features",
+  "/marketplace",
+  "/marketplace/chefs",
+  "/marketplace/caterers",
+  "/marketplace/restaurants",
+  "/marketplace/dishes",
   "/pricing",
   "/for-households",
   "/for-chefs",
@@ -16,8 +21,10 @@ const publicRoutes = [
   "/faq",
   "/terms",
   "/privacy",
+  "/cookie-policy",
   "/legal/terms",
   "/legal/privacy",
+  "/legal/cookie-policy",
   "/login",
   "/register",
 ];

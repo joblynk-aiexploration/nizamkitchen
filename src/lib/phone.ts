@@ -10,6 +10,10 @@ function digitsOnly(value: FormDataEntryValue | string | null | undefined) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+export function sanitizeNationalPhoneNumber(value: FormDataEntryValue | string | null | undefined) {
+  return digitsOnly(value).slice(0, 10);
+}
+
 export function normalizeCallingCode(value: FormDataEntryValue | string | null | undefined) {
   const digits = digitsOnly(value);
   return digits ? `+${digits.slice(0, 4)}` : "";

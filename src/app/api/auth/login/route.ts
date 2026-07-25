@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { AccessDeniedError, assertUserCanAuthenticate } from "@/lib/auth";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma";
 import { enforceRateLimit, getClientIpFromHeaders, rateLimitPolicies } from "@/lib/security";
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
     });
 
     return redirectAfterPost(
-      new URL(getPostLoginRedirectPath(user.platformRole, activeMembership?.organizationId), request.url),
+      new URL(withAnalyticsEvent(getPostLoginRedirectPath(user.platformRole, activeMembership?.organizationId), "login"), request.url),
     );
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {

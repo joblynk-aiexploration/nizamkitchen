@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { homeChefRequestInputFromForm } from "@/lib/home-chef-request-form";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import {
@@ -73,7 +74,7 @@ export async function createHomeChefRequestAction(formData: FormData) {
     revalidatePath("/home-chef");
     revalidatePath("/home-chef/requests");
     revalidatePath("/chef/requests");
-    redirect(`/home-chef/requests/${request.id}?message=Home chef request saved.`);
+    redirect(withAnalyticsEvent(`/home-chef/requests/${request.id}?message=Home chef request saved.`, "home_chef_request_created"));
   } catch (error) {
     rethrowIfRedirectError(error);
     redirect(`/home-chef/request?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save request."))}`);

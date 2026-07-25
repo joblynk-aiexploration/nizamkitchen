@@ -411,4 +411,18 @@ describe("snapshot preservation", () => {
     expect(item.canonicalIngredientName).toBe("Onion");
     expect(item.sources[0].recipeNameSnapshot).toBe("My Special Biryani v3");
   });
+
+  it("displays canonical grocery ingredient names instead of matched alias text", () => {
+    const gram = makeUnit();
+    const entry = makeScaledIngredient({
+      ingredientNameSnapshot: "pyaaz",
+      canonicalIngredientName: "Onion",
+      scaledQuantity: 200,
+    });
+
+    const result = calculateGroceryItems({ scaledIngredients: [entry], conversions: [], units: [gram] });
+
+    expect(result.items[0].ingredientNameSnapshot).toBe("pyaaz");
+    expect(result.items[0].canonicalIngredientName).toBe("Onion");
+  });
 });

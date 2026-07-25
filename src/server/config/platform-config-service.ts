@@ -137,6 +137,21 @@ const INTEGRATION_TEMPLATES: Record<IntegrationProvider, IntegrationTemplate> = 
     ],
     supportedTestTypes: ["analytics_config"],
   },
+  secure_privacy: {
+    provider: "secure_privacy",
+    category: "consent",
+    displayName: "Secure Privacy CMP",
+    description: "Secure Privacy cookie consent banner and Google Consent Mode controls.",
+    publicCredentialKeys: [],
+    serverCredentialKeys: [],
+    settings: [
+      { key: "scriptUrl", description: "Secure Privacy banner script URL.", example: "https://app.secureprivacy.ai/script/6a265d6522609752e3d645f1.js" },
+      { key: "consentModeEnabled", description: "Set Google Consent Mode defaults before Analytics loads.", example: "true" },
+      { key: "googleAnalyticsConsentEnabled", description: "Allow Google Analytics tracking only after Secure Privacy analytics consent.", example: "true" },
+      { key: "googleAnalyticsIntegrationEnabled", description: "Legacy alias for Google Analytics consent integration.", example: "true" },
+    ],
+    supportedTestTypes: ["cmp_config"],
+  },
   google_search_console: {
     provider: "google_search_console",
     category: "seo",
@@ -1218,6 +1233,30 @@ async function buildTestResult(
     };
   }
 
+  if (integration.provider === IntegrationProvider.secure_privacy) {
+    const scriptUrl = typeof settings.scriptUrl === "string" ? settings.scriptUrl : "";
+    const scriptUrlResult = validateSecurePrivacyScriptUrl(scriptUrl);
+    if (!scriptUrlResult.ok) {
+      return {
+        status: IntegrationTestStatus.failed,
+        message: scriptUrlResult.message,
+        metadata: { provider: integration.provider, testType, scriptUrlConfigured: Boolean(scriptUrl) },
+      };
+    }
+
+    return {
+      status: IntegrationTestStatus.success,
+      message: "Secure Privacy script URL is valid. Consent Mode and Google Analytics integration settings are ready.",
+      metadata: {
+        provider: integration.provider,
+        testType,
+        consentModeEnabled: settings.consentModeEnabled ?? false,
+        googleAnalyticsConsentEnabled: settings.googleAnalyticsConsentEnabled ?? settings.googleAnalyticsIntegrationEnabled ?? false,
+        googleAnalyticsIntegrationEnabled: settings.googleAnalyticsIntegrationEnabled ?? settings.googleAnalyticsConsentEnabled ?? false,
+      },
+      };
+  }
+
   if (!template.supportedTestTypes.includes(testType)) {
     return {
       status: IntegrationTestStatus.failed,
@@ -1231,6 +1270,26 @@ async function buildTestResult(
     message: "Configuration saved and validated. Provider-specific live test hooks are ready for future adapters.",
     metadata: { provider: integration.provider, testType },
   };
+}
+
+function validateSecurePrivacyScriptUrl(scriptUrl: string) {
+  if (!scriptUrl) return { ok: false, message: "Add the Secure Privacy script URL." };
+
+  try {
+    const parsed = new URL(scriptUrl);
+    if (parsed.protocol !== "https:") {
+      return { ok: false, message: "Secure Privacy script URL must use HTTPS." };
+    }
+    if (parsed.hostname !== "app.secureprivacy.ai") {
+      return { ok: false, message: "Secure Privacy script URL must come from app.secureprivacy.ai." };
+    }
+    if (!parsed.pathname.startsWith("/script/") || !parsed.pathname.endsWith(".js")) {
+      return { ok: false, message: "Secure Privacy script URL must point to a /script/*.js file." };
+    }
+    return { ok: true, message: "Valid Secure Privacy script URL." };
+  } catch {
+    return { ok: false, message: "Secure Privacy script URL must be a full URL." };
+  }
 }
 
 async function testSmtpConnection(

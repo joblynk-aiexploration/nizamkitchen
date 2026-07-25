@@ -21,6 +21,22 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => {
       findUnique: vi.fn(),
       update: requestUpdate,
     },
+    homeChefRequestOffer: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    homeChefAcceptancePolicy: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    chefProfile: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+    },
     homeChefRequestMessage: {
       create: vi.fn(),
     },
@@ -37,6 +53,11 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => {
     $transaction: vi.fn((callback) =>
       callback({
         homeChefRequest: { update: requestUpdate },
+        homeChefRequestOffer: {
+          create: mockPrisma.homeChefRequestOffer.create,
+          update: mockPrisma.homeChefRequestOffer.update,
+          updateMany: mockPrisma.homeChefRequestOffer.updateMany,
+        },
         homeChefRequestStatusHistory: { create: historyCreate },
       }),
     ),
@@ -56,6 +77,7 @@ import {
   assignHomeChefRequest,
   canAccessHomeChefs,
   createChefHomeChefOrderMessage,
+  createHomeChefRequestOffer,
   createHomeChefRequest,
   createHomeChefRequestMessage,
   getChefHomeChefRequest,
@@ -92,6 +114,8 @@ describe("home chef request system", () => {
     mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
     mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
     mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
+    mockPrisma.homeChefRequestOffer.findFirst.mockResolvedValue(null);
+    mockPrisma.homeChefAcceptancePolicy.findMany.mockResolvedValue([]);
   });
 
   it("creates an organization-scoped household request with status history and audit logs", async () => {
@@ -115,6 +139,9 @@ describe("home chef request system", () => {
         title: "Chef for biryani",
         requestedDate: futureIsoDate(),
         guestCount: 6,
+        serviceAddressLine1: "123 Main Street",
+        city: "Frisco",
+        region: "TX",
         submit: true,
       },
     });
@@ -259,7 +286,14 @@ describe("home chef request system", () => {
     await listAssignedChefRequests("chef-org-1");
 
     expect(mockPrisma.homeChefRequest.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { assignedChefOrganizationId: "chef-org-1" } }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            expect.objectContaining({ assignedChefOrganizationId: "chef-org-1" }),
+            expect.objectContaining({ offers: expect.any(Object) }),
+          ]),
+        }),
+      }),
     );
   });
 
@@ -270,7 +304,13 @@ describe("home chef request system", () => {
 
     expect(mockPrisma.homeChefRequest.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { assignedChefOrganizationId: "chef-org-1", countryCode: "US" },
+        where: expect.objectContaining({
+          countryCode: "US",
+          OR: expect.arrayContaining([
+            expect.objectContaining({ assignedChefOrganizationId: "chef-org-1" }),
+            expect.objectContaining({ offers: expect.any(Object) }),
+          ]),
+        }),
       }),
     );
   });
@@ -288,7 +328,10 @@ describe("home chef request system", () => {
       expect.objectContaining({
         where: {
           id: "request-1",
-          assignedChefOrganizationId: "chef-org-1",
+          OR: expect.arrayContaining([
+            expect.objectContaining({ assignedChefOrganizationId: "chef-org-1" }),
+            expect.objectContaining({ offers: expect.any(Object) }),
+          ]),
           countryCode: "US",
         },
       }),
@@ -323,6 +366,108 @@ describe("home chef request system", () => {
           oldStatus: "matched",
           newStatus: "accepted",
           changedById: "chef-user",
+        }),
+      }),
+    );
+  });
+
+  it("attaches the chef profile when accepting a legacy organization-assigned order", async () => {
+    mockPrisma.homeChefRequest.findFirst.mockResolvedValue({
+      id: "request-legacy",
+      status: "reviewing",
+      title: "Family dinner",
+      organizationId: "household-org",
+      countryCode: "US",
+      createdById: "household-user",
+      assignedChefOrganizationId: "chef-org-1",
+      assignedChefProfileId: null,
+    });
+    mockPrisma.chefProfile.findUnique.mockResolvedValue({ id: "chef-profile-1" });
+    mockPrisma.homeChefRequest.update.mockResolvedValue({
+      id: "request-legacy",
+      status: "accepted",
+      assignedChefProfileId: "chef-profile-1",
+    });
+
+    await updateChefHomeChefOrderStatus({
+      requestId: "request-legacy",
+      chefOrganizationId: "chef-org-1",
+      countryCode: "US",
+      actorUserId: "chef-user",
+      status: "accepted",
+    });
+
+    expect(mockPrisma.chefProfile.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: "chef-org-1" },
+        select: { id: true },
+      }),
+    );
+    expect(mockPrisma.homeChefRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "request-legacy" },
+        data: expect.objectContaining({
+          status: "accepted",
+          assignedChefProfileId: "chef-profile-1",
+          matchingStatus: "chef_accepted",
+        }),
+      }),
+    );
+  });
+
+  it("creates a deadline-bound offer for an active verified chef profile", async () => {
+    mockPrisma.homeChefRequest.findUnique.mockResolvedValue({
+      id: "request-1",
+      status: "submitted",
+      title: "Family dinner",
+      organizationId: "household-org",
+      countryCode: "US",
+      city: "Chicago",
+      region: "IL",
+      createdById: "household-user",
+      requestType: "recipe",
+      leadTimeCategory: "short_term",
+      currencyCode: "USD",
+    });
+    mockPrisma.chefProfile.findFirst.mockResolvedValue({
+      id: "chef-profile-1",
+      organizationId: "chef-org-1",
+      displayName: "Nizam Independent Home Chef",
+      verificationStatus: "verified",
+    });
+    mockPrisma.homeChefRequestOffer.create.mockResolvedValue({
+      id: "offer-1",
+      status: "pending",
+      chefProfileId: "chef-profile-1",
+    });
+
+    await createHomeChefRequestOffer({
+      session: adminSession,
+      requestId: "request-1",
+      input: { chefProfileId: "chef-profile-1", responseWindowMinutes: 180 },
+    });
+
+    expect(mockPrisma.homeChefRequestOffer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ homeChefRequestId: "request-1", status: "pending" }),
+        data: expect.objectContaining({ status: "cancelled" }),
+      }),
+    );
+    expect(mockPrisma.homeChefRequestOffer.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          homeChefRequestId: "request-1",
+          chefProfileId: "chef-profile-1",
+          status: "pending",
+          responseDeadlineAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(mockPrisma.homeChefRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedChefProfileId: "chef-profile-1",
+          matchingStatus: "offered",
         }),
       }),
     );

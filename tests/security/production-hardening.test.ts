@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { applySecurityHeaders, enforceRateLimit, rateLimitPolicies } from "../../src/lib/security";
 
 beforeAll(() => {
@@ -49,7 +49,20 @@ describe("security headers and rate limits", () => {
     expect(csp).toContain("https://*.googleusercontent.com");
     expect(csp).toContain("https://platform-lookaside.fbsbx.com");
     expect(csp).toContain("https://*.amazonaws.com");
+    expect(csp).toContain("https://www.googletagmanager.com");
+    expect(csp).toContain("https://www.google-analytics.com");
+    expect(csp).toContain("https://*.google-analytics.com");
+    expect(csp).toContain("https://app.secureprivacy.ai");
+    expect(csp).toContain("https://*.secureprivacy.ai");
     expect(csp).toContain("https://static.cloudflareinsights.com");
+  });
+
+  it("sets a production HSTS max age without preload-only assumptions", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const response = applySecurityHeaders(new Response(null) as never);
+
+    expect(response.headers.get("Strict-Transport-Security")).toBe("max-age=31536000");
+    vi.unstubAllEnvs();
   });
 
   it("enforces login rate limit policy", () => {

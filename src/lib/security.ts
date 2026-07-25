@@ -12,12 +12,12 @@ export const defaultSecurityHeaders = {
   "Cross-Origin-Resource-Policy": "same-site",
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.cloudflareinsights.com",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com https://maps.googleapis.com https://maps.gstatic.com https://*.gstatic.com https://*.googleusercontent.com https://platform-lookaside.fbsbx.com https://*.fbcdn.net https://*.s3.amazonaws.com https://*.amazonaws.com",
-    "font-src 'self' data:",
-    "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com https://geocode.googleapis.com https://maps.gstatic.com https://*.gstatic.com",
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai https://static.cloudflareinsights.com",
+    "style-src 'self' 'unsafe-inline' https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai",
+    "img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com https://maps.googleapis.com https://maps.gstatic.com https://*.gstatic.com https://*.googleusercontent.com https://www.google.com https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://stats.g.doubleclick.net https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai https://platform-lookaside.fbsbx.com https://*.fbcdn.net https://*.s3.amazonaws.com https://*.amazonaws.com",
+    "font-src 'self' data: https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai",
+    "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com https://geocode.googleapis.com https://maps.gstatic.com https://*.gstatic.com https://www.google.com https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai",
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://app.secureprivacy.ai https://cmp.secureprivacy.ai https://*.secureprivacy.ai",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -32,7 +32,7 @@ export function applySecurityHeaders(response: NextResponse) {
   if (process.env.NODE_ENV === "production") {
     response.headers.set(
       "Strict-Transport-Security",
-      "max-age=31536000; includeSubDomains; preload",
+      "max-age=31536000",
     );
   }
 

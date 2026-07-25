@@ -1,5 +1,6 @@
 import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { CheckoutQuoteLines } from "@/components/payments/checkout-quote-lines";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { FormMessage } from "@/components/ui/form-message";
@@ -7,6 +8,7 @@ import { requirePlatformRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { formatAppDateTime } from "@/lib/utils";
 import { getPaymentOrder } from "@/server/payments/admin";
+import { getCheckoutQuoteLinesForPaymentOrder } from "@/server/pricing/checkout-quote-workflow";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { createProviderRefundAction, markManualPaymentAction } from "../actions";
@@ -18,7 +20,7 @@ export default async function PaymentTransactionDetailPage({ params, searchParam
   const { id } = await params;
   const query = searchParams ? await searchParams : {};
   const order = await getPaymentOrder(session, id);
-  const [webhooks, purchaser, organizations] = await Promise.all([
+  const [webhooks, purchaser, organizations, checkoutQuoteLines] = await Promise.all([
     prisma.paymentWebhookEvent.findMany({
       where: { provider: order.provider, ...(order.gatewayId ? { gatewayId: order.gatewayId } : {}) },
       orderBy: { createdAt: "desc" },
@@ -38,6 +40,7 @@ export default async function PaymentTransactionDetailPage({ params, searchParam
       },
       select: { id: true, name: true, organizationType: true, countryCode: true },
     }),
+    getCheckoutQuoteLinesForPaymentOrder(order.id),
   ]);
   const moduleLink = moduleHref(order.module, order.moduleEntityId);
   const organizationById = new Map(organizations.map((organization) => [organization.id, organization]));
@@ -117,6 +120,14 @@ export default async function PaymentTransactionDetailPage({ params, searchParam
           <Detail label="Created" value={formatAppDateTime(order.createdAt, { showTimeZone: true })} />
         </dl>
       </Card>
+      {checkoutQuoteLines.length ? (
+        <CheckoutQuoteLines
+          title="Checkout quote lines"
+          description="Immutable server-calculated quote lines attached to this payment order before hosted checkout opened."
+          currencyCode={order.currencyCode}
+          lines={checkoutQuoteLines}
+        />
+      ) : null}
       {(session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin") && (order.status === "paid" || order.status === "partially_refunded") && (order.provider === "stripe" || order.provider === "paypal") ? (
         <Card className="border-amber-200 bg-amber-50">
           <h2 className="text-base font-semibold text-amber-950">Issue refund</h2>

@@ -49,6 +49,9 @@ type UserPrivacySettingRecord = {
   activityRetentionDays: number | null;
   marketingEmailsEnabled: boolean;
   analyticsConsent: boolean;
+  marketingCookiesConsent: boolean;
+  functionalCookiesConsent: boolean;
+  cookiePreferencesUpdatedAt: Date | null;
   personalizedRecommendationsEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -306,6 +309,9 @@ export async function getOrCreateUserPrivacySetting(session: PrivacySession) {
       activityRetentionDays: null,
       marketingEmailsEnabled: false,
       analyticsConsent: false,
+      marketingCookiesConsent: false,
+      functionalCookiesConsent: true,
+      cookiePreferencesUpdatedAt: null,
       personalizedRecommendationsEnabled: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -320,14 +326,30 @@ export async function updateUserPrivacySetting(session: PrivacySession, input: u
   const userPrivacySetting = userPrivacySettingsDelegate();
   if (!userPrivacySetting) throw new Error("User privacy settings are not available.");
   const parsed = userPrivacySettingSchema.parse(input);
+  const cookiePreferenceChanged =
+    "analyticsConsent" in parsed ||
+    "marketingCookiesConsent" in parsed ||
+    "functionalCookiesConsent" in parsed;
   const setting = await userPrivacySetting.upsert({
     where: { userId: session.user.id },
-    update: parsed,
-    create: { userId: session.user.id, ...parsed },
+    update: {
+      ...parsed,
+      cookiePreferencesUpdatedAt: cookiePreferenceChanged ? new Date() : undefined,
+    },
+    create: {
+      userId: session.user.id,
+      ...parsed,
+      cookiePreferencesUpdatedAt: cookiePreferenceChanged ? new Date() : undefined,
+    },
   });
   await recordUserActivity(session, {
     title: "Privacy settings updated",
-    metadataJson: { profileVisibility: setting.profileVisibility, analyticsConsent: setting.analyticsConsent },
+    metadataJson: {
+      profileVisibility: setting.profileVisibility,
+      analyticsConsent: setting.analyticsConsent,
+      marketingCookiesConsent: setting.marketingCookiesConsent,
+      functionalCookiesConsent: setting.functionalCookiesConsent,
+    },
   });
   await createAuditEvent({
     actorUserId: session.user.id,

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
+import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { env } from "@/lib/env";
 import { normalizePhoneFromForm } from "@/lib/phone";
 import {
@@ -27,7 +28,7 @@ export async function createFoodOrderAction(formData: FormData) {
     },
   });
   revalidatePath("/orders");
-  redirect(`/orders/${order.id}`);
+  redirect(withAnalyticsEvent(`/orders/${order.id}?checkout=1#checkout`, "checkout_started"));
 }
 
 export async function createCustomerFoodOrderMessageAction(formData: FormData) {

@@ -105,9 +105,33 @@ function validateLinkedContext(
     }
 }
 
-export const homeChefRequestCreateSchema = homeChefRequestBaseSchema.superRefine(validateLinkedContext);
+function validateSubmittedAddress(
+  value: { submit?: boolean; serviceAddressLine1?: string | null; city?: string | null; region?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  if (!value.submit) return;
+  if (!value.serviceAddressLine1) {
+    ctx.addIssue({ code: "custom", path: ["serviceAddressLine1"], message: "Enter the home street address." });
+  }
+  if (!value.city) {
+    ctx.addIssue({ code: "custom", path: ["city"], message: "Enter the city for this home chef request." });
+  }
+  if (!value.region) {
+    ctx.addIssue({ code: "custom", path: ["region"], message: "Enter the state or region for this home chef request." });
+  }
+}
 
-export const homeChefRequestUpdateSchema = homeChefRequestBaseSchema.partial().superRefine(validateLinkedContext);
+function validateHomeChefRequest(
+  value: { requestType?: string; recipeId?: string; mealPlanId?: string; requestedDate?: Date; submit?: boolean; serviceAddressLine1?: string | null; city?: string | null; region?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  validateLinkedContext(value, ctx);
+  validateSubmittedAddress(value, ctx);
+}
+
+export const homeChefRequestCreateSchema = homeChefRequestBaseSchema.superRefine(validateHomeChefRequest);
+
+export const homeChefRequestUpdateSchema = homeChefRequestBaseSchema.partial().superRefine(validateHomeChefRequest);
 
 export const homeChefRequestMessageSchema = z.object({
   message: z.string().trim().min(1).max(2000),

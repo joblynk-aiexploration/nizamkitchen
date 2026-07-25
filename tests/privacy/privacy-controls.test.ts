@@ -149,6 +149,9 @@ describe("data privacy export deletion and retention controls", () => {
       activityRetentionDays: null,
       marketingEmailsEnabled: false,
       analyticsConsent: false,
+      marketingCookiesConsent: false,
+      functionalCookiesConsent: true,
+      cookiePreferencesUpdatedAt: null,
       personalizedRecommendationsEnabled: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -233,12 +236,20 @@ describe("data privacy export deletion and retention controls", () => {
       activityRetentionDays: "90",
       marketingEmailsEnabled: "on",
       analyticsConsent: "",
+      marketingCookiesConsent: "on",
+      functionalCookiesConsent: "on",
       personalizedRecommendationsEnabled: "on",
     });
 
     expect(mockPrisma.userPrivacySetting.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: "user-1" },
-      update: expect.objectContaining({ profileVisibility: "organization", activityRetentionDays: 90 }),
+      update: expect.objectContaining({
+        profileVisibility: "organization",
+        activityRetentionDays: 90,
+        marketingCookiesConsent: true,
+        functionalCookiesConsent: true,
+        cookiePreferencesUpdatedAt: expect.any(Date),
+      }),
     }));
     expect(mockPrisma.userActivity.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ title: "Privacy settings updated" }),

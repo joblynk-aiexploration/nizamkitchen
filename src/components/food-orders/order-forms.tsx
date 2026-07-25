@@ -36,6 +36,14 @@ const statusOptions = [
 
 const adminStatusOptions = [{ value: "submitted", label: "Submitted" }, ...statusOptions];
 
+function formatMoney(currencyCode: string, amount?: number | null) {
+  if (amount == null) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(amount);
+}
+
 export function FoodOrderRequestForm({
   action,
   item,
@@ -51,6 +59,10 @@ export function FoodOrderRequestForm({
   mapsConfig: GoogleMapsPublicConfig;
   phoneOptions: PhoneCountryOption[];
 }) {
+  const unitPrice = formatMoney(item.currencyCode, item.priceAmount);
+  const minimumQuantity = item.minimumOrderQuantity ?? 1;
+  const estimatedSubtotal =
+    item.priceAmount == null ? null : formatMoney(item.currencyCode, item.priceAmount * minimumQuantity);
   const fulfillmentOptions = [
     item.pickupAvailable ? { value: "pickup", label: "Pickup" } : null,
     item.deliveryAvailable ? { value: "delivery", label: "Delivery" } : null,
@@ -71,12 +83,22 @@ export function FoodOrderRequestForm({
             {item.deliveryAvailable ? <Badge tone="info">Delivery</Badge> : null}
             {item.preorderRequired ? <Badge tone="warning">Preorder</Badge> : null}
             {item.minimumNoticeHours ? <Badge tone="neutral">{item.minimumNoticeHours}h notice</Badge> : null}
+            {unitPrice ? <Badge tone="success">{unitPrice}</Badge> : <Badge tone="warning">Price to confirm</Badge>}
           </div>
         </div>
 
-        <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
-          Payment is handled directly with the seller for now. NizamKitchen is not processing checkout or collecting payment details.
-        </div>
+        {item.priceAmount != null ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+            <span className="font-semibold text-emerald-950">Secure checkout is available after this request is created.</span>{" "}
+            NizamKitchen will send you to the order checkout step next. Estimated minimum subtotal:{" "}
+            <span className="font-semibold text-emerald-950">{estimatedSubtotal}</span>. Card details are entered only on the hosted payment provider page.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            <span className="font-semibold text-amber-950">Online checkout is not available for this item yet.</span>{" "}
+            The seller must add a menu price before NizamKitchen can create a payment checkout.
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <TextInput label="Quantity" name="quantity" type="number" min={item.minimumOrderQuantity ?? 1} defaultValue={item.minimumOrderQuantity ?? 1} required />
@@ -121,7 +143,9 @@ export function FoodOrderRequestForm({
           entityType="food_order"
           hint="Optional: upload a reference image or document for the seller or support team."
         />
-        <Button type="submit">Submit order request</Button>
+        <Button type="submit">
+          {item.priceAmount != null ? "Submit order and continue to checkout" : "Submit order request"}
+        </Button>
       </form>
     </Card>
   );

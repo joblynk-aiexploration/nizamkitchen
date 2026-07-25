@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockPrisma } = vi.hoisted(() => ({
@@ -100,8 +102,12 @@ function createdOrder(type: "home_catering" | "restaurant" = "home_catering") {
     sellerType: type,
     countryCode: "US",
     status: "submitted",
+    fulfillmentType: "pickup",
+    requestedDate: null,
     currencyCode: "USD",
     subtotalAmount: 160,
+    deliveryFeeAmount: null,
+    promotionDiscountAmount: null,
     customerOrganization: { id: "household-org", name: "Nizam Family Kitchen", organizationType: "household" },
     sellerOrganization: { id: "seller-org", name: "Seller", organizationType: type, slug: "seller" },
     customerUser: { id: "user-household", fullName: "Household Owner", email: "household@example.test" },
@@ -141,6 +147,22 @@ describe("food order request workflow", () => {
     if (withPaymentNoise.success) expect("paymentReference" in withPaymentNoise.data).toBe(false);
   });
 
+  it("shows hosted checkout messaging in household order pages", () => {
+    const requestForm = fs.readFileSync(path.join(process.cwd(), "src/components/food-orders/order-forms.tsx"), "utf8");
+    const orderSummary = fs.readFileSync(path.join(process.cwd(), "src/components/food-orders/order-detail.tsx"), "utf8");
+    const orderPage = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/orders/[id]/page.tsx"), "utf8");
+    const orderActions = fs.readFileSync(path.join(process.cwd(), "src/app/(app)/orders/actions.ts"), "utf8");
+
+    expect(requestForm).toContain("Secure checkout is available after this request is created.");
+    expect(requestForm).toContain("Submit order and continue to checkout");
+    expect(requestForm).not.toContain("Payment is handled directly with the seller for now");
+    expect(orderSummary).toContain("Online checkout is available for this order.");
+    expect(orderSummary).not.toContain("There is no checkout or payment collection in NizamKitchen");
+    expect(orderPage).toContain('Card id="checkout"');
+    expect(orderPage).toContain("Continue to secure checkout");
+    expect(orderActions).toContain("?checkout=1#checkout");
+  });
+
   it("household submits order for home catering item", async () => {
     await createFoodOrder({
       session: householdSession(),
@@ -155,7 +177,15 @@ describe("food order request workflow", () => {
       }),
     }));
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "food_order.submitted" }));
-    expect(createNotification).toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "seller-user",
+      emailTemplateKey: "catering_new_order",
+      emailVariables: expect.objectContaining({
+        orderNumber: "NK-ORDER-1",
+        sellerName: "Seller",
+        customerName: "Nizam Family Kitchen",
+      }),
+    }));
     expect(createAdminNotification).toHaveBeenCalled();
   });
 
@@ -168,6 +198,10 @@ describe("food order request workflow", () => {
     });
     expect(mockPrisma.foodOrder.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ sellerType: "restaurant" }),
+    }));
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "seller-user",
+      emailTemplateKey: "restaurant_new_order",
     }));
   });
 
@@ -220,6 +254,14 @@ describe("food order request workflow", () => {
       }),
     }));
     expect(createAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "food_order.accepted" }));
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-household",
+      emailTemplateKey: "food_order_accepted",
+      emailVariables: expect.objectContaining({
+        orderStatus: "accepted",
+        orderUrl: "/orders/order-1",
+      }),
+    }));
   });
 
   it("unverified seller cannot accept order when policy requires verification", async () => {

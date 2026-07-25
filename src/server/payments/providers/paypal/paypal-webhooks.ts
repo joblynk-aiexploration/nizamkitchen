@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { lockPaidHomeChefRequestsForPaymentOrder } from "@/server/home-chef/home-chef-booking-lock-service";
 import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { getPayPalAccessToken, getPayPalGateway, getPayPalSecrets, paypalApiBase, paypalFetch } from "@/server/payments/providers/paypal/paypal-client";
 
@@ -111,6 +112,7 @@ export async function markPayPalOrderPaid(providerOrderId: string, providerTrans
   });
   await prisma.foodOrder.updateMany({ where: { paymentOrderId: order.id }, data: { paymentStatus: "paid", paidAt: new Date() } });
   await prisma.homeChefRequest.updateMany({ where: { paymentOrderId: order.id }, data: { paymentStatus: "paid", paidAt: new Date() } });
+  await lockPaidHomeChefRequestsForPaymentOrder(order.id);
   await createAuditEvent({ action: "payment_order.paid", targetType: "payment_order", targetId: order.id, organizationId: order.organizationId, countryCode: order.countryCode, details: { provider: "paypal" } });
   return order;
 }

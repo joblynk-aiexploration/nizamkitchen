@@ -28,8 +28,7 @@ export function isRecipeVisibleToOrganization(
   if (recipe.visibility === "organization") {
     return recipe.organizationId === organizationId;
   }
-  // private recipes are never visible to organizations — only the creator sees them
-  return false;
+  return recipe.organizationId === organizationId;
 }
 
 export function groupIngredientsBySection(
