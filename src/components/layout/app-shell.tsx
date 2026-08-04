@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, Inbox, MessageSquarePlus, Settings2, Sparkles, User } from "lucide-react";
 import { getCurrentSession } from "@/lib/auth/session";
+import { FEATURE_REGISTRY, getEnabledFeatureKeys } from "@/lib/feature-flags";
 import { initialsFromName } from "@/components/profiles/profile-components";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { LogoutForm } from "@/components/layout/logout-form";
@@ -30,9 +31,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     }
     return { accepted: true, missing: [] };
   });
-  const [oauthAvatarUrl, avatarUrl] = await Promise.all([
+  const [oauthAvatarUrl, avatarUrl, enabledFeatureKeys] = await Promise.all([
     getUserOAuthAvatarImageUrl(session.user.id),
     getStorageImageUrl(session, session.user.profilePhotoFileId),
+    session.user.platformRole
+      ? Promise.resolve(FEATURE_REGISTRY.map((f) => f.key))
+      : session.activeOrganization
+        ? getEnabledFeatureKeys(session.activeOrganization.id)
+        : Promise.resolve([]),
   ]);
   const resolvedAvatarUrl = avatarUrl ?? oauthAvatarUrl;
   const initials = initialsFromName(session.user.fullName);
@@ -96,7 +102,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mb-2">
             <NotificationBell unreadCount={unreadNotifications} />
           </div>
-          <SidebarNav session={navSession} />
+          <SidebarNav session={navSession} enabledFeatureKeys={enabledFeatureKeys} />
         </div>
 
         {/* Footer */}

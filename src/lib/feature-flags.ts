@@ -82,7 +82,69 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: "SecurePrivacy CMP, Google Consent Mode, Google Analytics, and public tracking scripts.",
     scope: "global",
   },
+  {
+    key: "payments",
+    name: "Payments",
+    description: "Controls payment infrastructure visibility and payment-order creation.",
+    scope: "global",
+  },
+  {
+    key: "live_checkout",
+    name: "Live Checkout",
+    description: "Controls hosted checkout buttons for live customer payment flows.",
+    scope: "global",
+  },
+  {
+    key: "stripe_payments",
+    name: "Stripe Payments",
+    description: "Controls Stripe gateway availability for card and bank payment processing.",
+    scope: "global",
+  },
+  {
+    key: "paypal_payments",
+    name: "PayPal Payments",
+    description: "Controls PayPal gateway availability.",
+    scope: "global",
+  },
+  {
+    key: "google_pay_wallet",
+    name: "Google Pay Wallet",
+    description: "Controls Google Pay wallet availability through configured gateways.",
+    scope: "global",
+  },
+  {
+    key: "payment_refunds",
+    name: "Payment Refunds",
+    description: "Controls refund operations for orders and transactions.",
+    scope: "global",
+  },
+  {
+    key: "payment_disputes",
+    name: "Payment Disputes",
+    description: "Controls payment dispute visibility and resolution workflows.",
+    scope: "global",
+  },
+  {
+    key: "seller_payouts",
+    name: "Seller Payouts",
+    description: "Controls seller payout account management and payout workflows.",
+    scope: "global",
+  },
 ];
+
+export async function getEnabledFeatureKeys(organizationId: string): Promise<string[]> {
+  const flags = await prisma.featureFlag.findMany({
+    where: { countryCode: null },
+    select: { key: true, enabled: true, organizationId: true },
+  });
+  const allKeys = [...new Set(flags.map((f) => f.key))];
+  return allKeys.filter((key) => {
+    const orgFlag = flags.find((f) => f.key === key && f.organizationId === organizationId);
+    if (orgFlag !== undefined) return orgFlag.enabled;
+    const globalFlag = flags.find((f) => f.key === key && f.organizationId === null);
+    return globalFlag?.enabled ?? false;
+  });
+}
 
 export async function isFeatureEnabled(key: string, organizationId: string | null): Promise<boolean> {
   const flags = await prisma.featureFlag.findMany({

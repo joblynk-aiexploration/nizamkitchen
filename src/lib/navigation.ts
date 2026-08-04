@@ -10,6 +10,7 @@ export type NavSessionLike = {
 export type NavItem = {
   href: string;
   label: string;
+  featureKey?: string;
 };
 
 const platformAdminHrefs = [
@@ -215,16 +216,16 @@ export function getWorkspaceNavItems(session: NavSessionLike): NavItem[] {
     { href: "/profile", label: "My Profile" },
     { href: "/recipes", label: "Recipes" },
     ...(organizationType === "household" ? [{ href: "/recipes/my", label: "My Recipes" }] : []),
-    { href: "/meal-plans", label: "Meal Plans" },
-    { href: "/grocery-lists", label: "Grocery Lists" },
-    { href: "/household", label: "Household" },
-    { href: "/home-chef", label: "Home Chef" },
-    { href: "/chefs", label: "Browse Chefs" },
-    { href: "/caterers", label: "Browse Caterers" },
-    { href: "/restaurants", label: "Restaurant Menus" },
+    { href: "/meal-plans", label: "Meal Plans", featureKey: "meal_planner" },
+    { href: "/grocery-lists", label: "Grocery Lists", featureKey: "grocery_engine" },
+    { href: "/household", label: "Household", featureKey: "family_profiles" },
+    { href: "/home-chef", label: "Home Chef", featureKey: "home_chefs" },
+    { href: "/chefs", label: "Browse Chefs", featureKey: "home_chefs" },
+    { href: "/caterers", label: "Browse Caterers", featureKey: "home_catering" },
+    { href: "/restaurants", label: "Restaurant Menus", featureKey: "restaurant_profiles" },
     { href: "/orders", label: "My Orders" },
-    { href: "/order-instead", label: "Order Instead" },
-    { href: "/saved-restaurants", label: "Saved Restaurants" },
+    { href: "/order-instead", label: "Order Instead", featureKey: "restaurant_fallback" },
+    { href: "/saved-restaurants", label: "Saved Restaurants", featureKey: "restaurant_fallback" },
     { href: "/reports", label: "Reports" },
     { href: "/billing", label: "Billing" },
     { href: "/support", label: "Support" },

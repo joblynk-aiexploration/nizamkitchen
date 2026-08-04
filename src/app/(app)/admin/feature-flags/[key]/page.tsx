@@ -27,7 +27,7 @@ const ORG_TYPE_META: Record<string, { label: string; icon: string; description: 
   internal_admin: { label: "Internal Admin Accounts",  icon: "⚙️", description: "Platform administration and tooling" },
 };
 
-type OrgEntry = Awaited<ReturnType<typeof getFeatureDetail>>["grouped"] extends Map<string, infer T> ? T[number] : never;
+type OrgEntry = Awaited<ReturnType<typeof getFeatureDetail>>["grouped"] extends Map<string, (infer T)[]> ? T : never;
 
 function GlobalStatusBadge({ enabled }: { enabled: boolean }) {
   return (
@@ -276,9 +276,8 @@ export default async function FeatureFlagDetailPage({
         const hasOverrides = orgs.some((o) => o.override !== null);
 
         return (
-          <section key={orgType}>
-            {/* Section header */}
-            <div className="mb-3 flex items-center justify-between">
+          <details key={orgType} className="group" open>
+            <summary className="mb-3 flex cursor-pointer list-none select-none items-center justify-between [&::-webkit-details-marker]:hidden">
               <div className="flex items-center gap-3">
                 <span className="text-xl">{meta.icon}</span>
                 <div>
@@ -295,11 +294,22 @@ export default async function FeatureFlagDetailPage({
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
                   {enabledCount} / {orgs.length} enabled
                 </span>
+                <svg
+                  className="-rotate-90 text-slate-400 transition-transform duration-200 group-open:rotate-0"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                >
+                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
-            </div>
+            </summary>
 
-            <OrgTable orgs={orgs} featureKey={key} canMutate={canMutate} />
-          </section>
+            <div className="mt-3 pb-1">
+              <OrgTable orgs={orgs} featureKey={key} canMutate={canMutate} />
+            </div>
+          </details>
         );
       })}
     </AdminShell>

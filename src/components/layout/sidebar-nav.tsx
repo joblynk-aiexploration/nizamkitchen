@@ -96,11 +96,16 @@ const iconByHref = {
 
 export function SidebarNav({
   session,
+  enabledFeatureKeys = [],
 }: {
   session: NavSessionLike;
+  enabledFeatureKeys?: string[];
 }) {
   const pathname = usePathname();
-  const workspaceLinks = getWorkspaceNavItems(session);
+  const enabledSet = new Set(enabledFeatureKeys);
+  const workspaceLinks = getWorkspaceNavItems(session).filter(
+    (link) => !link.featureKey || enabledSet.has(link.featureKey),
+  );
   const platformLinks = getPlatformNavItems(session);
   const isRecipeEditPath = /^\/recipes\/[^/]+\/edit(?:\/)?$/.test(pathname);
   const isMyRecipesPath = pathname === "/recipes/my" || pathname.startsWith("/recipes/my/");

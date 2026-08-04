@@ -20,6 +20,14 @@ const FEATURE_ICONS: Record<string, string> = {
   seller_verification:         "✅",
   youtube_references:          "▶️",
   cookie_privacy_consent:      "🔒",
+  payments:                    "💰",
+  live_checkout:               "🛍️",
+  stripe_payments:             "⚡",
+  paypal_payments:             "🅿️",
+  google_pay_wallet:           "💳",
+  payment_refunds:             "↩️",
+  payment_disputes:            "⚖️",
+  seller_payouts:              "💸",
 };
 
 function StatusPill({ enabled }: { enabled: boolean }) {
