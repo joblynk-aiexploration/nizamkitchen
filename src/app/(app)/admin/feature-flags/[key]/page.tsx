@@ -70,10 +70,14 @@ function OrgTable({
   featureKey: string;
   canMutate: boolean;
 }) {
+  const cols = canMutate
+    ? "grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_170px_220px]"
+    : "grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_170px]";
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)] bg-white shadow-sm">
       {/* Table header */}
-      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(100px,auto)_minmax(180px,auto)] items-center border-b border-[var(--color-border)] bg-slate-50/80 px-5 py-3">
+      <div className={`grid ${cols} min-w-[640px] items-center gap-4 border-b border-[var(--color-border)] bg-slate-50/80 px-5 py-3`}>
         <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Account</span>
         <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Owner</span>
         <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Status</span>
@@ -84,7 +88,7 @@ function OrgTable({
       {orgs.map((org, i) => (
         <div
           key={org.id}
-          className={`grid grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(100px,auto)_minmax(180px,auto)] items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60 ${
+          className={`grid ${cols} min-w-[640px] items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60 ${
             i > 0 ? "border-t border-[var(--color-border)]" : ""
           } ${org.effectiveEnabled ? "" : "opacity-70"}`}
         >
@@ -123,27 +127,25 @@ function OrgTable({
                 <input type="hidden" name="key" value={featureKey} />
                 <input type="hidden" name="organizationId" value={org.id} />
                 <input type="hidden" name="enabled" value={org.effectiveEnabled ? "false" : "true"} />
-                <Button
-                  type="submit"
-                  variant={org.effectiveEnabled ? "secondary" : "primary"}
-                >
+                <Button type="submit" variant={org.effectiveEnabled ? "secondary" : "primary"}>
                   {org.effectiveEnabled ? "Disable" : "Enable"}
                 </Button>
               </form>
 
-              {org.override ? (
-                <form action={`/api/admin/feature-flags/${org.override.id}/remove`} method="post">
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-all hover:bg-slate-50"
-                    title="Remove org-specific override — revert to global setting"
-                  >
-                    Reset to global
-                  </button>
-                </form>
-              ) : (
-                <span className="w-[96px]" /> /* spacer to keep alignment */
-              )}
+              {/* Fixed-width slot keeps Enable/Disable column stable */}
+              <div className="w-[108px] shrink-0">
+                {org.override ? (
+                  <form action={`/api/admin/feature-flags/${org.override.id}/remove`} method="post">
+                    <button
+                      type="submit"
+                      className="w-full rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50"
+                      title="Remove org override — revert to global setting"
+                    >
+                      Reset to global
+                    </button>
+                  </form>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
