@@ -355,10 +355,10 @@ function googlePlatformConfigFallback(): GooglePlatformPublicConfig {
   return {
     analyticsMeasurementId,
     analyticsEnabled: Boolean(analyticsMeasurementId),
-    analyticsConsentRequired: true,
-    consentManagementEnabled: true,
-    consentModeEnabled: true,
-    cmpAnalyticsIntegrationEnabled: true,
+    analyticsConsentRequired: false,
+    consentManagementEnabled: false,
+    consentModeEnabled: false,
+    cmpAnalyticsIntegrationEnabled: false,
     adsenseEnabled: false,
   };
 }
@@ -396,10 +396,10 @@ export async function getSecurePrivacyPublicConfig(): Promise<SecurePrivacyPubli
     securePrivacyScriptUrl(process.env.NEXT_PUBLIC_SECURE_PRIVACY_SCRIPT_URL) ??
     DEFAULT_SECURE_PRIVACY_SCRIPT_URL;
   const fallbackConfig: SecurePrivacyPublicConfig = {
-    enabled: true,
-    scriptUrl: fallbackScriptUrl,
-    consentModeEnabled: true,
-    googleAnalyticsIntegrationEnabled: true,
+    enabled: false,
+    scriptUrl: undefined,
+    consentModeEnabled: false,
+    googleAnalyticsIntegrationEnabled: false,
   };
 
   if (shouldSkipBuildTimeDatabase()) {
