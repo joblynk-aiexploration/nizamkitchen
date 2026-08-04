@@ -254,6 +254,112 @@ export async function listFeatureRegistry(session: Session): Promise<FeatureRegi
   });
 }
 
+export async function deleteFeatureFlag(session: Session, id: string) {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
+
+  const existing = await prisma.featureFlag.findUnique({ where: { id } });
+  if (!existing) throw new Error("Feature flag not found.");
+
+  await prisma.featureFlag.delete({ where: { id } });
+
+  await recordAdminAuditLog({
+    actorUserId: session.user.id,
+    organizationId: existing.organizationId ?? null,
+    countryCode: existing.countryCode ?? null,
+    action: "feature_flag.updated",
+    targetType: "feature_flag",
+    targetId: id,
+    details: { key: existing.key, deleted: true },
+  });
+
+  return existing;
+}
+
+export async function setOrgFeatureFlag(session: Session, key: string, organizationId: string, enabled: boolean) {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
+
+  const feature = FEATURE_REGISTRY.find((f) => f.key === key);
+  if (!feature) throw new Error(`Unknown feature key: ${key}`);
+
+  const existing = await prisma.featureFlag.findFirst({
+    where: { key, organizationId, countryCode: null },
+  });
+
+  let flag;
+  if (existing) {
+    flag = await prisma.featureFlag.update({
+      where: { id: existing.id },
+      data: { enabled, name: feature.name, description: feature.description },
+    });
+  } else {
+    flag = await prisma.featureFlag.create({
+      data: { key, name: feature.name, description: feature.description, enabled, organizationId, countryCode: null },
+    });
+  }
+
+  await recordAdminAuditLog({
+    actorUserId: session.user.id,
+    organizationId,
+    countryCode: null,
+    action: "feature_flag.updated",
+    targetType: "feature_flag",
+    targetId: flag.id,
+    details: { key, enabled, organizationId },
+  });
+
+  return flag;
+}
+
+export async function getFeatureDetail(session: Session, key: string) {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin", "support_admin", "auditor"]);
+
+  const feature = FEATURE_REGISTRY.find((f) => f.key === key);
+  if (!feature) throw new Error(`Unknown feature key: ${key}`);
+
+  const ORG_TYPE_ORDER = ["household", "chef_business", "home_catering", "restaurant", "grocery_partner", "internal_admin"] as const;
+
+  const [orgs, flags] = await Promise.all([
+    prisma.organization.findMany({
+      where: { status: "active" },
+      select: { id: true, name: true, organizationType: true, slug: true },
+      orderBy: [{ organizationType: "asc" }, { name: "asc" }],
+    }),
+    prisma.featureFlag.findMany({ where: { key, countryCode: null } }),
+  ]);
+
+  const globalFlag = flags.find((f) => !f.organizationId) ?? null;
+  const orgFlagMap = new Map(flags.filter((f) => f.organizationId).map((f) => [f.organizationId!, f]));
+
+  type OrgEntry = {
+    id: string;
+    name: string;
+    slug: string;
+    organizationType: string;
+    override: { id: string; enabled: boolean } | null;
+    effectiveEnabled: boolean;
+  };
+
+  const grouped = new Map<string, OrgEntry[]>();
+  for (const orgType of ORG_TYPE_ORDER) grouped.set(orgType, []);
+
+  for (const org of orgs) {
+    const override = orgFlagMap.get(org.id) ?? null;
+    const effectiveEnabled = override ? override.enabled : (globalFlag?.enabled ?? false);
+    const entry: OrgEntry = {
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      organizationType: org.organizationType,
+      override: override ? { id: override.id, enabled: override.enabled } : null,
+      effectiveEnabled,
+    };
+    const bucket = grouped.get(org.organizationType) ?? grouped.get("internal_admin")!;
+    bucket.push(entry);
+  }
+
+  return { feature, globalFlag: globalFlag ? { id: globalFlag.id, enabled: globalFlag.enabled } : null, grouped };
+}
+
 export async function setGlobalFeatureFlag(session: Session, key: string, enabled: boolean) {
   assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { AccessDeniedError } from "@/lib/auth";
 import { getCurrentSession } from "@/lib/auth/session";
-import { updateFeatureFlag } from "@/server/admin/feature-flags";
+import { deleteFeatureFlag, updateFeatureFlag } from "@/server/admin/feature-flags";
 import { auditAccessDenied } from "@/server/audit";
 
 export async function POST(
@@ -48,5 +48,29 @@ export async function POST(
     return NextResponse.redirect(
       new URL("/admin/feature-flags?message=Feature flag update failed. Check required fields and try again.", request.url),
     );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getCurrentSession();
+  if (!session) return NextResponse.redirect(new URL("/login", request.url));
+
+  const { id } = await params;
+  const referer = request.headers.get("referer") ?? "/admin/feature-flags";
+
+  try {
+    await deleteFeatureFlag(session, id);
+    revalidatePath("/admin/feature-flags");
+    const redirectUrl = new URL(referer, request.url);
+    redirectUrl.searchParams.set("message", "Override removed.");
+    return NextResponse.redirect(redirectUrl);
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      await auditAccessDenied({ session, targetType: "admin.feature_flag", targetId: id, details: { reason: error.code } });
+    }
+    return NextResponse.redirect(new URL(`${referer}?message=Failed+to+remove+override.`, request.url));
   }
 }

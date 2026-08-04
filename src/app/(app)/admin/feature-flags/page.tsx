@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card } from "@/components/ui/card";
@@ -64,9 +65,12 @@ export default async function AdminFeatureFlagsPage({
                 {/* Left: info */}
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-base font-semibold text-[var(--color-ink)]">
+                    <Link
+                      href={`/admin/feature-flags/${feature.key}`}
+                      className="text-base font-semibold text-[var(--color-ink)] hover:text-[var(--color-primary)] hover:underline underline-offset-2"
+                    >
                       {feature.name}
-                    </h2>
+                    </Link>
                     <StatusPill enabled={globalEnabled} />
                     <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
                       {feature.scope === "global" ? "platform-wide" : "per-org"}
@@ -89,6 +93,18 @@ export default async function AdminFeatureFlagsPage({
                       <span>
                         {feature.totalOrgs - feature.orgOverrides.length} org{feature.totalOrgs - feature.orgOverrides.length !== 1 ? "s" : ""} inheriting global
                       </span>
+                    </div>
+                  )}
+
+                  {/* View accounts link */}
+                  {feature.scope === "org" && (
+                    <div className="mt-3">
+                      <Link
+                        href={`/admin/feature-flags/${feature.key}`}
+                        className="text-xs font-medium text-[var(--color-primary)] hover:underline underline-offset-2"
+                      >
+                        View &amp; manage per-account →
+                      </Link>
                     </div>
                   )}
 
