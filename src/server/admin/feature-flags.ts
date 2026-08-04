@@ -1,6 +1,6 @@
 import type { getCurrentSession } from "@/lib/session";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
-import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG } from "@/lib/feature-flags";
+import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG, FEATURE_REGISTRY } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import {
   featureFlagCreateSchema,
@@ -207,4 +207,92 @@ function normalizeFeatureFlagScope(input: {
     countryCode: null,
     organizationId: input.organizationId ?? null,
   };
+}
+
+export type FeatureRegistryItem = {
+  key: string;
+  name: string;
+  description: string;
+  scope: "org" | "global";
+  globalFlag: { id: string; enabled: boolean } | null;
+  orgOverrides: Array<{ id: string; organizationId: string; organizationName: string; enabled: boolean }>;
+  totalOrgs: number;
+};
+
+export async function listFeatureRegistry(session: Session): Promise<FeatureRegistryItem[]> {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin", "support_admin", "auditor"]);
+
+  const [allFlags, totalOrgs] = await Promise.all([
+    prisma.featureFlag.findMany({
+      where: { countryCode: null },
+      include: { organization: { select: { id: true, name: true } } },
+    }),
+    prisma.organization.count({ where: { status: "active" } }),
+  ]);
+
+  return FEATURE_REGISTRY.map((feature) => {
+    const featureFlags = allFlags.filter((f) => f.key === feature.key);
+    const globalFlag = featureFlags.find((f) => !f.organizationId) ?? null;
+    const orgOverrides = featureFlags
+      .filter((f) => f.organizationId && f.organization)
+      .map((f) => ({
+        id: f.id,
+        organizationId: f.organizationId!,
+        organizationName: f.organization!.name,
+        enabled: f.enabled,
+      }));
+
+    return {
+      key: feature.key,
+      name: feature.name,
+      description: feature.description,
+      scope: feature.scope,
+      globalFlag: globalFlag ? { id: globalFlag.id, enabled: globalFlag.enabled } : null,
+      orgOverrides,
+      totalOrgs,
+    };
+  });
+}
+
+export async function setGlobalFeatureFlag(session: Session, key: string, enabled: boolean) {
+  assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
+
+  const feature = FEATURE_REGISTRY.find((f) => f.key === key);
+  if (!feature) throw new Error(`Unknown feature key: ${key}`);
+
+  const existing = await prisma.featureFlag.findFirst({
+    where: { key, organizationId: null, countryCode: null },
+  });
+
+  let flag;
+  if (existing) {
+    flag = await prisma.featureFlag.update({
+      where: { id: existing.id },
+      data: { enabled, name: feature.name, description: feature.description },
+    });
+  } else {
+    flag = await prisma.featureFlag.create({
+      data: { key, name: feature.name, description: feature.description, enabled, organizationId: null, countryCode: null },
+    });
+  }
+
+  await recordAdminAuditLog({
+    actorUserId: session.user.id,
+    organizationId: null,
+    countryCode: null,
+    action: "feature_flag.updated",
+    targetType: "feature_flag",
+    targetId: flag.id,
+    details: { key, enabled, scope: "global" },
+  });
+  await createAdminNotification({
+    countryCode: null,
+    type: "feature_flag_changed",
+    title: `Feature ${enabled ? "enabled" : "disabled"} globally`,
+    body: `${feature.name} is now ${enabled ? "enabled" : "disabled"} for all organizations.`,
+    actionUrl: "/admin/feature-flags",
+    priority: "normal",
+  });
+
+  return flag;
 }

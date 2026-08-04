@@ -1,174 +1,164 @@
-import { prisma } from "@/lib/prisma";
 import { requirePlatformRole } from "@/lib/auth/session";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { FeatureFlagToggle } from "@/components/admin/feature-flag-toggle";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CountryBadge } from "@/components/ui/country-badge";
-import { COOKIE_PRIVACY_CONSENT_FEATURE_FLAG } from "@/lib/feature-flags";
-import { listAdminFeatureFlags } from "@/server/admin/feature-flags";
+import { Button } from "@/components/ui/button";
+import { listFeatureRegistry } from "@/server/admin/feature-flags";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminFeatureFlagsPage() {
+function StatusPill({ enabled }: { enabled: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+        enabled
+          ? "bg-emerald-100 text-emerald-700"
+          : "bg-slate-100 text-slate-500"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-emerald-500" : "bg-slate-400"}`}
+      />
+      {enabled ? "Enabled" : "Disabled"}
+    </span>
+  );
+}
+
+export default async function AdminFeatureFlagsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const session = await requirePlatformRole([
     "platform_owner",
     "platform_admin",
-    "country_manager",
     "support_admin",
     "auditor",
   ]);
-  const [flags, countries, organizations] = await Promise.all([
-    listAdminFeatureFlags(session),
-    prisma.country.findMany({
-      select: { countryCode: true, countryName: true },
-      orderBy: { countryName: "asc" },
-    }),
-    prisma.organization.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-  const canCreate = session.user.platformRole === "platform_owner" || session.user.platformRole === "platform_admin";
-  const cookiePrivacyFlag = flags.find(
-    (flag) => flag.key === COOKIE_PRIVACY_CONSENT_FEATURE_FLAG && !flag.countryCode && !flag.organizationId,
-  );
+  const params = await searchParams;
+  const features = await listFeatureRegistry(session);
+  const canMutate =
+    session.user.platformRole === "platform_owner" ||
+    session.user.platformRole === "platform_admin";
 
   return (
     <AdminShell
       session={session}
-      title="Feature flag control"
-      description="Manage future platform modules and rollout scopes at the global, country, and organization levels."
+      title="Feature flags"
+      description="All available platform features. Enable or disable each feature globally for all organizations, or manage per-organization overrides."
     >
-      {cookiePrivacyFlag ? (
-        <Card className={cookiePrivacyFlag.enabled ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/80"}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-primary)]">Launch privacy control</p>
-              <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">Cookie privacy consent and analytics</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-muted)]">
-                Controls Secure Privacy CMP, Google Consent Mode, Google Analytics, and public tracking scripts. Disable this while launching if
-                you do not want analytics or cookie-consent widgets showing yet.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm sm:min-w-64">
-              <FeatureFlagToggle enabled={cookiePrivacyFlag.enabled} scope="global" />
-              <form action={`/api/admin/feature-flags/${cookiePrivacyFlag.id}`} method="post">
-                <input type="hidden" name="key" value={cookiePrivacyFlag.key} />
-                <input type="hidden" name="name" value={cookiePrivacyFlag.name} />
-                <input type="hidden" name="description" value={cookiePrivacyFlag.description ?? ""} />
-                <input type="hidden" name="scopeType" value="global" />
-                <input type="hidden" name="countryCode" value="" />
-                <input type="hidden" name="organizationId" value="" />
-                <input type="hidden" name="enabled" value={cookiePrivacyFlag.enabled ? "" : "on"} />
-                <Button type="submit" variant={cookiePrivacyFlag.enabled ? "secondary" : "primary"} className="w-full">
-                  {cookiePrivacyFlag.enabled ? "Disable cookies and analytics" : "Enable cookies and analytics"}
-                </Button>
-              </form>
-            </div>
-          </div>
-        </Card>
+      {params.message ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {params.message}
+        </div>
       ) : null}
 
-      {canCreate ? (
-        <Card>
-          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Create feature flag</h2>
-          <form action="/api/admin/feature-flags" method="post" className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <input name="key" placeholder="Flag key" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" required />
-            <input name="name" placeholder="Display name" className="rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm" required />
-            <select name="scopeType" defaultValue="global" className="rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
-              <option value="global">global</option>
-              <option value="country">country</option>
-              <option value="organization">organization</option>
-            </select>
-            <select name="countryCode" defaultValue="" className="rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
-              <option value="">No country scope</option>
-              {countries.map((country) => (
-                <option key={country.countryCode} value={country.countryCode}>
-                  {country.countryName}
-                </option>
-              ))}
-            </select>
-            <select name="organizationId" defaultValue="" className="rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
-              <option value="">No organization scope</option>
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-3 rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm">
-              <input type="checkbox" name="enabled" />
-              <span>Enabled</span>
-            </label>
-            <textarea name="description" placeholder="Description" className="min-h-28 rounded-2xl border border-[var(--color-border)] px-4 py-3 text-sm md:col-span-2 xl:col-span-3" />
-            <div className="md:col-span-2 xl:col-span-3">
-              <Button type="submit">Create flag</Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
+      <div className="grid gap-5">
+        {features.map((feature) => {
+          const globalEnabled = feature.globalFlag?.enabled ?? false;
+          const enabledOverrides = feature.orgOverrides.filter((o) => o.enabled).length;
+          const disabledOverrides = feature.orgOverrides.filter((o) => !o.enabled).length;
 
-      <AdminDataTable
-        data={flags}
-        emptyMessage="No feature flags were found."
-        columns={[
-          {
-            key: "flag",
-            header: "Flag",
-            render: (flag) => (
-              <div>
-                <p className="font-semibold text-[var(--color-ink)]">{flag.key}</p>
-                <p className="text-[var(--color-muted)]">{flag.name}</p>
+          return (
+            <Card key={feature.key}>
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                {/* Left: info */}
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-base font-semibold text-[var(--color-ink)]">
+                      {feature.name}
+                    </h2>
+                    <StatusPill enabled={globalEnabled} />
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
+                      {feature.scope === "global" ? "platform-wide" : "per-org"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--color-muted)]">{feature.description}</p>
+                  <p className="mt-3 font-mono text-xs text-slate-400">{feature.key}</p>
+
+                  {/* Org override summary */}
+                  {feature.scope === "org" && (
+                    <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--color-muted)]">
+                      <span>
+                        <span className="font-semibold text-emerald-600">{enabledOverrides}</span>{" "}
+                        org{enabledOverrides !== 1 ? "s" : ""} explicitly enabled
+                      </span>
+                      <span>
+                        <span className="font-semibold text-slate-500">{disabledOverrides}</span>{" "}
+                        org{disabledOverrides !== 1 ? "s" : ""} explicitly disabled
+                      </span>
+                      <span>
+                        {feature.totalOrgs - feature.orgOverrides.length} org{feature.totalOrgs - feature.orgOverrides.length !== 1 ? "s" : ""} inheriting global
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Per-org overrides */}
+                  {feature.orgOverrides.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {feature.orgOverrides.map((override) => (
+                        <div
+                          key={override.id}
+                          className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-slate-50 px-3 py-1.5 text-xs"
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${override.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          <span className="font-medium text-[var(--color-ink)]">{override.organizationName}</span>
+                          {canMutate ? (
+                            <form action={`/api/admin/feature-flags/${override.id}`} method="post" className="inline">
+                              <input type="hidden" name="key" value={feature.key} />
+                              <input type="hidden" name="name" value={feature.name} />
+                              <input type="hidden" name="description" value={feature.description} />
+                              <input type="hidden" name="scopeType" value="organization" />
+                              <input type="hidden" name="countryCode" value="" />
+                              <input type="hidden" name="organizationId" value={override.organizationId} />
+                              <input type="hidden" name="enabled" value={override.enabled ? "" : "on"} />
+                              <button
+                                type="submit"
+                                className="ml-1 text-[var(--color-primary)] underline-offset-2 hover:underline"
+                              >
+                                {override.enabled ? "disable" : "enable"}
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: global controls */}
+                {canMutate ? (
+                  <div className="flex shrink-0 flex-col gap-2 lg:min-w-52">
+                    <form action="/api/admin/feature-flags/global" method="post">
+                      <input type="hidden" name="key" value={feature.key} />
+                      <input type="hidden" name="enabled" value="true" />
+                      <Button
+                        type="submit"
+                        variant={globalEnabled ? "secondary" : "primary"}
+                        className="w-full"
+                        disabled={globalEnabled}
+                      >
+                        Enable for all orgs
+                      </Button>
+                    </form>
+                    <form action="/api/admin/feature-flags/global" method="post">
+                      <input type="hidden" name="key" value={feature.key} />
+                      <input type="hidden" name="enabled" value="false" />
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        className="w-full"
+                        disabled={!globalEnabled}
+                      >
+                        Disable for all orgs
+                      </Button>
+                    </form>
+                  </div>
+                ) : null}
               </div>
-            ),
-          },
-          {
-            key: "scope",
-            header: "Scope",
-            render: (flag) => (
-              <div className="space-y-2">
-                <FeatureFlagToggle
-                  enabled={flag.enabled}
-                  scope={flag.organizationId ? "organization" : flag.countryCode ? "country" : "global"}
-                />
-                {flag.countryCode ? <CountryBadge countryCode={flag.countryCode} /> : null}
-                {flag.organization ? <p className="text-[var(--color-muted)]">{flag.organization.name}</p> : null}
-              </div>
-            ),
-          },
-          {
-            key: "description",
-            header: "Description",
-            render: (flag) => (
-              <p className="text-[var(--color-muted)]">{flag.description ?? "No description provided."}</p>
-            ),
-          },
-          {
-            key: "actions",
-            header: "Update",
-            render: (flag) => (
-              <form action={`/api/admin/feature-flags/${flag.id}`} method="post" className="space-y-2">
-                <input type="hidden" name="key" value={flag.key} />
-                <input type="hidden" name="name" value={flag.name} />
-                <input type="hidden" name="description" value={flag.description ?? ""} />
-                <input
-                  type="hidden"
-                  name="scopeType"
-                  value={flag.organizationId ? "organization" : flag.countryCode ? "country" : "global"}
-                />
-                <input type="hidden" name="countryCode" value={flag.countryCode ?? ""} />
-                <input type="hidden" name="organizationId" value={flag.organizationId ?? ""} />
-                <input type="hidden" name="enabled" value={flag.enabled ? "" : "on"} />
-                <Button type="submit" variant={flag.enabled ? "secondary" : "primary"}>
-                  {flag.enabled ? "Disable" : "Enable"}
-                </Button>
-              </form>
-            ),
-          },
-        ]}
-      />
+            </Card>
+          );
+        })}
+      </div>
     </AdminShell>
   );
 }
