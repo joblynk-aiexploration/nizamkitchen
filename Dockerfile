@@ -15,6 +15,7 @@ COPY . .
 ENV NIZAMKITCHEN_SKIP_BUILD_DB=1
 RUN cp .env.example .env
 RUN npm run db:generate
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 RUN npm run build
 
 FROM node:22-alpine AS runner
