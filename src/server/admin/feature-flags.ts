@@ -321,7 +321,20 @@ export async function getFeatureDetail(session: Session, key: string) {
   const [orgs, flags] = await Promise.all([
     prisma.organization.findMany({
       where: { status: "active" },
-      select: { id: true, name: true, organizationType: true, slug: true },
+      select: {
+        id: true,
+        name: true,
+        organizationType: true,
+        slug: true,
+        countryCode: true,
+        createdAt: true,
+        _count: { select: { memberships: { where: { status: "active" } } } },
+        memberships: {
+          where: { role: "org_owner", status: "active" },
+          take: 1,
+          select: { user: { select: { email: true, fullName: true } } },
+        },
+      },
       orderBy: [{ organizationType: "asc" }, { name: "asc" }],
     }),
     prisma.featureFlag.findMany({ where: { key, countryCode: null } }),
@@ -335,6 +348,11 @@ export async function getFeatureDetail(session: Session, key: string) {
     name: string;
     slug: string;
     organizationType: string;
+    countryCode: string;
+    createdAt: Date;
+    memberCount: number;
+    ownerEmail: string | null;
+    ownerName: string | null;
     override: { id: string; enabled: boolean } | null;
     effectiveEnabled: boolean;
   };
@@ -350,6 +368,11 @@ export async function getFeatureDetail(session: Session, key: string) {
       name: org.name,
       slug: org.slug,
       organizationType: org.organizationType,
+      countryCode: org.countryCode,
+      createdAt: org.createdAt,
+      memberCount: org._count.memberships,
+      ownerEmail: org.memberships[0]?.user.email ?? null,
+      ownerName: org.memberships[0]?.user.fullName ?? null,
       override: override ? { id: override.id, enabled: override.enabled } : null,
       effectiveEnabled,
     };

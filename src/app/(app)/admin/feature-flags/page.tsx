@@ -7,18 +7,27 @@ import { listFeatureRegistry } from "@/server/admin/feature-flags";
 
 export const dynamic = "force-dynamic";
 
+const FEATURE_ICONS: Record<string, string> = {
+  grocery_engine:              "🛒",
+  meal_planner:                "📅",
+  home_chefs:                  "👨‍🍳",
+  home_catering:               "🍽️",
+  restaurant_profiles:         "🏪",
+  restaurant_fallback:         "🔄",
+  menus:                       "📋",
+  family_profiles:             "👨‍👩‍👧",
+  grocery_partners:            "🤝",
+  seller_verification:         "✅",
+  youtube_references:          "▶️",
+  cookie_privacy_consent:      "🔒",
+};
+
 function StatusPill({ enabled }: { enabled: boolean }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-        enabled
-          ? "bg-emerald-100 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-emerald-500" : "bg-slate-400"}`}
-      />
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+      enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+    }`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
       {enabled ? "Enabled" : "Disabled"}
     </span>
   );
@@ -41,109 +50,115 @@ export default async function AdminFeatureFlagsPage({
     session.user.platformRole === "platform_owner" ||
     session.user.platformRole === "platform_admin";
 
+  const enabledCount = features.filter((f) => f.globalFlag?.enabled).length;
+  const totalCount = features.length;
+
   return (
     <AdminShell
       session={session}
       title="Feature flags"
-      description="All available platform features. Enable or disable each feature globally for all organizations, or manage per-organization overrides."
+      description="Control which features are active across your platform. Enable or disable globally, or manage per-account overrides."
     >
       {params.message ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm text-emerald-800">
+          <span className="text-base">✓</span>
           {params.message}
         </div>
       ) : null}
 
-      <div className="grid gap-5">
+      {/* Summary bar */}
+      <div className="flex flex-wrap gap-6 rounded-2xl border border-[var(--color-border)] bg-slate-50/70 px-6 py-4">
+        <div className="flex flex-col">
+          <span className="text-2xl font-bold text-[var(--color-ink)]">{enabledCount}</span>
+          <span className="text-xs text-[var(--color-muted)]">features enabled globally</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-2xl font-bold text-[var(--color-ink)]">{totalCount - enabledCount}</span>
+          <span className="text-xs text-[var(--color-muted)]">features disabled</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-2xl font-bold text-[var(--color-ink)]">{totalCount}</span>
+          <span className="text-xs text-[var(--color-muted)]">total features</span>
+        </div>
+      </div>
+
+      {/* Feature grid */}
+      <div className="grid gap-4">
         {features.map((feature) => {
           const globalEnabled = feature.globalFlag?.enabled ?? false;
           const enabledOverrides = feature.orgOverrides.filter((o) => o.enabled).length;
           const disabledOverrides = feature.orgOverrides.filter((o) => !o.enabled).length;
+          const inheritingCount = feature.totalOrgs - feature.orgOverrides.length;
+          const icon = FEATURE_ICONS[feature.key] ?? "⚡";
 
           return (
-            <Card key={feature.key}>
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                {/* Left: info */}
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Link
-                      href={`/admin/feature-flags/${feature.key}`}
-                      className="text-base font-semibold text-[var(--color-ink)] hover:text-[var(--color-primary)] hover:underline underline-offset-2"
-                    >
-                      {feature.name}
-                    </Link>
-                    <StatusPill enabled={globalEnabled} />
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
-                      {feature.scope === "global" ? "platform-wide" : "per-org"}
-                    </span>
+            <Card
+              key={feature.key}
+              className={`transition-shadow hover:shadow-md ${globalEnabled ? "" : "opacity-80"}`}
+            >
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                {/* Left: icon + info */}
+                <div className="flex min-w-0 flex-1 gap-4">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl ${
+                    globalEnabled ? "bg-emerald-50" : "bg-slate-100"
+                  }`}>
+                    {icon}
                   </div>
-                  <p className="mt-1 text-sm text-[var(--color-muted)]">{feature.description}</p>
-                  <p className="mt-3 font-mono text-xs text-slate-400">{feature.key}</p>
-
-                  {/* Org override summary */}
-                  {feature.scope === "org" && (
-                    <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--color-muted)]">
-                      <span>
-                        <span className="font-semibold text-emerald-600">{enabledOverrides}</span>{" "}
-                        org{enabledOverrides !== 1 ? "s" : ""} explicitly enabled
-                      </span>
-                      <span>
-                        <span className="font-semibold text-slate-500">{disabledOverrides}</span>{" "}
-                        org{disabledOverrides !== 1 ? "s" : ""} explicitly disabled
-                      </span>
-                      <span>
-                        {feature.totalOrgs - feature.orgOverrides.length} org{feature.totalOrgs - feature.orgOverrides.length !== 1 ? "s" : ""} inheriting global
-                      </span>
-                    </div>
-                  )}
-
-                  {/* View accounts link */}
-                  {feature.scope === "org" && (
-                    <div className="mt-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/admin/feature-flags/${feature.key}`}
-                        className="text-xs font-medium text-[var(--color-primary)] hover:underline underline-offset-2"
+                        className="text-base font-bold text-[var(--color-ink)] hover:text-[var(--color-primary)] hover:underline underline-offset-2"
                       >
-                        View &amp; manage per-account →
+                        {feature.name}
                       </Link>
+                      <StatusPill enabled={globalEnabled} />
+                      {feature.scope === "global" && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+                          platform-wide
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <p className="mt-1 text-sm text-[var(--color-muted)]">{feature.description}</p>
+                    <code className="mt-2 inline-block rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-500">
+                      {feature.key}
+                    </code>
 
-                  {/* Per-org overrides */}
-                  {feature.orgOverrides.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {feature.orgOverrides.map((override) => (
-                        <div
-                          key={override.id}
-                          className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-slate-50 px-3 py-1.5 text-xs"
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${override.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
-                          <span className="font-medium text-[var(--color-ink)]">{override.organizationName}</span>
-                          {canMutate ? (
-                            <form action={`/api/admin/feature-flags/${override.id}`} method="post" className="inline">
-                              <input type="hidden" name="key" value={feature.key} />
-                              <input type="hidden" name="name" value={feature.name} />
-                              <input type="hidden" name="description" value={feature.description} />
-                              <input type="hidden" name="scopeType" value="organization" />
-                              <input type="hidden" name="countryCode" value="" />
-                              <input type="hidden" name="organizationId" value={override.organizationId} />
-                              <input type="hidden" name="enabled" value={override.enabled ? "" : "on"} />
-                              <button
-                                type="submit"
-                                className="ml-1 text-[var(--color-primary)] underline-offset-2 hover:underline"
-                              >
-                                {override.enabled ? "disable" : "enable"}
-                              </button>
-                            </form>
-                          ) : null}
+                    {/* Org stats + overrides */}
+                    {feature.scope === "org" && (
+                      <div className="mt-3 flex flex-wrap items-center gap-4">
+                        <div className="flex gap-3 text-xs text-[var(--color-muted)]">
+                          {enabledOverrides > 0 && (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              {enabledOverrides} override enabled
+                            </span>
+                          )}
+                          {disabledOverrides > 0 && (
+                            <span className="flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                              {disabledOverrides} override disabled
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                            {inheritingCount} inheriting global
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <Link
+                          href={`/admin/feature-flags/${feature.key}`}
+                          className="text-xs font-semibold text-[var(--color-primary)] hover:underline underline-offset-2"
+                        >
+                          Manage per-account →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right: global controls */}
-                {canMutate ? (
-                  <div className="flex shrink-0 flex-col gap-2 lg:min-w-52">
+                {canMutate && (
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
                     <form action="/api/admin/feature-flags/global" method="post">
                       <input type="hidden" name="key" value={feature.key} />
                       <input type="hidden" name="enabled" value="true" />
@@ -153,7 +168,7 @@ export default async function AdminFeatureFlagsPage({
                         className="w-full"
                         disabled={globalEnabled}
                       >
-                        Enable for all orgs
+                        Enable globally
                       </Button>
                     </form>
                     <form action="/api/admin/feature-flags/global" method="post">
@@ -165,11 +180,11 @@ export default async function AdminFeatureFlagsPage({
                         className="w-full"
                         disabled={!globalEnabled}
                       >
-                        Disable for all orgs
+                        Disable globally
                       </Button>
                     </form>
                   </div>
-                ) : null}
+                )}
               </div>
             </Card>
           );
