@@ -46,6 +46,7 @@ export function GoogleAnalyticsTracker({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastTrackedKey = useRef<string | null>(null);
+  const isInitialMount = useRef(true);
   const [consentVersion, setConsentVersion] = useState(0);
 
   useEffect(() => {
@@ -56,6 +57,10 @@ export function GoogleAnalyticsTracker({
   }, [requiresConsent]);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return; // gtag auto-sends the first page view via send_page_view: true
+    }
     if (requiresConsent && !analyticsConsentGranted()) return;
     const query = searchParams.toString();
     const pagePath = `${pathname}${query ? `?${query}` : ""}`;

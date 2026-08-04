@@ -21,7 +21,7 @@ export function GoogleAnalytics({ measurementId, requiresConsent }: GoogleAnalyt
           window.NizamKitchenAnalyticsMeasurementId = ${measurementIdJson};
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', ${measurementIdJson}, { anonymize_ip: true, send_page_view: false });
+          gtag('config', ${measurementIdJson}, { anonymize_ip: true, send_page_view: true });
         `}
       </Script>
       <Suspense fallback={null}>
