@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { hasPlatformRole, PLATFORM_ADMIN_ROLES } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { getGroceryList } from "@/server/grocery";
 import { groceryListToClipboardText, listActiveGroceryPartners } from "@/server/grocery-partners";
@@ -33,6 +35,11 @@ export default async function GroceryListPage({
   const session = await requireMembership();
   const { id } = await params;
   const orgId = session.activeOrganization.id;
+
+  const featureEnabled = await isFeatureEnabled("grocery_engine", orgId);
+  if (!featureEnabled && !hasPlatformRole(session.user.platformRole, PLATFORM_ADMIN_ROLES)) {
+    redirect("/grocery-lists");
+  }
 
   const list = await getGroceryList(id, orgId);
   if (!list) notFound();

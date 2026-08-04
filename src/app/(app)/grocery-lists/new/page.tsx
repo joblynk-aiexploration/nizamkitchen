@@ -3,6 +3,8 @@ import { GroceryListRecipeServings } from "@/components/grocery/grocery-list-rec
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { requireMembership } from "@/lib/auth/session";
+import { hasPlatformRole, PLATFORM_ADMIN_ROLES } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { listRecipes } from "@/server/recipes";
 
@@ -11,6 +13,11 @@ export const dynamic = "force-dynamic";
 export default async function NewGroceryListPage() {
   const session = await requireMembership();
   const orgId = session.activeOrganization.id;
+
+  const featureEnabled = await isFeatureEnabled("grocery_engine", orgId);
+  if (!featureEnabled && !hasPlatformRole(session.user.platformRole, PLATFORM_ADMIN_ROLES)) {
+    redirect("/grocery-lists");
+  }
 
   const recipes = await listRecipes({
     organizationId: orgId,

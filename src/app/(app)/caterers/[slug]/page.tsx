@@ -10,6 +10,8 @@ import { SellerVerificationBadge } from "@/components/seller-verifications/verif
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
+import { hasPlatformRole, PLATFORM_ADMIN_ROLES } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { getPublicHomeCateringProfile } from "@/server/home-catering";
 import { listPublicMenuItemsForOrganization } from "@/server/menus";
 import { listPublicBusinessSocialLinks } from "@/server/business-social-links";
@@ -22,7 +24,14 @@ export const dynamic = "force-dynamic";
 export default async function CatererDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await requireMembership();
   const { slug } = await params;
-  const profile = await getPublicHomeCateringProfile(slug, session.activeOrganization.id);
+  const orgId = session.activeOrganization.id;
+
+  const featureEnabled = await isFeatureEnabled("home_catering", orgId);
+  if (!featureEnabled && !hasPlatformRole(session.user.platformRole, PLATFORM_ADMIN_ROLES)) {
+    notFound();
+  }
+
+  const profile = await getPublicHomeCateringProfile(slug, orgId);
   if (!profile) notFound();
   const [menuItems, socialLinks, profileImageUrl, coverImageUrl, sellerBadges, reviewSummary, reviews] = await Promise.all([
     listPublicMenuItemsForOrganization(profile.organizationId),
