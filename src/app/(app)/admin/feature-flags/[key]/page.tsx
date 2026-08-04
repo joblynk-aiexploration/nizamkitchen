@@ -123,23 +123,19 @@ function OrgTable({
                 <input type="hidden" name="key" value={featureKey} />
                 <input type="hidden" name="organizationId" value={org.id} />
                 <input type="hidden" name="enabled" value={org.effectiveEnabled ? "false" : "true"} />
-                <button
+                <Button
                   type="submit"
-                  className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                    org.effectiveEnabled
-                      ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100"
-                      : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
-                  }`}
+                  variant={org.effectiveEnabled ? "secondary" : "primary"}
                 >
                   {org.effectiveEnabled ? "Disable" : "Enable"}
-                </button>
+                </Button>
               </form>
 
               {org.override ? (
                 <form action={`/api/admin/feature-flags/${org.override.id}/remove`} method="post">
                   <button
                     type="submit"
-                    className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-all hover:bg-slate-50 hover:scale-[1.02] active:scale-[0.98]"
+                    className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-all hover:bg-slate-50"
                     title="Remove org-specific override — revert to global setting"
                   >
                     Reset to global
