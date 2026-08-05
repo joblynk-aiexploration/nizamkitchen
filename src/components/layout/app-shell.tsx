@@ -4,6 +4,7 @@ import { ChevronLeft, Inbox, MessageSquarePlus, Settings2, Sparkles, User } from
 import { getCurrentSession } from "@/lib/auth/session";
 import { FEATURE_REGISTRY, getEnabledFeatureKeys } from "@/lib/feature-flags";
 import { initialsFromName } from "@/components/profiles/profile-components";
+import { AppShellChrome } from "@/components/layout/app-shell-chrome";
 import { LogoMark } from "@/components/layout/logo-mark";
 import { LogoutForm } from "@/components/layout/logout-form";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -51,15 +52,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       : null,
   };
 
-  return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
-      <aside className="flex flex-col bg-[linear-gradient(180deg,var(--color-sidebar)_0%,var(--color-sidebar-strong)_100%)] px-6 py-8 text-[var(--color-sidebar-text)] lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
-        <LogoMark />
+  const sidebar = (
+    <>
+      <LogoMark />
 
         {/* User card */}
         <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-4">
           <div className="flex items-center gap-3">
             {resolvedAvatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={resolvedAvatarUrl}
                 alt={session.user.fullName}
@@ -121,22 +122,22 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <LogoutForm />
         </div>
-      </aside>
-      <main className="min-h-screen px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <div className="mx-auto max-w-7xl">
-          {!legalAcceptance.accepted && session.user.platformRole !== "platform_owner" && (
-            <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span>Updated terms require your acceptance before some marketplace actions can continue.</span>
-                <Link href="/legal/accept-required" className="font-semibold text-amber-900 underline">
-                  Review and accept
-                </Link>
-              </div>
-            </div>
-          )}
-          {children}
+    </>
+  );
+
+  return (
+    <AppShellChrome sidebar={sidebar}>
+      {!legalAcceptance.accepted && session.user.platformRole !== "platform_owner" && (
+        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>Updated terms require your acceptance before some marketplace actions can continue.</span>
+            <Link href="/legal/accept-required" className="font-semibold text-amber-900 underline">
+              Review and accept
+            </Link>
+          </div>
         </div>
-      </main>
-    </div>
+      )}
+      {children}
+    </AppShellChrome>
   );
 }
