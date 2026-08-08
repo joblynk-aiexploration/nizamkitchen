@@ -1053,6 +1053,9 @@ model BillingUsageRecord {
   @@index([organizationId])
   @@index([usageType])
   @@index([periodStart, periodEnd])
+  // Composite index for the hot enforcement path: WHERE organizationId=? AND usageType=? AND periodStart>=?
+  // Covers usage counts, override reads, and reset lookups in a single index scan.
+  @@index([organizationId, usageType, periodStart])
 }
 
 model ApiKey {

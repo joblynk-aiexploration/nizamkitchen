@@ -19,6 +19,7 @@ import {
   homeChefRequestUpdateSchema,
 } from "@/lib/validation/home-chef";
 import { createAuditEvent } from "@/server/audit";
+import { assertBookingAcceptanceLimit } from "@/server/billing";
 import { createNotification } from "@/server/notifications/notification-service";
 import { assertSellerGate } from "@/server/seller-verification-gates";
 import {
@@ -637,6 +638,10 @@ export async function updateChefHomeChefOrderStatus(params: {
   status: "accepted" | "declined";
   note?: string | null;
 }) {
+  if (params.status === "accepted") {
+    await assertBookingAcceptanceLimit(params.chefOrganizationId);
+  }
+
   const offer = await prisma.homeChefRequestOffer.findFirst({
     where: {
       homeChefRequestId: params.requestId,

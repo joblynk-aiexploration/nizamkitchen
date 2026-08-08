@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { clearAllLimitOverrides } from "@/server/billing/limit-overrides";
 import { generateAccountingForPaymentOrder } from "@/server/accounting/accounting-service";
 import { createSystemAlertForFailure } from "@/server/observability/system-alerts";
 import { createAdminNotification } from "@/server/notifications/notification-service";
@@ -192,6 +193,9 @@ async function processStripeEvent(event: Stripe.Event) {
 
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted" || event.type === "customer.subscription.created") {
     const subscription = event.data.object as Stripe.Subscription;
+    // Sync plan when the Stripe price changes (e.g. Customer Portal upgrade/downgrade).
+    // This must run before the status update so the planId is correct when entitlements refresh.
+    await syncSubscriptionPlanFromStripe(subscription);
     await prisma.billingSubscription.updateMany({
       where: { providerSubscriptionId: subscription.id },
       data: {
@@ -330,4 +334,57 @@ function mapStripeSubscriptionStatus(status: Stripe.Subscription.Status) {
   if (status === "past_due") return "past_due";
   if (status === "unpaid") return "unpaid";
   return "cancelled";
+}
+
+/**
+ * Syncs our BillingSubscription.planId when Stripe reports a price change.
+ * Covers Customer Portal upgrades and downgrades that bypass the admin UI.
+ *
+ * If the new Stripe price ID does not match any active BillingPlan, we log a
+ * warning and skip — the catalog must be updated before the plan can sync.
+ * Overrides are cleared whenever a plan change is detected so no stale
+ * limit overrides carry forward to the new plan.
+ */
+async function syncSubscriptionPlanFromStripe(stripeSub: Stripe.Subscription): Promise<void> {
+  const priceId = stripeSub.items?.data?.[0]?.price?.id;
+  if (!priceId) return;
+
+  const existing = await prisma.billingSubscription.findFirst({
+    where: { providerSubscriptionId: stripeSub.id },
+    include: { plan: true },
+  });
+  if (!existing) return;
+
+  if (existing.plan.stripePriceId === priceId) return;
+
+  const newPlan = await prisma.billingPlan.findFirst({
+    where: { stripePriceId: priceId, status: "active" },
+  });
+
+  if (!newPlan) {
+    console.warn(
+      `[stripe-sync] Stripe price ${priceId} has no matching active BillingPlan — update the plan catalog first.`,
+    );
+    return;
+  }
+
+  await prisma.billingSubscription.update({
+    where: { id: existing.id },
+    data: { planId: newPlan.id },
+  });
+
+  await clearAllLimitOverrides(existing.organizationId);
+
+  await createAuditEvent({
+    action: "billing_subscription.plan_changed",
+    targetType: "billing_subscription",
+    targetId: existing.id,
+    organizationId: existing.organizationId,
+    details: {
+      source: "stripe_webhook",
+      previousPlanSlug: existing.plan.slug,
+      newPlanSlug: newPlan.slug,
+      stripePriceId: priceId,
+    },
+  });
 }

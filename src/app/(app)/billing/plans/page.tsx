@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +13,22 @@ import { createSubscriptionCheckoutAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
+type RawBillingPlan = Awaited<ReturnType<typeof listBillingPlans>>[number] & {
+  planAudience: "household" | "chef_staff" | "home_catering" | "restaurant" | "platform_internal";
+  isPopular: boolean;
+};
+
 export default async function BillingPlansPage({ searchParams }: { searchParams: Promise<{ message?: string; payment?: string }> }) {
   const session = await requireMembership();
+
+  if (session.activeOrganization.organizationType === "household") {
+    redirect("/?message=Household accounts are always free — no billing required.");
+  }
+
   const canViewAllPlans = isPlatformBillingUser(session.user.platformRole);
   const audienceFilter = canViewAllPlans ? undefined : billingPlanAudienceForOrganizationType(session.activeOrganization.organizationType) ?? undefined;
   const [plans, subscription, stripeReadiness, query] = await Promise.all([
-    listBillingPlans("active", audienceFilter),
+    listBillingPlans("active", audienceFilter) as Promise<RawBillingPlan[]>,
     getSubscriptionForOrg(session.activeOrganization.id),
     getStripePaymentReadiness({
       countryCode: session.activeOrganization.countryCode,

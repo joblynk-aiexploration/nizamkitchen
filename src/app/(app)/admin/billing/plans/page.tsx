@@ -1,4 +1,4 @@
-import { BillingInterval, BillingPlanAudience, BillingPlanStatus, type BillingPlan } from "@prisma/client";
+import { BillingInterval, BillingPlanStatus } from "@prisma/client";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +9,20 @@ import { SelectInput } from "@/components/ui/select-input";
 import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { listBillingPlans } from "@/server/billing/plans";
-import { billingPlanAudienceLabel } from "@/server/billing/plan-audience";
+import { billingPlanAudienceLabel, BILLING_PLAN_AUDIENCES, type BillingPlanAudience } from "@/server/billing/plan-audience";
 import { getPlanLimits } from "@/server/billing/plan-limits";
 import { createBillingPlanAction, updateBillingPlanAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+type BillingPlanRow = Awaited<ReturnType<typeof listBillingPlans>>[number] & {
+  planAudience: BillingPlanAudience;
+  isPopular: boolean;
+};
+
 const intervalOptions = Object.values(BillingInterval).map((value) => ({ value, label: value.replace("_", " ") }));
 const statusOptions = Object.values(BillingPlanStatus).map((value) => ({ value, label: value.replace("_", " ") }));
-const audienceOptions = Object.values(BillingPlanAudience).map((value) => ({ value, label: billingPlanAudienceLabel(value) }));
+const audienceOptions = BILLING_PLAN_AUDIENCES.map((value) => ({ value, label: billingPlanAudienceLabel(value) }));
 
 export default async function AdminBillingPlansPage({ searchParams }: { searchParams: Promise<{ message?: string; audience?: string; status?: string; currency?: string; interval?: string }> }) {
   const session = await requirePlatformRole(["platform_owner", "platform_admin"]);
@@ -67,14 +72,14 @@ export default async function AdminBillingPlansPage({ searchParams }: { searchPa
 
       <div className="grid gap-4">
         {plans.map((plan) => (
-          <PlanEditor key={plan.id} plan={plan} />
+          <PlanEditor key={plan.id} plan={plan as BillingPlanRow} />
         ))}
       </div>
     </AdminShell>
   );
 }
 
-function PlanEditor({ plan }: { plan: BillingPlan }) {
+function PlanEditor({ plan }: { plan: BillingPlanRow }) {
   const limits = getPlanLimits(plan);
   const features = featuresText(plan);
   const priceNum = Number(plan.priceAmount);
@@ -137,7 +142,7 @@ function BillingPlanForm({
   className,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  plan?: BillingPlan;
+  plan?: BillingPlanRow;
   submitLabel: string;
   className?: string;
 }) {
@@ -225,6 +230,6 @@ function limitText(value: number) {
   return value === -1 ? "Unlimited" : String(value);
 }
 
-function featuresText(plan: BillingPlan) {
+function featuresText(plan: BillingPlanRow) {
   return Array.isArray(plan.featuresJson) ? plan.featuresJson.map(String).join("\n") : "";
 }

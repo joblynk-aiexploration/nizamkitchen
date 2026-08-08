@@ -1,4 +1,4 @@
-import { AccountingDocumentType, PaymentOrderStatus, Prisma, type PlatformRole, type UserStatus } from "@prisma/client";
+import { AccountingDocumentType, PaymentOrderStatus, Prisma, type CheckoutQuoteLine, type PlatformRole, type UserStatus } from "@prisma/client";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
 import { paginatedQuery } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -236,11 +236,17 @@ export async function getAccountingDocument(session: AccountingSession, document
   return hydrateAccountingDocumentParties(document);
 }
 
+type HydrationAdditions = {
+  customerOrganizationName: string | null;
+  sellerOrganizationName: string | null;
+  checkoutQuoteLines: CheckoutQuoteLine[];
+};
+
 async function hydrateAccountingDocumentParties<T extends {
   customerOrganizationId: string | null;
   sellerOrganizationId: string | null;
   paymentOrder?: { checkoutQuoteId?: string | null } | null;
-} | null>(document: T) {
+} | null>(document: T): Promise<(NonNullable<T> & HydrationAdditions) | null> {
   if (!document) return null;
   const organizationIds = [document.customerOrganizationId, document.sellerOrganizationId].filter(Boolean) as string[];
   const [organizations, checkoutQuote] = await Promise.all([
@@ -264,7 +270,7 @@ async function hydrateAccountingDocumentParties<T extends {
     customerOrganizationName: document.customerOrganizationId ? nameById.get(document.customerOrganizationId) ?? null : null,
     sellerOrganizationName: document.sellerOrganizationId ? nameById.get(document.sellerOrganizationId) ?? null : null,
     checkoutQuoteLines: checkoutQuote?.lines ?? [],
-  };
+  } as NonNullable<T> & HydrationAdditions;
 }
 
 export async function listSellerSettlementReports(organizationId: string) {

@@ -24,6 +24,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     sellerVerificationOverride: { findFirst: vi.fn() },
     featureFlag: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
+    billingUsageRecord: { findMany: vi.fn().mockResolvedValue([]) },
     notificationPreference: { upsert: vi.fn() },
     notification: { create: vi.fn() },
     user: { findUnique: vi.fn(), findMany: vi.fn() },
@@ -131,6 +132,7 @@ describe("food order request workflow", () => {
     mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
     mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
     mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
   });
 
   it("validates order request input without payment data", () => {

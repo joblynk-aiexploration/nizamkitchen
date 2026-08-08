@@ -50,6 +50,7 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled } = vi.hoisted(() => {
     sellerVerificationProfile: { findUnique: vi.fn() },
     sellerPayoutAccount: { findFirst: vi.fn() },
     sellerVerificationOverride: { findFirst: vi.fn() },
+    billingUsageRecord: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn((callback) =>
       callback({
         homeChefRequest: { update: requestUpdate },

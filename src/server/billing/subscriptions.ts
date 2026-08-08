@@ -2,6 +2,7 @@ import { assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
 import { getBillingDelegates } from "@/server/billing/safe-billing";
+import { clearAllLimitOverrides } from "@/server/billing/limit-overrides";
 import type { BillingProvider, BillingSubscriptionStatus } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 
@@ -89,6 +90,10 @@ export async function assignSubscription(
     include: { plan: true },
   });
 
+  // Clear any per-org limit overrides when a plan is assigned so they
+  // don't silently carry forward across plan generations.
+  await clearAllLimitOverrides(organizationId);
+
   await createAuditEvent({
     actorUserId: session.user.id,
     action: "billing_subscription.created",
@@ -166,6 +171,10 @@ export async function changeSubscriptionPlan(
     },
     include: { plan: true },
   });
+
+  // Clear per-org limit overrides on plan change so old overrides don't
+  // silently apply to a plan the admin never intended them for.
+  await clearAllLimitOverrides(subscription.organizationId);
 
   await createAuditEvent({
     actorUserId: session.user.id,

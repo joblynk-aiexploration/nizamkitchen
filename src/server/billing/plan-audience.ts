@@ -1,4 +1,21 @@
-import type { BillingPlanAudience, OrganizationType, PlatformRole } from "@prisma/client";
+import type { OrganizationType, PlatformRole } from "@prisma/client";
+
+// Defined locally because @prisma/client re-exports via .prisma/client which
+// doesn't resolve correctly under moduleResolution: "bundler" for new enums.
+export type BillingPlanAudience =
+  | "household"
+  | "chef_staff"
+  | "home_catering"
+  | "restaurant"
+  | "platform_internal";
+
+export const BILLING_PLAN_AUDIENCES: readonly BillingPlanAudience[] = [
+  "household",
+  "chef_staff",
+  "home_catering",
+  "restaurant",
+  "platform_internal",
+] as const;
 
 export const BILLING_PLAN_AUDIENCE_LABELS: Record<BillingPlanAudience, string> = {
   household: "Household",

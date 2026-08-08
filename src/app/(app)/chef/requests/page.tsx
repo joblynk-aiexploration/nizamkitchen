@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { isChefOrganization, listChefHomeChefRequestsForViewer } from "@/server/home-chef";
+import { getSellerUsage, isMetricAtLimit, isMetricUnlimited } from "@/server/billing/seller-usage";
+import { UpgradeModal } from "@/components/commerce/upgrade-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +23,14 @@ export default async function ChefRequestsPage() {
     );
   }
 
-  const requests = await listChefHomeChefRequestsForViewer({ session });
+  const [requests, usage] = await Promise.all([
+    listChefHomeChefRequestsForViewer({ session }),
+    getSellerUsage(session.activeOrganization.id),
+  ]);
+
+  const bookingMetric = usage.metrics.find((m) => m.key === "bookings");
+  const showBookingUsage = bookingMetric && !isMetricUnlimited(bookingMetric);
+  const atBookingLimit = bookingMetric ? isMetricAtLimit(bookingMetric) : false;
 
   return (
     <div className="space-y-8">
@@ -29,6 +39,15 @@ export default async function ChefRequestsPage() {
         title="Orders"
         description="Review household orders assigned to your chef profile. Open an order to see details, chat, accept, or decline."
       />
+
+      {showBookingUsage && bookingMetric && (
+        <BookingUsageBanner
+          metric={bookingMetric}
+          atLimit={atBookingLimit}
+          planName={usage.entitlement.planName}
+          upgradePlans={usage.upgradePlans}
+        />
+      )}
 
       {requests.length === 0 ? (
         <EmptyState
@@ -46,6 +65,56 @@ export default async function ChefRequestsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function BookingUsageBanner({
+  metric,
+  atLimit,
+  planName,
+  upgradePlans,
+}: {
+  metric: { label: string; current: number; limit: number };
+  atLimit: boolean;
+  planName: string;
+  upgradePlans: Array<{ slug: string; name: string; tier: string; billingInterval: "monthly" | "yearly" | "custom"; priceAmount: number; featuresJson: string[] }>;
+}) {
+  const pct = Math.min(100, Math.round((metric.current / metric.limit) * 100));
+  const nearLimit = !atLimit && pct >= 80;
+  const remaining = Math.max(0, metric.limit - metric.current);
+  const barColor = atLimit ? "bg-[var(--color-danger)]" : nearLimit ? "bg-amber-500" : "bg-[var(--color-primary)]";
+
+  return (
+    <Card className={atLimit ? "border-red-200 bg-red-50/60" : nearLimit ? "border-amber-200 bg-amber-50/60" : ""}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bookings this month</p>
+          <p className={`text-2xl font-bold ${atLimit ? "text-[var(--color-danger)]" : nearLimit ? "text-amber-600" : "text-[var(--color-ink)]"}`}>
+            {metric.current} <span className="text-sm font-normal text-[var(--color-muted)]">/ {metric.limit}</span>
+          </p>
+        </div>
+        {(atLimit || nearLimit) && upgradePlans.length > 0 && (
+          <UpgradeModal
+            trigger={<Button variant={atLimit ? "warning" : "secondary"}>Upgrade plan</Button>}
+            currentPlanName={planName}
+            limitLabel="Bookings"
+            current={metric.current}
+            limit={metric.limit}
+            upgradePlans={upgradePlans}
+          />
+        )}
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className={`mt-2 text-xs ${atLimit ? "font-medium text-[var(--color-danger)]" : nearLimit ? "text-amber-600" : "text-[var(--color-muted)]"}`}>
+        {atLimit
+          ? "None remaining — upgrade to accept more bookings."
+          : nearLimit
+          ? `${remaining} remaining — consider upgrading your plan.`
+          : `${remaining} remaining`}
+      </p>
+    </Card>
   );
 }
 

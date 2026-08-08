@@ -7,6 +7,8 @@ import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMenus, listMenuItemsForOrganization } from "@/server/menus";
+import { getSellerUsage, isMetricAtLimit } from "@/server/billing/seller-usage";
+import { UpgradeModal } from "@/components/commerce/upgrade-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,31 @@ export default async function CateringMenuItemsPage({ searchParams }: { searchPa
   if (session.activeOrganization.organizationType !== "home_catering") return <EmptyState title="Home catering only" description="Menu items are available for home catering sellers." />;
   const enabled = await canAccessMenus({ organizationId: session.activeOrganization.id, organizationType: "home_catering", platformRole: session.user.platformRole });
   if (!enabled) return <EmptyState title="Menus coming soon" description="Menu item management is not enabled for this organization yet." />;
-  const items = await listMenuItemsForOrganization(session.activeOrganization.id);
+
+  const [items, usage] = await Promise.all([
+    listMenuItemsForOrganization(session.activeOrganization.id),
+    getSellerUsage(session.activeOrganization.id),
+  ]);
+
+  const packageMetric = usage.metrics.find((m) => m.key === "menuItems");
+  const atPackageLimit = packageMetric ? isMetricAtLimit(packageMetric) : false;
+
+  const createAction = atPackageLimit ? (
+    <UpgradeModal
+      trigger={<Button variant="warning">Upgrade plan</Button>}
+      currentPlanName={usage.entitlement.planName}
+      limitLabel="Packages"
+      current={packageMetric?.current ?? 0}
+      limit={packageMetric?.limit ?? 0}
+      upgradePlans={usage.upgradePlans}
+    />
+  ) : (
+    <Button asChild><Link href="/catering/menu-items/new">Add menu item</Link></Button>
+  );
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Home catering" title="Menu items" description="Manage special dishes, trays, sides, desserts, and preorder dishes." actions={<Button asChild><Link href="/catering/menu-items/new">Add menu item</Link></Button>} />
+      <PageHeader eyebrow="Home catering" title="Menu items" description="Manage special dishes, trays, sides, desserts, and preorder dishes." actions={createAction} />
       <FormMessage message={query.message} />
       {items.length === 0 ? <EmptyState title="No menu items yet" description="Add your first dish to start building a public menu." /> : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

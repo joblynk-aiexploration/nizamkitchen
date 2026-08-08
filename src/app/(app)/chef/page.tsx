@@ -8,6 +8,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
 import { getSellerDashboardVerificationSummary } from "@/server/seller-verification-gates";
 import { pauseChefProfileAction } from "./actions";
+import { PlanUsagePanel } from "@/components/commerce/plan-usage-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export default async function ChefDashboardPage() {
         />
       ) : (
         <>
+          <PlanUsagePanel organizationId={session.activeOrganization.id} />
           <VerificationGateAlert summary={gateSummary} />
           <section className="grid gap-4 md:grid-cols-4">
             <Card>

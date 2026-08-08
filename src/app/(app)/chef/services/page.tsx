@@ -8,6 +8,8 @@ import { TextArea } from "@/components/ui/text-area";
 import { TextInput } from "@/components/ui/text-input";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessChefMarketplace, getChefProfileForOrganization, isChefBusiness } from "@/server/chefs";
+import { getSellerUsage, isMetricAtLimit, isMetricUnlimited } from "@/server/billing/seller-usage";
+import { UpgradeModal } from "@/components/commerce/upgrade-modal";
 import { upsertChefServiceAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -37,10 +39,16 @@ export default async function ChefServicesPage({ searchParams }: { searchParams:
   if (!enabled || !isChefBusiness(session.activeOrganization.organizationType)) {
     return <EmptyState title="Chef services unavailable" description="Chef service tools are available only for enabled chef businesses." />;
   }
-  const profile = await getChefProfileForOrganization(session.activeOrganization.id);
+  const [profile, usage] = await Promise.all([
+    getChefProfileForOrganization(session.activeOrganization.id),
+    getSellerUsage(session.activeOrganization.id),
+  ]);
   if (!profile) {
     return <EmptyState title="Create a chef profile first" description="Services attach to your chef profile." />;
   }
+
+  const serviceMetric = usage.metrics.find((m) => m.key === "services");
+  const atServiceLimit = serviceMetric ? isMetricAtLimit(serviceMetric) : false;
 
   return (
     <div className="space-y-8">
@@ -88,10 +96,21 @@ export default async function ChefServicesPage({ searchParams }: { searchParams:
         <EmptyState title="No services yet" description="Add your first cooking service so customers know what they can request." />
       )}
 
-      <Card>
-        <h2 className="text-lg font-semibold text-[var(--color-ink)]">Add service</h2>
-        <ChefServiceForm currencyCode={session.activeOrganization.currencyCode} submitLabel="Add service" />
-      </Card>
+      {serviceMetric && !isMetricUnlimited(serviceMetric) && (
+        <ServiceUsageBanner
+          metric={serviceMetric}
+          atLimit={atServiceLimit}
+          planName={usage.entitlement.planName}
+          upgradePlans={usage.upgradePlans}
+        />
+      )}
+
+      {!atServiceLimit && (
+        <Card>
+          <h2 className="text-lg font-semibold text-[var(--color-ink)]">Add service</h2>
+          <ChefServiceForm currencyCode={session.activeOrganization.currencyCode} submitLabel="Add service" />
+        </Card>
+      )}
     </div>
   );
 }
@@ -141,4 +160,54 @@ function ChefServiceForm({
 function formatServicePrice(amount: number | null, currencyCode: string, priceUnit: string) {
   const unit = priceUnit.replace(/_/g, " ");
   return amount ? `${amount.toFixed(2)} ${currencyCode} · ${unit}` : `Price TBD · ${unit}`;
+}
+
+function ServiceUsageBanner({
+  metric,
+  atLimit,
+  planName,
+  upgradePlans,
+}: {
+  metric: { label: string; current: number; limit: number };
+  atLimit: boolean;
+  planName: string;
+  upgradePlans: Array<{ slug: string; name: string; tier: string; billingInterval: "monthly" | "yearly" | "custom"; priceAmount: number; featuresJson: string[] }>;
+}) {
+  const pct = Math.min(100, Math.round((metric.current / metric.limit) * 100));
+  const nearLimit = !atLimit && pct >= 80;
+  const remaining = Math.max(0, metric.limit - metric.current);
+  const barColor = atLimit ? "bg-[var(--color-danger)]" : nearLimit ? "bg-amber-500" : "bg-[var(--color-primary)]";
+
+  return (
+    <Card className={atLimit ? "border-red-200 bg-red-50/60" : nearLimit ? "border-amber-200 bg-amber-50/60" : ""}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Services</p>
+          <p className={`text-2xl font-bold ${atLimit ? "text-[var(--color-danger)]" : nearLimit ? "text-amber-600" : "text-[var(--color-ink)]"}`}>
+            {metric.current} <span className="text-sm font-normal text-[var(--color-muted)]">/ {metric.limit}</span>
+          </p>
+        </div>
+        {(atLimit || nearLimit) && upgradePlans.length > 0 && (
+          <UpgradeModal
+            trigger={<Button variant={atLimit ? "warning" : "secondary"}>Upgrade plan</Button>}
+            currentPlanName={planName}
+            limitLabel="Services"
+            current={metric.current}
+            limit={metric.limit}
+            upgradePlans={upgradePlans}
+          />
+        )}
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className={`mt-2 text-xs ${atLimit ? "font-medium text-[var(--color-danger)]" : nearLimit ? "text-amber-600" : "text-[var(--color-muted)]"}`}>
+        {atLimit
+          ? "None remaining — upgrade to add more services."
+          : nearLimit
+          ? `${remaining} remaining — consider upgrading your plan.`
+          : `${remaining} remaining`}
+      </p>
+    </Card>
+  );
 }

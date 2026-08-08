@@ -7,6 +7,8 @@ import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { canAccessMenus, listMenuItemsForOrganization } from "@/server/menus";
+import { getSellerUsage, isMetricAtLimit } from "@/server/billing/seller-usage";
+import { UpgradeModal } from "@/components/commerce/upgrade-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,31 @@ export default async function RestaurantMenuItemsPage({ searchParams }: { search
   if (session.activeOrganization.organizationType !== "restaurant") return <EmptyState title="Restaurant only" description="Menu items are available for restaurant organizations." />;
   const enabled = await canAccessMenus({ organizationId: session.activeOrganization.id, organizationType: "restaurant", platformRole: session.user.platformRole });
   if (!enabled) return <EmptyState title="Restaurant profiles coming soon" description="Restaurant menu item management is not enabled yet." />;
-  const items = await listMenuItemsForOrganization(session.activeOrganization.id);
+
+  const [items, usage] = await Promise.all([
+    listMenuItemsForOrganization(session.activeOrganization.id),
+    getSellerUsage(session.activeOrganization.id),
+  ]);
+
+  const menuItemMetric = usage.metrics.find((m) => m.key === "menuItems");
+  const atMenuItemLimit = menuItemMetric ? isMetricAtLimit(menuItemMetric) : false;
+
+  const createAction = atMenuItemLimit ? (
+    <UpgradeModal
+      trigger={<Button variant="warning">Upgrade plan</Button>}
+      currentPlanName={usage.entitlement.planName}
+      limitLabel="Menu Items"
+      current={menuItemMetric?.current ?? 0}
+      limit={menuItemMetric?.limit ?? 0}
+      upgradePlans={usage.upgradePlans}
+    />
+  ) : (
+    <Button asChild><Link href="/restaurant/menu-items/new">Add menu item</Link></Button>
+  );
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Restaurant" title="Menu items" description="Manage dishes households can browse before ordering is connected." actions={<Button asChild><Link href="/restaurant/menu-items/new">Add menu item</Link></Button>} />
+      <PageHeader eyebrow="Restaurant" title="Menu items" description="Manage the dishes households can browse and order." actions={createAction} />
       <FormMessage message={query.message} />
       {items.length === 0 ? <EmptyState title="No menu items yet" description="Add your first restaurant dish." /> : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

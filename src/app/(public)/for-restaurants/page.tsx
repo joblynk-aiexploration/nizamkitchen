@@ -18,7 +18,7 @@ const benefits = [
   {
     icon: ShoppingCart,
     title: "Saved by real customers",
-    body: "Households save restaurants they trust for repeat fallback nights. No checkout or payment flow is connected yet.",
+    body: "Households save restaurants they trust for repeat fallback nights, and can order with secure hosted checkout.",
   },
   {
     icon: TrendingUp,

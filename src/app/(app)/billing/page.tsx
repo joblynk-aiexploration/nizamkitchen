@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireMembership } from "@/lib/auth/session";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { listMemberAccountingDocuments } from "@/server/accounting/accounting-service";
 import { getSubscriptionForOrg } from "@/server/billing/subscriptions";
-import { getPlanLimits } from "@/server/billing/plan-limits";
+import { getEntitlement } from "@/server/billing/entitlements";
 import { formatDate } from "@/lib/utils";
 import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 import { finalizeStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
@@ -28,7 +29,7 @@ function LimitRow({ label, value }: { label: string; value: number | boolean }) 
     <div className="flex items-center justify-between py-2 text-sm">
       <span className="text-[var(--color-muted)]">{label}</span>
       <span className="font-medium text-[var(--color-ink)]">
-        {value === -1 ? "Unlimited" : value}
+        {value === Infinity || value === -1 ? "Unlimited" : value}
       </span>
     </div>
   );
@@ -36,6 +37,11 @@ function LimitRow({ label, value }: { label: string; value: number | boolean }) 
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string; message?: string; session_id?: string }> }) {
   const session = await requireMembership();
+
+  if (session.activeOrganization.organizationType === "household") {
+    redirect("/?message=Household accounts are always free — no billing required.");
+  }
+
   const query = await searchParams;
   let checkoutMessage: string | null = null;
   if (query.payment === "success" && query.session_id) {
@@ -53,8 +59,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const [subscription, stripeReadiness, invoices, receipts] = await Promise.all([
+  const [subscription, entitlement, stripeReadiness, invoices, receipts] = await Promise.all([
     getSubscriptionForOrg(session.activeOrganization.id),
+    getEntitlement(session.activeOrganization.id),
     getStripePaymentReadiness({
       countryCode: session.activeOrganization.countryCode,
       currencyCode: session.activeOrganization.currencyCode,
@@ -63,7 +70,6 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     listMemberAccountingDocuments(session, "receipt"),
   ]);
   const stripeConfigured = stripeReadiness.configured;
-  const limits = getPlanLimits(subscription?.plan ?? { slug: "free", limitsJson: {} });
   const plan = subscription?.plan;
   const priceAmount = Number(plan?.priceAmount ?? 0);
   const planPrice = priceAmount > 0
@@ -177,14 +183,14 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             </Link>
           </div>
           <div className="mt-6 divide-y divide-[var(--color-border)]">
-            <LimitRow label="Meal plans" value={limits.maxMealPlans} />
-            <LimitRow label="Grocery lists per month" value={limits.maxGroceryListsPerMonth} />
-            <LimitRow label="Household members" value={limits.maxHouseholdMembers} />
-            <LimitRow label="Saved restaurants" value={limits.maxSavedRestaurants} />
-            <LimitRow label="Chef requests per month" value={limits.maxChefRequestsPerMonth} />
-            <LimitRow label="Chef marketplace" value={limits.chefMarketplaceEnabled} />
-            <LimitRow label="Grocery exports" value={limits.groceryExportsEnabled} />
-            <LimitRow label="Restaurant search" value={limits.restaurantFallbackEnabled} />
+            <LimitRow label="Meal plans" value={entitlement.limits.maxMealPlans} />
+            <LimitRow label="Grocery lists per month" value={entitlement.limits.maxGroceryListsPerMonth} />
+            <LimitRow label="Household members" value={entitlement.limits.maxHouseholdMembers} />
+            <LimitRow label="Saved restaurants" value={entitlement.limits.maxSavedRestaurants} />
+            <LimitRow label="Chef requests per month" value={entitlement.limits.maxChefRequestsPerMonth} />
+            <LimitRow label="Chef marketplace" value={entitlement.features.chefMarketplace} />
+            <LimitRow label="Grocery exports" value={entitlement.features.groceryExports} />
+            <LimitRow label="Restaurant search" value={entitlement.features.restaurantSearch} />
           </div>
         </Card>
 

@@ -14,7 +14,7 @@ export async function updateAdminChefProfileAction(formData: FormData) {
   const chefProfileId = String(formData.get("chefProfileId"));
   try {
     const session = await requireChefAdmin();
-    await updateAdminChefProfileStatus({
+    const profile = await updateAdminChefProfileStatus({
       session,
       chefProfileId,
       input: {
@@ -26,6 +26,8 @@ export async function updateAdminChefProfileAction(formData: FormData) {
     });
     revalidatePath("/admin/chefs");
     revalidatePath(`/admin/chefs/${chefProfileId}`);
+    revalidatePath("/chefs");
+    revalidatePath(`/chefs/${profile.slug}`);
     redirect(`/admin/chefs/${chefProfileId}?message=Chef profile updated.`);
   } catch (error) {
     rethrowIfRedirectError(error);

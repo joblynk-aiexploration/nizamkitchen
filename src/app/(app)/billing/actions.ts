@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { createCustomerRefundRequest } from "@/server/payments/refund-requests";
 import { createStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
+import { assertStripeCheckoutEligible } from "@/server/billing/stripe-eligibility";
 
 export async function createSubscriptionCheckoutAction(formData: FormData) {
   const session = await requireMembership();
@@ -14,6 +15,8 @@ export async function createSubscriptionCheckoutAction(formData: FormData) {
   const promotionCode = String(formData.get("promotionCode") ?? "").trim();
   let checkoutUrl;
   try {
+    // Hard guard: household orgs, free plans, and enterprise (custom) plans must never reach Stripe.
+    await assertStripeCheckoutEligible(session.activeOrganization.id, planId);
     const result = await createStripeSubscriptionCheckout({
       organizationId: session.activeOrganization.id,
       userId: session.user.id,

@@ -26,6 +26,7 @@ import {
   chefSpecialtySchema,
 } from "@/lib/validation/chefs";
 import { createAuditEvent } from "@/server/audit";
+import { assertServiceLimit } from "@/server/billing";
 import { createNotification } from "@/server/notifications/notification-service";
 import { createHomeChefRequest } from "@/server/home-chef";
 import { getSellerVerificationGate } from "@/server/seller-verification-gates";
@@ -242,6 +243,10 @@ export async function upsertChefService(params: {
   const existing = parsed.serviceId
     ? await prisma.chefService.findFirst({ where: { id: parsed.serviceId, chefProfile: { organizationId: params.organizationId } } })
     : null;
+
+  if (!existing) {
+    await assertServiceLimit(params.organizationId);
+  }
 
   const service = existing
     ? await prisma.chefService.update({

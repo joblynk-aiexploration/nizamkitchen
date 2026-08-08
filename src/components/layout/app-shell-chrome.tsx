@@ -151,9 +151,10 @@ export function AppShellChrome({
         aria-label="Main navigation"
         aria-hidden={!isDesktop && !open ? true : undefined}
         className={[
-          "fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col overflow-y-auto",
+          // overflow-hidden (not overflow-y-auto) so the flex-1 nav section — not the whole aside — scrolls.
+          "fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col overflow-hidden",
           "bg-[linear-gradient(180deg,var(--color-sidebar)_0%,var(--color-sidebar-strong)_100%)]",
-          "px-6 py-8 text-[var(--color-sidebar-text)] shadow-2xl",
+          "px-6 py-4 lg:py-8 text-[var(--color-sidebar-text)] shadow-2xl",
           "transition-transform duration-200 ease-out will-change-transform",
           open ? "translate-x-0" : "-translate-x-full",
           // Guarded with an lg: override so the desktop sidebar is never inert,
@@ -161,7 +162,7 @@ export function AppShellChrome({
           !isDesktop && !open ? "pointer-events-none lg:pointer-events-auto" : "",
           // From lg up: always visible, in-flow, sticky, full height, no transform.
           "lg:sticky lg:inset-auto lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:translate-x-0",
-          "lg:overflow-hidden lg:shadow-none",
+          "lg:shadow-none",
         ].join(" ")}
       >
         <button

@@ -9,7 +9,6 @@ const DEFAULT_SITE_URL = "https://nizamkitchen.com";
 const DEFAULT_TITLE = "NizamKitchen";
 const DEFAULT_DESCRIPTION = "Hyderabadi meal planning, grocery lists, home chefs, catering, restaurants, and food marketplace workflows.";
 const DEFAULT_GOOGLE_ANALYTICS_MEASUREMENT_ID = "G-D2668ZZ80C";
-const DEFAULT_SECURE_PRIVACY_SCRIPT_URL = "https://app.secureprivacy.ai/script/6a265d6522609752e3d645f1.js";
 
 export type SeoFormInput = {
   id?: string;
@@ -355,8 +354,8 @@ function googlePlatformConfigFallback(): GooglePlatformPublicConfig {
   return {
     analyticsMeasurementId,
     analyticsEnabled: Boolean(analyticsMeasurementId),
-    analyticsConsentRequired: false,
-    consentManagementEnabled: false,
+    analyticsConsentRequired: true,
+    consentManagementEnabled: true,
     consentModeEnabled: false,
     cmpAnalyticsIntegrationEnabled: false,
     adsenseEnabled: false,
@@ -392,9 +391,6 @@ export async function getSecurePrivacyPublicConfig(): Promise<SecurePrivacyPubli
     };
   }
 
-  const fallbackScriptUrl =
-    securePrivacyScriptUrl(process.env.NEXT_PUBLIC_SECURE_PRIVACY_SCRIPT_URL) ??
-    DEFAULT_SECURE_PRIVACY_SCRIPT_URL;
   const fallbackConfig: SecurePrivacyPublicConfig = {
     enabled: false,
     scriptUrl: undefined,
@@ -472,10 +468,8 @@ export async function getGooglePlatformPublicConfig(): Promise<GooglePlatformPub
     searchConsoleVerification: typeof searchConsoleMeta === "string" ? extractGoogleVerificationContent(searchConsoleMeta) : undefined,
     analyticsMeasurementId,
     analyticsEnabled: Boolean(analyticsMeasurementId),
-    analyticsConsentRequired: securePrivacy.googleAnalyticsIntegrationEnabled
-      ? true
-      : settingToBoolean(analytics?.settings.consentRequired, false),
-    consentManagementEnabled: securePrivacy.enabled,
+    analyticsConsentRequired: true,
+    consentManagementEnabled: true,
     consentModeEnabled: securePrivacy.consentModeEnabled,
     cmpAnalyticsIntegrationEnabled: securePrivacy.googleAnalyticsIntegrationEnabled,
     adsensePublisherId: typeof adsensePublisherId === "string" ? adsensePublisherId : undefined,

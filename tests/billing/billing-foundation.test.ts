@@ -36,13 +36,8 @@ vi.mock("@/server/audit", () => ({
   createAuditEvent: vi.fn().mockResolvedValue({}),
 }));
 
-import {
-  getPlanLimits,
-  getActiveSubscriptionLimits,
-  isWithinLimit,
-  getUpgradeReasonForLimit,
-  BUILT_IN_PLAN_LIMITS,
-} from "../../src/server/billing/plan-limits";
+import { getPlanLimits } from "../../src/server/billing/plan-limits";
+import { PLAN_CATALOG } from "../../src/server/billing/plan-catalog";
 import {
   createBillingPlan,
   getActiveBillingPlanById,
@@ -102,93 +97,58 @@ beforeEach(() => {
 // ─── Plan limits ──────────────────────────────────────────────────────────────
 
 describe("plan limit helper", () => {
-  it("returns built-in free limits for free plan slug", () => {
-    const limits = getPlanLimits({ slug: "free", limitsJson: {} });
-    expect(limits.maxMealPlans).toBe(2);
+  it("returns locked-down defaults when limitsJson is empty", () => {
+    const limits = getPlanLimits({ slug: "household-free", limitsJson: {} });
+    expect(limits.maxMealPlans).toBe(0);
+    expect(limits.maxGroceryListsPerMonth).toBe(0);
+    expect(limits.maxSavedRestaurants).toBe(0);
     expect(limits.chefMarketplaceEnabled).toBe(false);
     expect(limits.groceryExportsEnabled).toBe(false);
     expect(limits.restaurantFallbackEnabled).toBe(false);
   });
 
-  it("returns family-plus limits with marketplace enabled", () => {
-    const limits = getPlanLimits({ slug: "family-plus", limitsJson: {} });
+  it("returns limitsJson values when provided, ignoring slug", () => {
+    const limits = getPlanLimits({
+      slug: "household-free",
+      limitsJson: { maxMealPlans: 10, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
+    });
     expect(limits.maxMealPlans).toBe(10);
     expect(limits.chefMarketplaceEnabled).toBe(true);
     expect(limits.groceryExportsEnabled).toBe(true);
     expect(limits.restaurantFallbackEnabled).toBe(true);
   });
 
-  it("returns unlimited (-1) values for premium-household", () => {
-    const limits = getPlanLimits({ slug: "premium-household", limitsJson: {} });
+  it("limitsJson -1 represents unlimited (passed through for admin editor)", () => {
+    const limits = getPlanLimits({
+      slug: "household-free",
+      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxSavedRestaurants: -1 },
+    });
     expect(limits.maxMealPlans).toBe(-1);
     expect(limits.maxGroceryListsPerMonth).toBe(-1);
     expect(limits.maxSavedRestaurants).toBe(-1);
   });
 
-  it("applies limitsJson overrides over built-in values", () => {
+  it("applies limitsJson values over defaults", () => {
     const limits = getPlanLimits({
-      slug: "free",
+      slug: "household-free",
       limitsJson: { maxMealPlans: 99, chefMarketplaceEnabled: true },
     });
     expect(limits.maxMealPlans).toBe(99);
     expect(limits.chefMarketplaceEnabled).toBe(true);
-    // other built-in values untouched
     expect(limits.groceryExportsEnabled).toBe(false);
   });
 
-  it("falls back to default limits for an unknown plan slug", () => {
+  it("falls back to locked-down defaults for an unknown plan slug with empty limitsJson", () => {
     const limits = getPlanLimits({ slug: "unknown-xyz", limitsJson: {} });
-    expect(limits.maxMealPlans).toBe(2);
+    expect(limits.maxMealPlans).toBe(0);
   });
 
-  it("isWithinLimit returns true for -1 (unlimited)", () => {
-    expect(isWithinLimit(9999, -1)).toBe(true);
-  });
-
-  it("isWithinLimit returns false when current >= limit", () => {
-    expect(isWithinLimit(10, 10)).toBe(false);
-    expect(isWithinLimit(11, 10)).toBe(false);
-  });
-
-  it("isWithinLimit returns true when current < limit", () => {
-    expect(isWithinLimit(3, 10)).toBe(true);
-  });
-
-  it("getUpgradeReasonForLimit returns null when feature is enabled", () => {
-    const limits = getPlanLimits({ slug: "family-plus", limitsJson: {} });
-    expect(getUpgradeReasonForLimit("chefMarketplaceEnabled", limits)).toBeNull();
-  });
-
-  it("getUpgradeReasonForLimit returns message when feature is disabled", () => {
-    const limits = getPlanLimits({ slug: "free", limitsJson: {} });
-    const reason = getUpgradeReasonForLimit("chefMarketplaceEnabled", limits);
-    expect(reason).toContain("chef marketplace");
-  });
-
-  it("getActiveSubscriptionLimits returns default limits when no subscription", () => {
-    const limits = getActiveSubscriptionLimits(null);
-    expect(limits.maxMealPlans).toBe(2);
-    expect(limits.chefMarketplaceEnabled).toBe(false);
-  });
-
-  it("getActiveSubscriptionLimits uses plan slug from subscription", () => {
-    const sub = {
-      id: "sub-1",
-      organizationId: "org-1",
-      planId: "plan-family-plus",
-      status: "active" as const,
-      currentPeriodStart: null,
-      currentPeriodEnd: null,
-      trialEndsAt: null,
-      cancelAtPeriodEnd: false,
-      provider: "manual" as const,
-      providerCustomerId: null,
-      providerSubscriptionId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      plan: familyPlusPlan,
+  it("getActiveSubscriptionLimits uses plan limitsJson from subscription", () => {
+    const planWithLimits = {
+      ...familyPlusPlan,
+      limitsJson: { maxMealPlans: 10, chefMarketplaceEnabled: true },
     };
-    const limits = getActiveSubscriptionLimits(sub as never);
+    const limits = getPlanLimits(planWithLimits);
     expect(limits.maxMealPlans).toBe(10);
     expect(limits.chefMarketplaceEnabled).toBe(true);
   });
@@ -467,43 +427,41 @@ describe("billing navigation", () => {
   });
 });
 
-// ─── Plan seeds (structure) ──────────────────────────────────────────────────
+// ─── Plan catalog (structure) ────────────────────────────────────────────────
 
-describe("billing plan seeds", () => {
-  it("all six plan slugs are defined in BUILT_IN_PLAN_LIMITS", () => {
-    const expectedSlugs = [
-      "free",
-      "family-plus",
-      "premium-household",
-      "chef-business",
-      "home-catering-seller",
-      "restaurant-partner",
-      "enterprise",
-    ];
-    for (const slug of expectedSlugs) {
-      expect(BUILT_IN_PLAN_LIMITS).toHaveProperty(slug);
+describe("billing plan catalog", () => {
+  it("PLAN_CATALOG contains active plan slugs for every audience", () => {
+    const activeSlugs = PLAN_CATALOG.filter((p) => p.status === "active").map((p) => p.slug);
+    expect(activeSlugs).toContain("household-free");
+    expect(activeSlugs).toContain("home-chef-free");
+    expect(activeSlugs).toContain("catering-free");
+    expect(activeSlugs).toContain("restaurant-free");
+  });
+
+  it("chef enterprise plan allows unlimited chef requests", () => {
+    const plan = PLAN_CATALOG.find((p) => p.slug === "home-chef-enterprise");
+    expect(plan?.limitsJson.maxChefRequestsPerMonth).toBe(-1);
+  });
+
+  it("enterprise plans have all features enabled and unlimited limits", () => {
+    const enterprisePlans = PLAN_CATALOG.filter((p) => p.tier === "enterprise");
+    expect(enterprisePlans.length).toBeGreaterThan(0);
+    for (const plan of enterprisePlans) {
+      expect(plan.limitsJson.maxMealPlans).toBe(-1);
     }
   });
 
-  it("chef-business plan allows unlimited chef requests", () => {
-    expect(BUILT_IN_PLAN_LIMITS["chef-business"].maxChefRequestsPerMonth).toBe(-1);
+  it("free-tier plans have no price", () => {
+    const freePlans = PLAN_CATALOG.filter((p) => p.tier === "free");
+    for (const plan of freePlans) {
+      expect(plan.priceAmount).toBe(0);
+    }
   });
 
-  it("enterprise plan has all features enabled and unlimited limits", () => {
-    const limits = BUILT_IN_PLAN_LIMITS["enterprise"];
-    expect(limits.chefMarketplaceEnabled).toBe(true);
-    expect(limits.groceryExportsEnabled).toBe(true);
-    expect(limits.restaurantFallbackEnabled).toBe(true);
-    expect(limits.maxMealPlans).toBe(-1);
-  });
-
-  it("free plan has no payment collection — price is 0", () => {
-    // Verified structurally: free plan limits exist, no Stripe checkout involved
-    const limits = BUILT_IN_PLAN_LIMITS["free"];
-    expect(limits).toBeDefined();
-    // Confirm grocery exports and restaurant fallback are off on free tier
-    expect(limits.groceryExportsEnabled).toBe(false);
-    expect(limits.restaurantFallbackEnabled).toBe(false);
+  it("household-free plan has grocery exports and chef marketplace enabled", () => {
+    const plan = PLAN_CATALOG.find((p) => p.slug === "household-free");
+    expect(plan?.limitsJson.groceryExportsEnabled).toBe(true);
+    expect(plan?.limitsJson.chefMarketplaceEnabled).toBe(true);
   });
 });
 

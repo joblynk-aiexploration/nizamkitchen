@@ -118,7 +118,7 @@ export function SidebarNav({
 
   return (
     <div className="flex h-full flex-col">
-      <nav className="mt-8 space-y-8">
+      <nav className="mt-2 lg:mt-8 space-y-8">
         {workspaceLinks.length > 0 ? (
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</p>

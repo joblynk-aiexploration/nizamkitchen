@@ -9,8 +9,8 @@ const seededEmail = (name: string) => `${name}@${seededDomain}`;
 export const testUsers = {
   owner: { email: seededEmail("owner"), password: seededPassword },
   household: { email: seededEmail("household"), password: seededPassword },
-  chef: { email: seededEmail("chefstaff"), password: seededPassword },
-  catering: { email: seededEmail("cateringstaff"), password: seededPassword },
+  chef: { email: seededEmail("chef"), password: seededPassword },
+  catering: { email: seededEmail("catering"), password: seededPassword },
   restaurant: { email: seededEmail("restaurant"), password: seededPassword },
 } as const;
 

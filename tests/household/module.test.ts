@@ -10,6 +10,7 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled, sendTemplateEmail } = vi
       findMany: vi.fn(),
       findUnique: vi.fn(),
       upsert: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
     recipe: {
       findMany: vi.fn(),
@@ -52,6 +53,7 @@ const { mockPrisma, createAuditEvent, isFeatureEnabled, sendTemplateEmail } = vi
       update: vi.fn(),
       delete: vi.fn(),
     },
+    billingUsageRecord: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn((ops) => Promise.all(ops)),
   },
   createAuditEvent: vi.fn(),

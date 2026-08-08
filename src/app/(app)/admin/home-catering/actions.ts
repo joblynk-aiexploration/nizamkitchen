@@ -14,7 +14,7 @@ export async function updateAdminHomeCateringProfileAction(formData: FormData) {
   const profileId = String(formData.get("profileId"));
   try {
     const session = await requireCateringAdmin();
-    await updateAdminHomeCateringProfileStatus({
+    const profile = await updateAdminHomeCateringProfileStatus({
       session,
       profileId,
       input: {
@@ -27,6 +27,7 @@ export async function updateAdminHomeCateringProfileAction(formData: FormData) {
     revalidatePath("/admin/home-catering");
     revalidatePath(`/admin/home-catering/${profileId}`);
     revalidatePath("/caterers");
+    revalidatePath(`/caterers/${profile.slug}`);
     redirect(`/admin/home-catering/${profileId}?message=Home catering profile updated.`);
   } catch (error) {
     rethrowIfRedirectError(error);

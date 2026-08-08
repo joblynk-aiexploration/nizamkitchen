@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Dev scratch scripts
     "tmp/**",
+    // Local git worktrees (validation/release branches) - not part of main source
+    "nizamkitchen-*/**",
   ]),
 ]);
 

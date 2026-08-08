@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { BillingInterval, BillingPlanAudience, BillingPlanStatus } from "@prisma/client";
+import type { BillingInterval, BillingPlanStatus } from "@prisma/client";
+import type { BillingPlanAudience } from "@/server/billing/plan-audience";
 import { requirePlatformRole } from "@/lib/auth/session";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
 import { createBillingPlan, updateBillingPlan } from "@/server/billing/plans";

@@ -87,7 +87,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and submit manual order requests. Payment is handled directly with the restaurant for now." />
+      <PageHeader eyebrow="Restaurant partner" title={restaurant.name} description="Browse menu items and place an order. Pay securely at checkout, or arrange payment with the restaurant." />
       <ProfileHeader
         coverUrl={coverUrl}
         avatarUrl={logoUrl}

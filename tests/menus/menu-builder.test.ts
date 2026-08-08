@@ -29,6 +29,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     sellerVerificationOverride: { findFirst: vi.fn() },
     featureFlag: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
+    billingUsageRecord: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
   },
 }));
@@ -70,6 +71,7 @@ describe("shared menu builder", () => {
     mockPrisma.sellerVerificationProfile.findUnique.mockResolvedValue(null);
     mockPrisma.sellerPayoutAccount.findFirst.mockResolvedValue(null);
     mockPrisma.sellerVerificationOverride.findFirst.mockResolvedValue(null);
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
   });
 
   it("validates menu item input", () => {

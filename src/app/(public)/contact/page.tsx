@@ -15,12 +15,14 @@ export default async function ContactPage({
   const message = typeof params.message === "string" ? params.message : undefined;
 
   const [countries, recaptcha] = await Promise.all([
-    prisma.country.findMany({
-      where: { isActive: true },
-      orderBy: { countryName: "asc" },
-      select: { countryCode: true, countryName: true },
-    }),
-    getRecaptchaConfig(),
+    prisma.country
+      .findMany({
+        where: { isActive: true },
+        orderBy: { countryName: "asc" },
+        select: { countryCode: true, countryName: true },
+      })
+      .catch(() => [] as { countryCode: string; countryName: string }[]),
+    getRecaptchaConfig().catch(() => null),
   ]);
 
   const isSuccess = message?.startsWith("Thank you");

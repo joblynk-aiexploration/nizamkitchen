@@ -12,6 +12,7 @@ import {
   shoppingPreferenceSchema,
 } from "@/lib/validation/household";
 import { createAuditEvent } from "@/server/audit";
+import { assertHouseholdMemberLimit } from "@/server/billing/enforcement";
 import { sendTemplateEmail } from "@/server/email/email-service";
 
 const householdProfileInclude = Prisma.validator<Prisma.HouseholdProfileDefaultArgs>()({
@@ -95,6 +96,8 @@ export async function createHouseholdMemberAccount(params: {
   if (!["org_owner", "org_admin"].includes(params.actorRole)) {
     throw new Error("Only household owners and admins can create family member accounts.");
   }
+
+  await assertHouseholdMemberLimit(params.organizationId);
 
   const parsed = householdMemberAccountSchema.parse(params.input);
   const passwordHash = await hashPassword(parsed.password);

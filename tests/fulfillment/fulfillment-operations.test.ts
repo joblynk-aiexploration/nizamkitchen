@@ -28,6 +28,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     foodOrderFulfillmentEvent: { create: vi.fn() },
     auditLog: { create: vi.fn() },
+    billingUsageRecord: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(mockPrisma)),
   },
 }));
@@ -65,6 +66,7 @@ describe("fulfillment operations", () => {
     mockPrisma.fulfillmentTimeSlot.create.mockImplementation(async ({ data }) => ({ id: "slot-1", ...data }));
     mockPrisma.foodOrder.count.mockResolvedValue(0);
     mockPrisma.foodOrderFulfillmentEvent.create.mockImplementation(async ({ data }) => ({ id: "event-1", ...data }));
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
   });
 
   it("seller saves pickup location with Google place metadata and default reset", async () => {

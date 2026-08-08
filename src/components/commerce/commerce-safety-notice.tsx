@@ -6,7 +6,7 @@ export function CommerceSafetyNotice() {
       <h2 className="font-semibold text-amber-950">Food commerce safety note</h2>
       <div className="mt-3 space-y-2 text-sm leading-6 text-amber-900">
         <p>Food sellers are responsible for complying with local food safety and licensing requirements.</p>
-        <p>NizamKitchen does not process payments in this version.</p>
+        <p>Payments are processed by a hosted payment provider. NizamKitchen never stores card numbers or CVV.</p>
         <p>Customers should confirm allergens, ingredients, pickup, and delivery details directly with the seller.</p>
       </div>
     </Card>

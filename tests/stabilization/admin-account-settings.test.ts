@@ -19,8 +19,8 @@ describe("admin account settings", () => {
     const sidebarNav = readFileSync("src/components/layout/sidebar-nav.tsx", "utf8");
 
     expect(appShell).toContain("const navSession =");
-    expect(appShell).toContain("<SidebarNav session={navSession} />");
-    expect(appShell).not.toContain("<SidebarNav session={session} />");
+    expect(appShell).toContain("<SidebarNav session={navSession}");
+    expect(appShell).not.toContain("<SidebarNav session={session}");
     expect(sidebarNav).toContain("type NavSessionLike");
     expect(sidebarNav).not.toContain("getCurrentSession");
   });

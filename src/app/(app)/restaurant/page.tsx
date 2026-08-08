@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMembership } from "@/lib/auth/session";
 import { getSellerDashboardVerificationSummary } from "@/server/seller-verification-gates";
+import { PlanUsagePanel } from "@/components/commerce/plan-usage-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function RestaurantDashboardPage() {
         title={session.activeOrganization.name}
         description="Manage restaurant profile foundations and menus households can browse before live ordering is connected."
       />
+      <PlanUsagePanel organizationId={session.activeOrganization.id} />
       <VerificationGateAlert summary={gateSummary} />
 
       <section className="grid gap-4 md:grid-cols-3">
@@ -48,7 +50,7 @@ export default async function RestaurantDashboardPage() {
         </Card>
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Ordering</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">Review manual order requests. No checkout or payment processing is connected.</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Review incoming order requests. Customers can pay securely through hosted checkout.</p>
           <Button asChild variant="secondary" className="mt-5"><Link href="/restaurant/orders">View orders</Link></Button>
         </Card>
       </section>

@@ -13,6 +13,7 @@ import { z } from "zod";
 import { assertCountryAccess, assertPlatformRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditEvent } from "@/server/audit";
+import { assertLocationLimit } from "@/server/billing/enforcement";
 
 const FULFILLMENT_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin", "auditor"];
 const FULFILLMENT_MANAGE_ADMIN_ROLES: PlatformRole[] = ["platform_owner", "platform_admin", "country_manager", "support_admin"];
@@ -163,6 +164,10 @@ export async function savePickupLocation(params: { session: MemberSession; input
     isDefault: parsed.isDefault,
     status: parsed.status as FulfillmentRecordStatus,
   };
+
+  if (!parsed.id) {
+    await assertLocationLimit(organizationId);
+  }
 
   const saved = await prisma.$transaction(async (tx) => {
     if (parsed.isDefault) {

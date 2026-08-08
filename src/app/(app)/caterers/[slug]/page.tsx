@@ -92,7 +92,7 @@ export default async function CatererDetailPage({ params }: { params: Promise<{ 
         <Card>
           <h2 className="font-semibold text-[var(--color-ink)]">Request flow</h2>
           <p className="mt-3 text-sm text-[var(--color-muted)]">
-            Request dishes from this seller as a manual inquiry. Payment is handled directly with the seller for now.
+            Request dishes from this seller. Pay securely at checkout, or arrange payment with the seller.
           </p>
           {placeOrderHref ? (
             <Button className="mt-5 w-full justify-center" asChild>

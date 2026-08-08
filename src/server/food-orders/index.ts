@@ -17,6 +17,7 @@ import {
   sellerFoodOrderStatusSchema,
 } from "@/lib/validation/food-orders";
 import { createAuditEvent } from "@/server/audit";
+import { assertOrderAcceptanceLimit } from "@/server/billing";
 import { recordFulfillmentEvent, resolveOrderFulfillment } from "@/server/fulfillment/fulfillment-service";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import type { EmailTemplateKey } from "@/server/notifications/email-service";
@@ -333,6 +334,7 @@ export async function updateSellerFoodOrderStatus(params: {
       capability: "order_acceptance",
       message: "Seller verification is incomplete. Orders cannot be accepted yet.",
     });
+    await assertOrderAcceptanceLimit(params.session.activeOrganization.id);
   }
   return updateFoodOrderStatus({
     order,

@@ -2,7 +2,9 @@ import { assertPlatformRole } from "@/lib/auth";
 import { shouldSkipBuildTimeDatabase } from "@/lib/build-phase";
 import { createAuditEvent } from "@/server/audit";
 import { getBillingDelegates } from "@/server/billing/safe-billing";
-import { Prisma, type BillingInterval, type BillingPlanAudience, type BillingPlanStatus } from "@prisma/client";
+import { type BillingPlanAudience } from "@/server/billing/plan-audience";
+import { prisma } from "@/lib/prisma";
+import { Prisma, type BillingInterval, type BillingPlanStatus } from "@prisma/client";
 import type { getCurrentSession } from "@/lib/session";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
@@ -10,8 +12,9 @@ type Session = NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
 export async function listBillingPlans(statusFilter?: BillingPlanStatus, audienceFilter?: BillingPlanAudience) {
   if (shouldSkipBuildTimeDatabase()) return [];
 
-  const { billingPlan } = getBillingDelegates();
-  if (!billingPlan) {
+  // Use prisma.billingPlan directly for accurate TypeScript inference of new fields
+  // (planAudience, isPopular). getBillingDelegates() is kept for safe-billing guard below.
+  if (!getBillingDelegates().billingPlan) {
     console.error("BillingPlan Prisma delegate is unavailable. Run prisma generate and restart.");
     return [];
   }
@@ -19,12 +22,17 @@ export async function listBillingPlans(statusFilter?: BillingPlanStatus, audienc
   try {
     const where = {
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(audienceFilter ? { planAudience: audienceFilter } : {}),
+      ...(audienceFilter ? { planAudience: audienceFilter as string } : {}),
     };
 
-    return await billingPlan.findMany({
-      where: Object.keys(where).length ? where : undefined,
-      orderBy: [{ planAudience: "asc" }, { status: "asc" }, { isPopular: "desc" }, { priceAmount: "asc" }],
+    return await prisma.billingPlan.findMany({
+      where: Object.keys(where).length ? (where as Prisma.BillingPlanWhereInput) : undefined,
+      orderBy: [
+        { planAudience: "asc" } as Prisma.BillingPlanOrderByWithRelationInput,
+        { status: "asc" },
+        { isPopular: "desc" } as Prisma.BillingPlanOrderByWithRelationInput,
+        { priceAmount: "asc" },
+      ],
     });
   } catch (error) {
     console.error("Unable to list billing plans", error);
@@ -64,13 +72,31 @@ export async function getActiveBillingPlanById(id: string) {
   return plan?.status === "active" ? plan : null;
 }
 
-async function requireBillingPlanDelegate() {
-  const { billingPlan } = getBillingDelegates();
-  if (!billingPlan) {
+function requireBillingPlanDelegate() {
+  if (!getBillingDelegates().billingPlan) {
     throw new Error("Billing is not initialized. Run Prisma generate and migrations first.");
   }
-  return billingPlan;
+  return prisma.billingPlan;
 }
+
+// BillingPlan fields including new columns not visible under bundler moduleResolution
+type BillingPlanRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  priceAmount: Prisma.Decimal;
+  currencyCode: string;
+  billingInterval: BillingInterval;
+  status: BillingPlanStatus;
+  planAudience: BillingPlanAudience;
+  isPopular: boolean;
+  stripePriceId: string | null;
+  limitsJson: Prisma.JsonValue;
+  featuresJson: Prisma.JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 type PlanInput = {
   name: string;
@@ -90,8 +116,8 @@ type PlanInput = {
 export async function createBillingPlan(session: Session, input: PlanInput) {
   assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
   validateStripePriceId(input.stripePriceId);
-  const billingPlan = await requireBillingPlanDelegate();
-  const plan = await billingPlan.create({
+  const billingPlan = requireBillingPlanDelegate();
+  const plan = (await billingPlan.create({
     data: {
       name: input.name,
       slug: input.slug,
@@ -106,7 +132,7 @@ export async function createBillingPlan(session: Session, input: PlanInput) {
       limitsJson: (input.limitsJson ?? {}) as Prisma.InputJsonValue,
       featuresJson: (input.featuresJson ?? []) as Prisma.InputJsonValue,
     },
-  });
+  })) as BillingPlanRecord;
   if (plan.isPopular) {
     await clearPopularPlanForAudience(plan.planAudience, plan.id);
   }
@@ -127,8 +153,8 @@ export async function updateBillingPlan(
 ) {
   assertPlatformRole(session.user.platformRole, ["platform_owner", "platform_admin"]);
   validateStripePriceId(input.stripePriceId);
-  const billingPlan = await requireBillingPlanDelegate();
-  const plan = await billingPlan.update({
+  const billingPlan = requireBillingPlanDelegate();
+  const plan = (await billingPlan.update({
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),
@@ -144,7 +170,7 @@ export async function updateBillingPlan(
       ...(input.limitsJson !== undefined && { limitsJson: input.limitsJson as Prisma.InputJsonValue }),
       ...(input.featuresJson !== undefined && { featuresJson: input.featuresJson as Prisma.InputJsonValue }),
     },
-  });
+  })) as BillingPlanRecord;
   if (plan.isPopular) {
     await clearPopularPlanForAudience(plan.planAudience, plan.id);
   }
@@ -158,9 +184,9 @@ export async function updateBillingPlan(
   return plan;
 }
 
-async function clearPopularPlanForAudience(planAudience: BillingPlanAudience, exceptPlanId?: string) {
-  const billingPlan = await requireBillingPlanDelegate();
-  await billingPlan.updateMany({
+function clearPopularPlanForAudience(planAudience: BillingPlanAudience, exceptPlanId?: string) {
+  const billingPlan = requireBillingPlanDelegate();
+  return billingPlan.updateMany({
     where: {
       planAudience,
       isPopular: true,

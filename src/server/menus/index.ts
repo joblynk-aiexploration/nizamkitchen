@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 import { adminMenuItemStatusSchema, menuItemSchema, menuSchema } from "@/lib/validation/menus";
 import { createAuditEvent } from "@/server/audit";
+import { assertMenuItemLimit } from "@/server/billing";
 import { hasAcceptedLatestRequiredDocuments } from "@/server/legal/legal-service";
 import { assertSellerGate, getSellerVerificationGate } from "@/server/seller-verification-gates";
 import { assertStorageFileBelongsToOrganization } from "@/server/storage/storage-images";
@@ -173,6 +174,10 @@ export async function upsertMenuItem(params: {
       capability: "menu_publishing",
       message: "Complete verification before publishing menu items.",
     });
+  }
+
+  if (!existing) {
+    await assertMenuItemLimit(params.organizationId);
   }
 
   const baseSlug = slugify(parsed.name);

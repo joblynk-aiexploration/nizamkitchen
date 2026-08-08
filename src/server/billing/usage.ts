@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { createAuditEvent } from "@/server/audit";
 
 export type UsageType =
   | "meal_plan_created"
@@ -16,7 +15,7 @@ export async function recordUsage(params: {
   periodEnd: Date;
   actorUserId?: string | null;
 }) {
-  const record = await prisma.billingUsageRecord.create({
+  return prisma.billingUsageRecord.create({
     data: {
       organizationId: params.organizationId,
       usageType: params.usageType,
@@ -25,27 +24,31 @@ export async function recordUsage(params: {
       periodEnd: params.periodEnd,
     },
   });
-
-  await createAuditEvent({
-    actorUserId: params.actorUserId ?? null,
-    organizationId: params.organizationId,
-    action: "billing_usage.recorded",
-    targetType: "billing_usage_record",
-    targetId: record.id,
-    details: { usageType: params.usageType, quantity: record.quantity },
-  });
-
-  return record;
 }
 
+/**
+ * Sums usage records for the given type within a billing period.
+ *
+ * `since` is an optional lower-bound on the record's `createdAt` timestamp.
+ * Pass it when an admin monthly reset has occurred: records written before
+ * the reset are excluded without being deleted, preserving historical data.
+ * When omitted the full calendar-period window is counted.
+ */
 export async function getUsageForPeriod(
   organizationId: string,
   usageType: UsageType,
   periodStart: Date,
   periodEnd: Date,
+  since?: Date,
 ): Promise<number> {
   const result = await prisma.billingUsageRecord.aggregate({
-    where: { organizationId, usageType, periodStart: { gte: periodStart }, periodEnd: { lte: periodEnd } },
+    where: {
+      organizationId,
+      usageType,
+      periodStart: { gte: periodStart },
+      periodEnd: { lte: periodEnd },
+      ...(since !== undefined ? { createdAt: { gte: since } } : {}),
+    },
     _sum: { quantity: true },
   });
   return result._sum.quantity ?? 0;

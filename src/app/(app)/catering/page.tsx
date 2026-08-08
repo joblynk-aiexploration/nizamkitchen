@@ -11,7 +11,10 @@ import {
   isHomeCateringBusiness,
 } from "@/server/home-catering";
 import { getSellerDashboardVerificationSummary } from "@/server/seller-verification-gates";
+import { listMenuItemsForOrganization } from "@/server/menus";
+import { listSellerFoodOrders } from "@/server/food-orders";
 import { pauseHomeCateringProfileAction } from "./actions";
+import { PlanUsagePanel } from "@/components/commerce/plan-usage-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +29,20 @@ export default async function CateringDashboardPage() {
     return <EmptyState title="Home catering coming soon" description="Home catering seller tools are available only for enabled home catering organizations." />;
   }
 
-  const [profile, gateSummary] = await Promise.all([
+  const [profile, gateSummary, menuItems, sellerOrders] = await Promise.all([
     getHomeCateringProfileForOrganization(session.activeOrganization.id),
     getSellerDashboardVerificationSummary({
       organizationId: session.activeOrganization.id,
       sellerType: "home_catering",
       countryCode: session.activeOrganization.countryCode,
     }),
+    listMenuItemsForOrganization(session.activeOrganization.id).catch(() => []),
+    listSellerFoodOrders(session.activeOrganization.id).catch(() => []),
   ]);
+  const menuItemCount = menuItems.length;
+  const openOrderCount = sellerOrders.filter(
+    (order: { status: string }) => !["completed", "cancelled", "declined"].includes(order.status),
+  ).length;
   const completion = profile
     ? [
         profile.displayName,
@@ -49,7 +58,7 @@ export default async function CateringDashboardPage() {
       <PageHeader
         eyebrow="Home catering"
         title="Seller workspace"
-        description="Set up a profile for prepared dishes sold from your home or small kitchen. Menu and order requests are coming later."
+        description="Set up your seller profile, publish a menu, and manage incoming order requests."
         actions={
           <Button asChild>
             <Link href="/catering/profile">{profile ? "Edit profile" : "Create profile"}</Link>
@@ -65,13 +74,14 @@ export default async function CateringDashboardPage() {
         />
       ) : (
         <>
+          <PlanUsagePanel organizationId={session.activeOrganization.id} />
           <VerificationGateAlert summary={gateSummary} />
           <section className="grid gap-4 md:grid-cols-5">
             <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Completion</p><p className="mt-3 text-3xl font-semibold">{completion}%</p></Card>
             <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p><div className="mt-3"><Badge tone={profile.status === "active" ? "success" : "warning"}>{profile.status}</Badge></div></Card>
             <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Verification</p><div className="mt-3"><Badge tone={profile.verificationStatus === "verified" ? "success" : "warning"}>{profile.verificationStatus}</Badge></div></Card>
-            <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Menu items</p><p className="mt-3 text-3xl font-semibold">0</p><p className="text-xs text-[var(--color-muted)]">Placeholder</p></Card>
-            <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Open orders</p><p className="mt-3 text-3xl font-semibold">0</p><p className="text-xs text-[var(--color-muted)]">Coming later</p></Card>
+            <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Menu items</p><p className="mt-3 text-3xl font-semibold">{menuItemCount}</p><p className="text-xs text-[var(--color-muted)]">Published dishes</p></Card>
+            <Card><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Open orders</p><p className="mt-3 text-3xl font-semibold">{openOrderCount}</p><p className="text-xs text-[var(--color-muted)]">Awaiting action</p></Card>
           </section>
 
           <section className="grid gap-6 lg:grid-cols-4">
@@ -82,12 +92,12 @@ export default async function CateringDashboardPage() {
             </Card>
             <Card>
               <h2 className="font-semibold text-[var(--color-ink)]">Add menu item</h2>
-              <p className="mt-2 text-sm text-[var(--color-muted)]">Menu management is planned next. Profiles come first so admins can verify sellers.</p>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">Create dishes, trays, and preorder items that households can browse and order.</p>
               <Button asChild variant="secondary" className="mt-5"><Link href="/catering/menu-items/new">Add menu item</Link></Button>
             </Card>
             <Card>
               <h2 className="font-semibold text-[var(--color-ink)]">View orders</h2>
-              <p className="mt-2 text-sm text-[var(--color-muted)]">Review manual customer order requests. No checkout or payment collection is connected.</p>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">Review incoming customer order requests. Customers can pay securely through hosted checkout.</p>
               <Button asChild variant="secondary" className="mt-5"><Link href="/catering/orders">View orders</Link></Button>
             </Card>
             <Card>

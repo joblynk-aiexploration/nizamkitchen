@@ -43,6 +43,7 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ENTERPRISE_EMAIL_TEMPLATES } from "../src/server/email/email-events";
+import { PLAN_CATALOG, LEGACY_PLAN_SLUGS } from "../src/server/billing/plan-catalog";
 
 const prisma = new PrismaClient();
 
@@ -3242,184 +3243,65 @@ async function main() {
   }
 
   // ─── Billing Plans ──────────────────────────────────────────────────────────
-  const billingPlanSeeds = [
-    {
-      slug: "free",
-      name: "Household Free",
-      description: "Basic recipe browsing, limited meal planning, and starter grocery lists for one household member.",
-      planAudience: "household" as const,
-      isPopular: false,
-      priceAmount: 0,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 1, maxSavedRestaurants: 5, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Basic recipe browsing", "Limited meal planning", "Limited grocery lists"],
-    },
-    {
-      slug: "family-plus",
-      name: "Family Plus",
-      description: "Weekly meal planning, grocery exports, and home chef request access for growing families.",
-      planAudience: "household" as const,
-      isPopular: true,
-      priceAmount: 9.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 20, maxGroceryListsPerMonth: 30, maxHouseholdMembers: 6, maxSavedRestaurants: 25, maxChefRequestsPerMonth: 5, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["Weekly and monthly meal planning", "Smart grocery list generation", "Grocery exports", "Home chef request access", "Restaurant and caterer discovery", "Priority support"],
-    },
-    {
-      slug: "household-premium",
-      name: "Household Premium",
-      description: "Unlimited family planning, expanded preferences, and priority support for busy homes.",
-      planAudience: "household" as const,
-      isPopular: false,
-      priceAmount: 19.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 10, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 12, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["Unlimited meal planning", "Unlimited grocery lists", "Advanced household preferences", "More home chef requests", "Priority support", "Family workspace controls"],
-    },
-    {
-      slug: "home-chef-basic",
-      name: "Home Chef Basic",
-      description: "Platform-managed profile and assigned home chef request dashboard for independent chef staff.",
-      planAudience: "chef_staff" as const,
-      isPopular: false,
-      priceAmount: 0,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Platform-managed chef profile", "Assigned request dashboard", "Verification workflow", "Review profile"],
-    },
-    {
-      slug: "home-chef-plus",
-      name: "Home Chef Plus",
-      description: "Enhanced chef profile tools, availability management, and request workflow support.",
-      planAudience: "chef_staff" as const,
-      isPopular: true,
-      priceAmount: 9.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Enhanced chef profile", "Availability management", "Assigned request tools", "Customer messaging", "Verification reminders"],
-    },
-    {
-      slug: "home-chef-pro",
-      name: "Home Chef Pro",
-      description: "Professional independent chef plan with premium profile visibility and advanced operations.",
-      planAudience: "chef_staff" as const,
-      isPopular: false,
-      priceAmount: 24.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 0, maxGroceryListsPerMonth: 0, maxHouseholdMembers: 1, maxSavedRestaurants: 0, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Premium chef profile", "Advanced request workflow", "Review highlights", "Priority verification support", "Operations reporting"],
-    },
-    {
-      slug: "catering-starter",
-      name: "Catering Starter",
-      description: "Home catering profile, menu builder, order requests, pickup, and delivery settings.",
-      planAudience: "home_catering" as const,
-      isPopular: false,
-      priceAmount: 19.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: 10, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
-      featuresJson: ["Public catering profile", "Menu builder", "Order request management", "Pickup and delivery settings"],
-    },
-    {
-      slug: "catering-pro",
-      name: "Catering Pro",
-      description: "Expanded catering operations with promotions, reports, and priority visibility when enabled.",
-      planAudience: "home_catering" as const,
-      isPopular: true,
-      priceAmount: 49.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 10, maxGroceryListsPerMonth: 20, maxHouseholdMembers: 8, maxSavedRestaurants: 20, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
-      featuresJson: ["Expanded menu management", "Promotions", "Reports", "Priority visibility if supported"],
-    },
-    {
-      slug: "catering-enterprise",
-      name: "Catering Enterprise",
-      description: "High-volume catering operations with expanded reporting and priority operational support.",
-      planAudience: "home_catering" as const,
-      isPopular: false,
-      priceAmount: 99.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 15, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: true, restaurantFallbackEnabled: false },
-      featuresJson: ["High-volume menu operations", "Advanced promotions", "Expanded reports", "Priority marketplace visibility", "Priority operational support"],
-    },
-    {
-      slug: "restaurant-partner",
-      name: "Restaurant Partner",
-      description: "Restaurant profile, menu builder, order requests, social links, location listing, and reports.",
-      planAudience: "restaurant" as const,
-      isPopular: false,
-      priceAmount: 49.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 2, maxGroceryListsPerMonth: 5, maxHouseholdMembers: 3, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Restaurant profile", "Menu builder", "Order requests", "Social links", "Google Maps/location listing", "Reports"],
-    },
-    {
-      slug: "restaurant-growth",
-      name: "Restaurant Growth",
-      description: "Restaurant plan for growing menu operations, location visibility, and customer request workflows.",
-      planAudience: "restaurant" as const,
-      isPopular: true,
-      priceAmount: 79.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: 5, maxGroceryListsPerMonth: 10, maxHouseholdMembers: 5, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Expanded menu operations", "Location visibility", "Customer request workflows", "Social profile controls", "Operational reports"],
-    },
-    {
-      slug: "restaurant-enterprise",
-      name: "Restaurant Enterprise",
-      description: "Multi-location restaurant operations with advanced visibility, reporting, and support.",
-      planAudience: "restaurant" as const,
-      isPopular: false,
-      priceAmount: 149.99,
-      billingInterval: "monthly" as const,
-      status: "active" as const,
-      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: 15, maxSavedRestaurants: -1, maxChefRequestsPerMonth: 0, chefMarketplaceEnabled: false, groceryExportsEnabled: false, restaurantFallbackEnabled: false },
-      featuresJson: ["Multi-location profile support", "Advanced menu operations", "Priority discovery", "Expanded reports", "Priority support"],
-    },
-    {
-      slug: "enterprise-internal",
-      name: "Enterprise / Internal",
-      description: "Internal platform plan for administrative, enterprise, and manually contracted accounts.",
-      planAudience: "platform_internal" as const,
-      isPopular: false,
-      priceAmount: 0,
-      billingInterval: "custom" as const,
-      status: "draft" as const,
-      limitsJson: { maxMealPlans: -1, maxGroceryListsPerMonth: -1, maxHouseholdMembers: -1, maxSavedRestaurants: -1, maxChefRequestsPerMonth: -1, chefMarketplaceEnabled: true, groceryExportsEnabled: true, restaurantFallbackEnabled: true },
-      featuresJson: ["All features", "Custom limits", "Country-level configuration", "Internal administration"],
-    },
-  ];
+  // Archive all legacy plans before upserting the new catalog so orphan slugs
+  // no longer appear publicly. The rows are preserved for historical data integrity.
+  await prisma.billingPlan.updateMany({
+    where: { slug: { in: LEGACY_PLAN_SLUGS } },
+    data: { status: "archived", stripePriceId: null },
+  });
 
   const billingPlans = new Map<string, { id: string }>();
-  for (const plan of billingPlanSeeds) {
+  for (const plan of PLAN_CATALOG) {
     const upserted = await prisma.billingPlan.upsert({
       where: { slug: plan.slug },
-      update: { name: plan.name, description: plan.description, planAudience: plan.planAudience, isPopular: plan.isPopular, priceAmount: plan.priceAmount, billingInterval: plan.billingInterval, status: plan.status, limitsJson: plan.limitsJson, featuresJson: plan.featuresJson, stripePriceId: null },
-      create: { ...plan },
+      update: {
+        name: plan.name,
+        description: plan.description,
+        planAudience: plan.planAudience,
+        isPopular: plan.isPopular,
+        priceAmount: plan.priceAmount,
+        billingInterval: plan.billingInterval,
+        status: plan.status,
+        limitsJson: plan.limitsJson,
+        featuresJson: plan.featuresJson,
+        stripePriceId: plan.stripePriceId,
+      },
+      create: {
+        slug: plan.slug,
+        name: plan.name,
+        description: plan.description,
+        planAudience: plan.planAudience,
+        isPopular: plan.isPopular,
+        priceAmount: plan.priceAmount,
+        currencyCode: plan.currencyCode,
+        billingInterval: plan.billingInterval,
+        status: plan.status,
+        limitsJson: plan.limitsJson,
+        featuresJson: plan.featuresJson,
+        stripePriceId: plan.stripePriceId,
+      },
     });
     billingPlans.set(plan.slug, upserted);
   }
-  await prisma.billingPlan.updateMany({
-    where: { slug: { in: ["premium-household", "chef-business", "home-catering-seller", "enterprise"] } },
-    data: { status: "archived", isPopular: false, stripePriceId: null },
-  });
 
-  // Assign demo subscriptions (idempotent — skip if org already has one)
+  // Migrate every existing household subscription to household-free (idempotent).
+  // This covers any household org that was previously on a paid or legacy free plan.
+  const householdFreePlan = billingPlans.get("household-free")!;
+  const householdOrgIds = await prisma.organization
+    .findMany({ where: { organizationType: "household" }, select: { id: true } })
+    .then((orgs) => orgs.map((o) => o.id));
+  if (householdOrgIds.length > 0) {
+    await prisma.billingSubscription.updateMany({
+      where: { organizationId: { in: householdOrgIds } },
+      data: { planId: householdFreePlan.id, status: "free", provider: "manual" },
+    });
+  }
+
+  // Assign demo subscriptions (idempotent — upsert on existing record)
   const demoSubscriptions: Array<{ orgId: string; planSlug: string; status: "free" | "trialing" | "active" }> = [
-    { orgId: householdOrg.id, planSlug: "family-plus", status: "trialing" },
-    { orgId: chefOrg.id, planSlug: "home-chef-basic", status: "active" },
-    { orgId: restaurantOrg.id, planSlug: "restaurant-partner", status: "free" },
+    { orgId: householdOrg.id, planSlug: "household-free", status: "free" },
+    { orgId: chefOrg.id,      planSlug: "home-chef-free", status: "free" },
+    { orgId: restaurantOrg.id, planSlug: "restaurant-free", status: "free" },
   ];
 
   for (const { orgId, planSlug, status } of demoSubscriptions) {

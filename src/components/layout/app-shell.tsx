@@ -56,31 +56,31 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <LogoMark />
 
-        {/* User card */}
-        <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-4">
-          <div className="flex items-center gap-3">
+        {/* User card — compact on mobile, full on desktop */}
+        <div className="mt-2 lg:mt-8 rounded-3xl border border-white/15 bg-white/10 p-2 lg:p-4">
+          <div className="flex items-center gap-2 lg:gap-3">
             {resolvedAvatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={resolvedAvatarUrl}
                 alt={session.user.fullName}
-                className="h-12 w-12 flex-shrink-0 rounded-full object-cover ring-2 ring-white/20"
+                className="h-8 w-8 lg:h-12 lg:w-12 flex-shrink-0 rounded-full object-cover ring-2 ring-white/20"
               />
             ) : (
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-emerald-700/60 ring-2 ring-white/20">
-                <span className="text-sm font-semibold text-white">{initials}</span>
+              <div className="flex h-8 w-8 lg:h-12 lg:w-12 flex-shrink-0 items-center justify-center rounded-full bg-emerald-700/60 ring-2 ring-white/20">
+                <span className="text-xs lg:text-sm font-semibold text-white">{initials}</span>
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate font-semibold text-white">{session.user.fullName}</p>
-              <p className="truncate text-xs text-slate-300">{session.user.email}</p>
+              <p className="truncate font-semibold text-white text-sm">{session.user.fullName}</p>
+              <p className="hidden lg:block truncate text-xs text-slate-300">{session.user.email}</p>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-200">
+          <div className="hidden lg:flex mt-3 items-center gap-2 text-sm text-emerald-200">
             <Sparkles className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">{session.activeOrganization?.name ?? "No active organization"}</span>
           </div>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="hidden lg:flex mt-3 items-center gap-2">
             <Link
               href="/profile"
               className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
@@ -106,17 +106,17 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarNav session={navSession} enabledFeatureKeys={enabledFeatureKeys} />
         </div>
 
-        {/* Footer */}
+        {/* Footer — support links visible only on desktop; logout always visible */}
         <div className="border-t border-white/10 pt-4 space-y-1">
-          <Link href="/support/tickets" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
+          <Link href="/support/tickets" className="hidden lg:flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
             <Inbox className="h-4 w-4" />
             My tickets
           </Link>
-          <Link href="/support/new" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
+          <Link href="/support/new" className="hidden lg:flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
             <MessageSquarePlus className="h-4 w-4" />
             Submit a ticket
           </Link>
-          <Link href="/" className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
+          <Link href="/" className="hidden lg:flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white">
             <ChevronLeft className="h-4 w-4" />
             Public site
           </Link>

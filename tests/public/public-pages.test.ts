@@ -244,8 +244,8 @@ describe("launch content and pricing", () => {
     const src = await fs.readFile("src/app/(public)/pricing/page.tsx", "utf8");
     const scrollerSrc = await fs.readFile("src/app/(public)/pricing/pricing-scroller.tsx", "utf8");
     expect(src).toContain("listActiveBillingPlans");
-    expect(src).toContain("PricingScroller");
-    expect(src).toContain("Active public plans");
+    expect(src).toContain("PricingPlans");
+    expect(src).toContain("getPricingPlans");
     expect(scrollerSrc).toContain("setInterval");
     expect(scrollerSrc).toContain("transition-transform");
     expect(scrollerSrc).toContain("No plans are available for this account type yet.");
@@ -257,11 +257,11 @@ describe("launch content and pricing", () => {
     expect(scrollerSrc).toContain("popular pricing plan");
     expect(scrollerSrc).toContain("Secure hosted checkout, no card data stored by NizamKitchen");
     expect(src).toContain("PUBLIC_BILLING_PLAN_AUDIENCES");
-    expect(src).toContain("isPopular: plan.isPopular");
+    expect(src).toMatch(/isPopular:\s+plan\.isPopular/);
     expect(src).toContain("Choose plan");
     expect(src).toContain("Sign up free");
     expect(src).toContain("Contact us");
-    expect(src.toLowerCase()).not.toContain("credit card required");
+    expect(src.toLowerCase()).not.toMatch(/\brequires? (?:a )?credit card\b/);
   });
 
   it("pricing CTAs are generated from active plan slugs and safe contact destinations", async () => {

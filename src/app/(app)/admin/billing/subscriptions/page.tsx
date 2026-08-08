@@ -52,7 +52,7 @@ export default async function AdminBillingSubscriptionsPage({
             render: (sub) => (
               <div>
                 <Link
-                  href={`/admin/organizations`}
+                  href={`/admin/billing/orgs/${sub.organizationId}`}
                   className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-primary)]"
                 >
                   {sub.organization.name}
