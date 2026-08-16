@@ -79,18 +79,24 @@ export const chefServiceSchema = z
     ).optional(),
     currencyCode: z.string().trim().toUpperCase().length(3),
     priceUnit: z.enum(chefPriceUnitValues),
-    minGuests: z.preprocess(
-      (value) => (value === "" || value === null || value === undefined ? null : Number(value)),
-      z.number().int().min(1).max(10000).nullable(),
-    ).optional(),
+    minGuests: z
+      .preprocess(
+        (value) => {
+          if (value === "" || value === null || value === undefined) return null;
+          const n = Number(value);
+          return isNaN(n) ? null : n;
+        },
+        z.number().int().min(1, "Minimum guests must be at least 1.").max(10000).nullable(),
+      )
+      .refine((v): v is number => v !== null, { message: "Minimum guests is required." }),
     maxGuests: z.preprocess(
       (value) => (value === "" || value === null || value === undefined ? null : Number(value)),
-      z.number().int().min(1).max(10000).nullable(),
+      z.number().int().min(1, "Maximum guests must be at least 1.").max(10000).nullable(),
     ).optional(),
     isActive: z.coerce.boolean().default(true),
   })
   .superRefine((value, ctx) => {
-    if (value.minGuests && value.maxGuests && value.maxGuests < value.minGuests) {
+    if (value.minGuests !== null && value.minGuests !== undefined && value.maxGuests && value.maxGuests < value.minGuests) {
       ctx.addIssue({
         code: "custom",
         path: ["maxGuests"],

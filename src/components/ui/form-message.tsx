@@ -1,5 +1,5 @@
 const errorPattern = /\b(unable|invalid|error|denied|failed|failure|required|missing|not found|cannot|can't|must|choose|too many|already exists|expired|blocked|unavailable|unsupported|not allowed|permission)\b/i;
-const warningPattern = /\b(not configured|configure|configuration|setup|disabled|not enabled|not available yet)\b/i;
+const warningPattern = /\b(not yet configured|not configured|configure|configuration|setup|disabled|not enabled|not available yet|not available)\b/i;
 
 export function getFormMessageTone(message: string) {
   if (warningPattern.test(message)) {

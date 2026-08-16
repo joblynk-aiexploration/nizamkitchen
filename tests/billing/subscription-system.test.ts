@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ─── Mock Prisma ───────────────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ describe("Stripe checkout eligibility", () => {
     expect((result as { eligible: false; reason: string }).reason).toMatch(/free/i);
   });
 
-  it("blocks plans without a Stripe price ID", async () => {
+  it("allows plans without a Stripe price ID (uses price_data dynamic checkout)", async () => {
     mockPrisma.organization.findUnique.mockResolvedValue(restaurantOrg);
     mockPrisma.billingPlan.findUnique.mockResolvedValue({
       ...restaurantGrowthPlan,
@@ -201,7 +202,7 @@ describe("Stripe checkout eligibility", () => {
     });
 
     const result = await checkStripeCheckoutEligibility(ORG_ID, PLAN_ID);
-    expect(result.eligible).toBe(false);
+    expect(result.eligible).toBe(true);
   });
 
   it("allows paid operator plans with a stripePriceId (monthly)", async () => {
@@ -592,6 +593,7 @@ describe("Admin override — integration", () => {
   it("overrideOrgLimits calls assertPlatformRole and creates override records", async () => {
     const { overrideOrgLimits } = await import("../../src/server/billing/admin-ops");
     mockPrisma.billingUsageRecord.create.mockResolvedValue({});
+    mockPrisma.organization.findUniqueOrThrow.mockResolvedValue(restaurantOrg);
 
     await overrideOrgLimits(platformOwnerSession as never, ORG_ID, { maxMenuItems: 100 });
 
@@ -717,5 +719,215 @@ describe("Stripe subscription plan sync — clearAllLimitOverrides on plan chang
     console.warn("[stripe-sync] Stripe price price_unknown has no matching active BillingPlan — update the plan catalog first.");
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("stripe-sync"));
     warnSpy.mockRestore();
+  });
+});
+
+// ─── Gate 4: Household with no subscription is unlimited ──────────────────────
+
+describe("Gate 4 — household org with no subscription returns HOUSEHOLD_FREE_ENTITLEMENT", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("getEntitlement returns unlimited entitlement for household org even with no subscription", async () => {
+    const { getEntitlement } = await import("../../src/server/billing/entitlements");
+    mockPrisma.billingSubscription.findFirst.mockResolvedValue(null);
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
+    mockPrisma.organization.findUnique.mockResolvedValue(householdOrg);
+
+    const result = await getEntitlement(ORG_ID);
+
+    expect(result.planAudience).toBe("household");
+    expect(result.limits.maxMealPlans).toBe(Infinity);
+    expect(result.limits.maxGroceryListsPerMonth).toBe(Infinity);
+    expect(result.limits.maxHouseholdMembers).toBe(Infinity);
+    expect(result.limits.maxChefRequestsPerMonth).toBe(Infinity);
+  });
+
+  it("getEntitlement returns FALLBACK_ENTITLEMENT for non-household org with no subscription", async () => {
+    const { getEntitlement } = await import("../../src/server/billing/entitlements");
+    mockPrisma.billingSubscription.findFirst.mockResolvedValue(null);
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
+    mockPrisma.organization.findUnique.mockResolvedValue(restaurantOrg);
+
+    const result = await getEntitlement(ORG_ID);
+
+    expect(result.planAudience).toBe("none");
+    expect(result.limits.maxMenuItems).toBe(0);
+  });
+
+  it("getEntitlement returns unlimited for household org WITH a subscription (audience check)", async () => {
+    const { getEntitlement } = await import("../../src/server/billing/entitlements");
+    const householdFreePlan = {
+      ...restaurantFreePlan,
+      slug: "household-free",
+      planAudience: "household" as const,
+      limitsJson: { maxMealPlans: 5 }, // stale finite limits — should be ignored
+    };
+    mockPrisma.billingSubscription.findFirst.mockResolvedValue(makeSubscription(householdFreePlan, "active"));
+    mockPrisma.billingUsageRecord.findMany.mockResolvedValue([]);
+
+    const result = await getEntitlement(ORG_ID);
+
+    // Overrides must not apply — household is always unlimited
+    expect(result.planAudience).toBe("household");
+    expect(result.limits.maxMealPlans).toBe(Infinity);
+  });
+});
+
+// ─── Gate 5: Household admin override guard ────────────────────────────────────
+
+describe("Gate 5 — overrideOrgLimits rejects household orgs", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("overrideOrgLimits throws when org is household", async () => {
+    const { overrideOrgLimits } = await import("../../src/server/billing/admin-ops");
+    mockPrisma.organization.findUniqueOrThrow.mockResolvedValue(householdOrg);
+
+    await expect(
+      overrideOrgLimits(platformOwnerSession as never, ORG_ID, { maxMealPlans: 5 }),
+    ).rejects.toThrow(/structurally unlimited/i);
+
+    expect(mockPrisma.billingUsageRecord.create).not.toHaveBeenCalled();
+  });
+
+  it("overrideOrgLimits succeeds for restaurant org", async () => {
+    const { overrideOrgLimits } = await import("../../src/server/billing/admin-ops");
+    mockPrisma.organization.findUniqueOrThrow.mockResolvedValue(restaurantOrg);
+    mockPrisma.billingUsageRecord.create.mockResolvedValue({});
+
+    await expect(
+      overrideOrgLimits(platformOwnerSession as never, ORG_ID, { maxMenuItems: 200 }),
+    ).resolves.toBeUndefined();
+
+    expect(mockPrisma.billingUsageRecord.create).toHaveBeenCalled();
+  });
+});
+
+// ─── P1: Canonical current subscription ──────────────────────────────────────
+
+describe("getSubscriptionForOrg — canonical current subscription", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns only active/trialing/free rows (not unpaid abandoned checkout rows)", async () => {
+    const { getSubscriptionForOrg } = await import("../../src/server/billing/subscriptions");
+    mockPrisma.billingSubscription.findFirst.mockResolvedValue({
+      id: "sub-active",
+      status: "active",
+      planId: "plan-growth",
+      plan: restaurantGrowthPlan,
+    });
+
+    const result = await getSubscriptionForOrg(ORG_ID);
+
+    expect(mockPrisma.billingSubscription.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ["active", "trialing", "free"] },
+        }),
+      }),
+    );
+    expect(result?.status).toBe("active");
+  });
+
+  it("returns null when only unpaid/cancelled rows exist", async () => {
+    const { getSubscriptionForOrg } = await import("../../src/server/billing/subscriptions");
+    mockPrisma.billingSubscription.findFirst.mockResolvedValue(null);
+
+    const result = await getSubscriptionForOrg(ORG_ID);
+    expect(result).toBeNull();
+  });
+});
+
+// ─── Phase 5: Abandoned checkout rows ─────────────────────────────────────────
+
+describe("stripe-adapter — abandoned checkout row lifecycle", () => {
+  it("createStripeSubscriptionCheckout supersedes unpaid rows for other plans before idempotency check", () => {
+    const src = readFileSync(
+      `${process.cwd()}/src/server/payments/providers/stripe/stripe-adapter.ts`,
+      "utf8",
+    );
+    const fnStart = src.indexOf("export async function createStripeSubscriptionCheckout");
+    const fn = src.slice(fnStart);
+    // Supersession must happen BEFORE the idempotency check for the current plan
+    const supersessionIdx = fn.indexOf("planId: { not: plan.id }");
+    const idempotencyIdx = fn.indexOf("Idempotency guard");
+    expect(supersessionIdx).toBeGreaterThan(-1);
+    expect(idempotencyIdx).toBeGreaterThan(-1);
+    expect(supersessionIdx).toBeLessThan(idempotencyIdx);
+  });
+});
+
+describe("stripe-webhooks — checkout.session.expired cancels the BillingSubscription", () => {
+  it("checkout.session.expired handler cancels the associated BillingSubscription row", () => {
+    const src = readFileSync(
+      `${process.cwd()}/src/server/payments/providers/stripe/stripe-webhooks.ts`,
+      "utf8",
+    );
+    const expiredBlock = src.slice(
+      src.indexOf("checkout.session.expired"),
+      src.indexOf("checkout.session.expired") + 600,
+    );
+    expect(expiredBlock).toContain("billingSubscriptionId");
+    expect(expiredBlock).toContain("status: \"cancelled\"");
+    expect(expiredBlock).toContain("billingSubscription.updateMany");
+  });
+});
+
+// ─── Phase 8: BFCache guard ───────────────────────────────────────────────────
+
+describe("BFCacheGuard component", () => {
+  it("bfcache-guard.tsx exists and calls router.refresh() on persisted pageshow", () => {
+    const src = readFileSync(
+      `${process.cwd()}/src/components/layout/bfcache-guard.tsx`,
+      "utf8",
+    );
+    expect(src).toContain("event.persisted");
+    expect(src).toContain("router.refresh()");
+    expect(src).toContain("pageshow");
+  });
+
+  it("authenticated layout includes BFCacheGuard", () => {
+    const src = readFileSync(
+      `${process.cwd()}/src/app/(app)/layout.tsx`,
+      "utf8",
+    );
+    expect(src).toContain("BFCacheGuard");
+  });
+});
+
+// ─── Phase 7: Payment flag semantics ─────────────────────────────────────────
+
+describe("payment feature flag domain semantics", () => {
+  it("payments flag is used only in marketplace order flows, not billing/subscription actions", () => {
+    const ordersSrc = readFileSync(
+      `${process.cwd()}/src/app/(app)/orders/actions.ts`,
+      "utf8",
+    );
+    const billingSrc = readFileSync(
+      `${process.cwd()}/src/app/(app)/billing/actions.ts`,
+      "utf8",
+    );
+    expect(ordersSrc).toContain('"payments"');
+    expect(billingSrc).not.toContain('"payments"');
+  });
+
+  it("live_checkout flag gates seller subscription checkout", () => {
+    const billingSrc = readFileSync(
+      `${process.cwd()}/src/app/(app)/billing/actions.ts`,
+      "utf8",
+    );
+    expect(billingSrc).toContain('"live_checkout"');
+  });
+
+  it("payments flag description explicitly scopes to marketplace order payments", () => {
+    const flagsSrc = readFileSync(
+      `${process.cwd()}/src/lib/feature-flags.ts`,
+      "utf8",
+    );
+    const paymentsEntry = flagsSrc.slice(
+      flagsSrc.indexOf('key: "payments"'),
+      flagsSrc.indexOf('key: "payments"') + 400,
+    );
+    expect(paymentsEntry).toContain("marketplace");
+    expect(paymentsEntry).toContain("SaaS");
   });
 });

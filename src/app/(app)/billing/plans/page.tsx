@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
+import { isGlobalFeatureEnabled } from "@/lib/feature-flags";
 import { listBillingPlans } from "@/server/billing/plans";
 import { billingPlanAudienceForOrganizationType, billingPlanAudienceLabel, isPlatformBillingUser } from "@/server/billing/plan-audience";
 import { getSubscriptionForOrg } from "@/server/billing/subscriptions";
@@ -22,21 +23,24 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
   const session = await requireMembership();
 
   if (session.activeOrganization.organizationType === "household") {
-    redirect("/?message=Household accounts are always free — no billing required.");
+    redirect(`/household?message=${encodeURIComponent("Household accounts are always free — no billing required.")}`);
   }
 
   const canViewAllPlans = isPlatformBillingUser(session.user.platformRole);
   const audienceFilter = canViewAllPlans ? undefined : billingPlanAudienceForOrganizationType(session.activeOrganization.organizationType) ?? undefined;
-  const [plans, subscription, stripeReadiness, query] = await Promise.all([
+  const [plans, subscription, stripeReadiness, liveCheckoutEnabled, query] = await Promise.all([
     listBillingPlans("active", audienceFilter) as Promise<RawBillingPlan[]>,
     getSubscriptionForOrg(session.activeOrganization.id),
     getStripePaymentReadiness({
       countryCode: session.activeOrganization.countryCode,
       currencyCode: session.activeOrganization.currencyCode,
     }),
+    isGlobalFeatureEnabled("live_checkout"),
     searchParams,
   ]);
   const stripeConfigured = stripeReadiness.configured;
+  const checkoutReady = liveCheckoutEnabled && stripeConfigured;
+  const pendingActivation = stripeConfigured && !liveCheckoutEnabled;
   const paymentMessage =
     query.payment === "cancelled"
       ? "Checkout was cancelled. Your plan was not changed, and you can choose a plan whenever you are ready."
@@ -95,20 +99,26 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
           </div>
         </Card>
 
-        <Card className={stripeConfigured ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}>
+        <Card className={checkoutReady ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}>
           <div className="flex items-start gap-3">
-            <span className={`mt-1 h-3 w-3 rounded-full ${stripeConfigured ? "bg-emerald-500" : "bg-amber-500"}`} />
+            <span className={`mt-1 h-3 w-3 rounded-full ${checkoutReady ? "bg-emerald-500" : "bg-amber-500"}`} />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
                 Checkout status
               </p>
               <h2 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">
-                {stripeConfigured ? "Secure Stripe checkout is ready" : "Manual plan changes only"}
+                {checkoutReady
+                  ? "Secure Stripe checkout is ready"
+                  : pendingActivation
+                    ? "Checkout activation pending"
+                    : "Manual plan changes only"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
-                {stripeConfigured
+                {checkoutReady
                   ? "Paid plans open hosted checkout. Your subscription activates after Stripe confirms the payment."
-                  : `Payments are not fully configured yet. ${stripeReadiness.message} Contact support to change your plan manually.`}
+                  : pendingActivation
+                    ? "Stripe is configured and ready. Online checkout will be available for self-service plan purchases once the platform activates it."
+                    : `Payments are not fully configured yet. ${stripeReadiness.message} Contact support to change your plan manually.`}
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
@@ -138,7 +148,7 @@ export default async function BillingPlansPage({ searchParams }: { searchParams:
             ? (plan.featuresJson as string[])
             : [];
           const priceNum = Number(plan.priceAmount);
-          const canCheckout = stripeConfigured && priceNum > 0 && plan.billingInterval !== "custom";
+          const canCheckout = liveCheckoutEnabled && stripeConfigured && priceNum > 0 && plan.billingInterval !== "custom";
           const interval = intervalLabel(plan.billingInterval);
           const recommended = !isCurrent && priceNum > 0 && plan.billingInterval !== "custom";
           const ctaCopy = canCheckout ? "Continue to secure checkout" : isCurrent ? "Your current plan" : plan.billingInterval === "custom" ? "Talk to support" : "Contact support to upgrade";

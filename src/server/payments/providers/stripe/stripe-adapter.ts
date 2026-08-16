@@ -451,6 +451,53 @@ export async function createStripeSubscriptionCheckout(params: {
   const gateway = await getStripeGateway(undefined, countryCode, plan.currencyCode);
   const secrets = getStripeSecrets(gateway);
   const stripe = createStripeClient(secrets.secretKey);
+
+  // Supersede any other dangling unpaid checkout rows for this org (different
+  // plans). They will never complete — the Stripe session linked to each was
+  // either cancelled or will expire — and must not appear as "Current Subscription".
+  await prisma.billingSubscription.updateMany({
+    where: {
+      organizationId: params.organizationId,
+      status: "unpaid",
+      provider: "stripe",
+      planId: { not: plan.id },
+    },
+    data: { status: "cancelled" },
+  });
+
+  // Idempotency guard: reuse an in-flight checkout if one was started for this
+  // org + plan in the last 30 minutes and the Stripe session is still open.
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const existingUnpaid = await prisma.billingSubscription.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      planId: plan.id,
+      status: "unpaid",
+      provider: "stripe",
+      createdAt: { gte: thirtyMinutesAgo },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existingUnpaid) {
+    const existingOrder = await prisma.paymentOrder.findFirst({
+      where: { module: "subscription", moduleEntityId: existingUnpaid.id, status: "checkout_created" },
+      orderBy: { createdAt: "desc" },
+      select: { providerCheckoutSessionId: true },
+    });
+    if (existingOrder?.providerCheckoutSessionId) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(
+          existingOrder.providerCheckoutSessionId,
+        );
+        if (existingSession.status === "open" && existingSession.url) {
+          return { checkoutUrl: existingSession.url };
+        }
+      } catch {
+        // Session expired or not found — fall through to create a new one.
+      }
+    }
+  }
+
   const subscription = await prisma.billingSubscription.create({
     data: { organizationId: params.organizationId, planId: plan.id, status: "unpaid", provider: "stripe" },
   });

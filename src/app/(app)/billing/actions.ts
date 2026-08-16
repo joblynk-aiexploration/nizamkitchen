@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireMembership } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
+import { isGlobalFeatureEnabled } from "@/lib/feature-flags";
 import { createCustomerRefundRequest } from "@/server/payments/refund-requests";
 import { createStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 import { assertStripeCheckoutEligible } from "@/server/billing/stripe-eligibility";
@@ -15,6 +16,11 @@ export async function createSubscriptionCheckoutAction(formData: FormData) {
   const promotionCode = String(formData.get("promotionCode") ?? "").trim();
   let checkoutUrl;
   try {
+    // Platform gate: live checkout must be enabled before any Stripe session is created.
+    const liveCheckoutEnabled = await isGlobalFeatureEnabled("live_checkout");
+    if (!liveCheckoutEnabled) {
+      throw new Error("Online checkout is not enabled for this platform yet. Please contact support to change your plan.");
+    }
     // Hard guard: household orgs, free plans, and enterprise (custom) plans must never reach Stripe.
     await assertStripeCheckoutEligible(session.activeOrganization.id, planId);
     const result = await createStripeSubscriptionCheckout({

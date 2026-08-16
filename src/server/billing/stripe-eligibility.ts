@@ -11,7 +11,7 @@ export type StripeEligibilityResult =
  * - Household orgs never reach Stripe (they have no paid plans).
  * - Plans with billingInterval = "custom" are enterprise/manual — contact-us only.
  * - Plans with priceAmount <= 0 are free — no checkout needed.
- * - Plans with no stripePriceId cannot be sold via Stripe.
+ * - Plans without a stripePriceId use dynamic price_data at checkout time (Model C hybrid).
  */
 export async function checkStripeCheckoutEligibility(
   organizationId: string,
@@ -24,7 +24,7 @@ export async function checkStripeCheckoutEligibility(
     }),
     prisma.billingPlan.findUnique({
       where: { id: planId },
-      select: { priceAmount: true, billingInterval: true, stripePriceId: true, status: true },
+      select: { priceAmount: true, billingInterval: true, status: true },
     }),
   ]);
 
@@ -51,13 +51,6 @@ export async function checkStripeCheckoutEligibility(
 
   if (Number(plan.priceAmount) <= 0) {
     return { eligible: false, reason: "This is a free plan — no checkout required." };
-  }
-
-  if (!plan.stripePriceId) {
-    return {
-      eligible: false,
-      reason: "This plan is not yet configured for online purchase. Please contact support.",
-    };
   }
 
   return { eligible: true };

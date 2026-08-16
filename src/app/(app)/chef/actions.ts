@@ -6,6 +6,7 @@ import { withAnalyticsEvent } from "@/lib/analytics/events";
 import { requireMembership } from "@/lib/auth/session";
 import { normalizePhoneFromForm } from "@/lib/phone";
 import { getActionErrorMessage, rethrowIfRedirectError } from "@/lib/server-action-errors";
+import { chefServiceSchema } from "@/lib/validation/chefs";
 import { deleteBusinessSocialLink, upsertBusinessSocialLink } from "@/server/business-social-links";
 import {
   addChefVerificationDocument,
@@ -17,6 +18,32 @@ import {
   upsertChefProfile,
   upsertChefService,
 } from "@/server/chefs";
+
+export type ServiceFormState = {
+  error?: string;
+  fieldErrors?: {
+    name?: string;
+    serviceType?: string;
+    basePriceAmount?: string;
+    currencyCode?: string;
+    priceUnit?: string;
+    minGuests?: string;
+    maxGuests?: string;
+    description?: string;
+  };
+  values?: {
+    serviceId: string;
+    name: string;
+    serviceType: string;
+    basePriceAmount: string;
+    currencyCode: string;
+    priceUnit: string;
+    minGuests: string;
+    maxGuests: string;
+    description: string;
+    isActive: boolean;
+  };
+};
 import {
   createChefHomeChefOrderMessage,
   updateChefHomeChefOrderStatus,
@@ -68,31 +95,67 @@ export async function upsertChefProfileAction(formData: FormData) {
   }
 }
 
-export async function upsertChefServiceAction(formData: FormData) {
+export async function upsertChefServiceAction(
+  _prevState: ServiceFormState,
+  formData: FormData,
+): Promise<ServiceFormState> {
+  const rawValues: ServiceFormState["values"] = {
+    serviceId: String(formData.get("serviceId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    serviceType: String(formData.get("serviceType") ?? "daily_cooking"),
+    basePriceAmount: String(formData.get("basePriceAmount") ?? ""),
+    currencyCode: String(formData.get("currencyCode") ?? ""),
+    priceUnit: String(formData.get("priceUnit") ?? "per_visit"),
+    minGuests: String(formData.get("minGuests") ?? ""),
+    maxGuests: String(formData.get("maxGuests") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    isActive: formData.get("isActive") === "on",
+  };
+
   try {
     const session = await requireChefBusinessAccess();
+
+    const inputData = {
+      serviceId: formData.get("serviceId"),
+      name: formData.get("name"),
+      description: formData.get("description"),
+      serviceType: formData.get("serviceType"),
+      basePriceAmount: formData.get("basePriceAmount"),
+      currencyCode: formData.get("currencyCode") || session.activeOrganization.currencyCode,
+      priceUnit: formData.get("priceUnit"),
+      minGuests: formData.get("minGuests"),
+      maxGuests: formData.get("maxGuests"),
+      isActive: formData.get("isActive") === "on",
+    };
+
+    // Validate first — return structured field errors without redirecting.
+    const validation = chefServiceSchema.safeParse(inputData);
+    if (!validation.success) {
+      const fieldErrors: ServiceFormState["fieldErrors"] = {};
+      for (const issue of validation.error.issues) {
+        const field = String(issue.path[0] ?? "") as keyof NonNullable<ServiceFormState["fieldErrors"]>;
+        if (field && !fieldErrors[field]) {
+          fieldErrors[field] = issue.message;
+        }
+      }
+      return { error: "Please correct the errors below.", fieldErrors, values: rawValues };
+    }
+
     await upsertChefService({
       organizationId: session.activeOrganization.id,
       actorUserId: session.user.id,
       countryCode: session.activeOrganization.countryCode,
-      input: {
-        serviceId: formData.get("serviceId"),
-        name: formData.get("name"),
-        description: formData.get("description"),
-        serviceType: formData.get("serviceType"),
-        basePriceAmount: formData.get("basePriceAmount"),
-        currencyCode: formData.get("currencyCode") || session.activeOrganization.currencyCode,
-        priceUnit: formData.get("priceUnit"),
-        minGuests: formData.get("minGuests"),
-        maxGuests: formData.get("maxGuests"),
-        isActive: formData.get("isActive") === "on",
-      },
+      input: inputData,
     });
+
     revalidateChefPaths();
     redirect("/chef/services?message=Successfully saved chef service.");
   } catch (error) {
     rethrowIfRedirectError(error);
-    redirect(`/chef/services?message=${encodeURIComponent(getActionErrorMessage(error, "Unable to save chef service."))}`);
+    return {
+      error: getActionErrorMessage(error, "Unable to save chef service."),
+      values: rawValues,
+    };
   }
 }
 
