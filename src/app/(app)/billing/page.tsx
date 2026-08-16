@@ -1,18 +1,128 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireMembership } from "@/lib/auth/session";
+import { requireMembership, requireUser } from "@/lib/auth/session";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { listMemberAccountingDocuments } from "@/server/accounting/accounting-service";
 import { getSubscriptionForOrg } from "@/server/billing/subscriptions";
-import { getEntitlement } from "@/server/billing/entitlements";
-import { formatDate } from "@/lib/utils";
+import { type Entitlement, type PlanAudience } from "@/server/billing/entitlements";
+import { getSellerUsage, type UsageMetric } from "@/server/billing/seller-usage";
+import { formatCalendarDate, formatDate } from "@/lib/utils";
 import { getStripePaymentReadiness } from "@/server/payments/payment-readiness";
 import { finalizeStripeSubscriptionCheckout } from "@/server/payments/providers/stripe/stripe-adapter";
 
 export const dynamic = "force-dynamic";
+
+function resolveDisplayAudience(planAudience: PlanAudience, orgType: string): PlanAudience {
+  if (planAudience !== "none") return planAudience;
+  if (orgType === "chef_business") return "chef_staff";
+  if (orgType === "home_catering") return "home_catering";
+  if (orgType === "restaurant") return "restaurant";
+  return "household";
+}
+
+function UsageLimitRow({ label, current, limit }: { label: string; current: number | null; limit: number }) {
+  const unlimited = limit === Infinity;
+  let display: string;
+  if (unlimited) {
+    display = current !== null ? `${current} (Unlimited)` : "Unlimited";
+  } else if (current !== null) {
+    display = `${current} of ${limit}`;
+  } else {
+    display = String(limit);
+  }
+  return (
+    <div className="flex items-center justify-between py-2 text-sm">
+      <span className="text-[var(--color-muted)]">{label}</span>
+      <span className="font-medium text-[var(--color-ink)]">{display}</span>
+    </div>
+  );
+}
+
+function PlanLimitRows({
+  entitlement,
+  sellerMetrics,
+  orgType,
+}: {
+  entitlement: Entitlement;
+  sellerMetrics: UsageMetric[];
+  orgType: string;
+}) {
+  const { limits, features } = entitlement;
+  const audience = resolveDisplayAudience(entitlement.planAudience, orgType);
+  const metric = (key: string) => sellerMetrics.find((m) => m.key === key) ?? null;
+
+  if (audience === "chef_staff") {
+    const svc = metric("services");
+    const bkng = metric("bookings");
+    const staff = metric("staff");
+    return (
+      <>
+        <UsageLimitRow label="Active services" current={svc?.current ?? null} limit={limits.maxActiveServices} />
+        <LimitRow label="Menu items" value={limits.maxMenuItems} />
+        <UsageLimitRow label="Bookings per month" current={bkng?.current ?? null} limit={limits.maxBookingsPerMonth} />
+        {limits.maxStaffMembers > 0 && (
+          <UsageLimitRow label="Staff members" current={staff?.current ?? null} limit={limits.maxStaffMembers} />
+        )}
+        <LimitRow label="Analytics" value={features.analytics} />
+        <LimitRow label="Customer messaging" value={features.customerMessaging} />
+        <LimitRow label="Priority listing" value={features.priorityPlacement} />
+        <LimitRow label="Promotions" value={features.promotions} />
+      </>
+    );
+  }
+
+  if (audience === "home_catering") {
+    const pkgs = metric("menuItems");
+    const orders = metric("orders");
+    const staff = metric("staff");
+    return (
+      <>
+        <UsageLimitRow label="Packages" current={pkgs?.current ?? null} limit={limits.maxMenuItems} />
+        <UsageLimitRow label="Orders per month" current={orders?.current ?? null} limit={limits.maxOrdersPerMonth} />
+        {limits.maxStaffMembers > 0 && (
+          <UsageLimitRow label="Staff members" current={staff?.current ?? null} limit={limits.maxStaffMembers} />
+        )}
+        <LimitRow label="Analytics" value={features.analytics} />
+        <LimitRow label="Customer messaging" value={features.customerMessaging} />
+        <LimitRow label="Priority listing" value={features.priorityPlacement} />
+      </>
+    );
+  }
+
+  if (audience === "restaurant") {
+    const items = metric("menuItems");
+    const orders = metric("orders");
+    const staff = metric("staff");
+    return (
+      <>
+        <UsageLimitRow label="Menu items" current={items?.current ?? null} limit={limits.maxMenuItems} />
+        <UsageLimitRow label="Orders per month" current={orders?.current ?? null} limit={limits.maxOrdersPerMonth} />
+        <LimitRow label="Locations" value={limits.maxLocations} />
+        {limits.maxStaffMembers > 0 && (
+          <UsageLimitRow label="Staff members" current={staff?.current ?? null} limit={limits.maxStaffMembers} />
+        )}
+        <LimitRow label="Analytics" value={features.analytics} />
+        <LimitRow label="Customer messaging" value={features.customerMessaging} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <LimitRow label="Meal plans" value={limits.maxMealPlans} />
+      <LimitRow label="Grocery lists per month" value={limits.maxGroceryListsPerMonth} />
+      <LimitRow label="Household members" value={limits.maxHouseholdMembers} />
+      <LimitRow label="Saved restaurants" value={limits.maxSavedRestaurants} />
+      <LimitRow label="Chef requests per month" value={limits.maxChefRequestsPerMonth} />
+      <LimitRow label="Chef marketplace" value={features.chefMarketplace} />
+      <LimitRow label="Grocery exports" value={features.groceryExports} />
+      <LimitRow label="Restaurant search" value={features.restaurantSearch} />
+    </>
+  );
+}
 
 function LimitRow({ label, value }: { label: string; value: number | boolean }) {
   if (typeof value === "boolean") {
@@ -36,10 +146,15 @@ function LimitRow({ label, value }: { label: string; value: number | boolean }) 
 }
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ payment?: string; message?: string; session_id?: string }> }) {
+  const userSession = await requireUser();
+  if (userSession.user.platformRole === "platform_owner" || userSession.user.platformRole === "platform_admin") {
+    redirect("/admin/billing");
+  }
+
   const session = await requireMembership();
 
   if (session.activeOrganization.organizationType === "household") {
-    redirect("/?message=Household accounts are always free — no billing required.");
+    redirect(`/household?message=${encodeURIComponent("Household accounts are always free — no billing required.")}`);
   }
 
   const query = await searchParams;
@@ -59,9 +174,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const [subscription, entitlement, stripeReadiness, invoices, receipts] = await Promise.all([
+  const [subscription, sellerUsage, stripeReadiness, invoices, receipts] = await Promise.all([
     getSubscriptionForOrg(session.activeOrganization.id),
-    getEntitlement(session.activeOrganization.id),
+    getSellerUsage(session.activeOrganization.id),
     getStripePaymentReadiness({
       countryCode: session.activeOrganization.countryCode,
       currencyCode: session.activeOrganization.currencyCode,
@@ -69,6 +184,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     listMemberAccountingDocuments(session, "invoice"),
     listMemberAccountingDocuments(session, "receipt"),
   ]);
+  const entitlement = sellerUsage.entitlement;
   const stripeConfigured = stripeReadiness.configured;
   const plan = subscription?.plan;
   const priceAmount = Number(plan?.priceAmount ?? 0);
@@ -76,6 +192,21 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     ? `${formatMoney(plan?.currencyCode ?? session.activeOrganization.currencyCode ?? "USD", priceAmount)}/${intervalLabel(plan?.billingInterval ?? "monthly")}`
     : "Free";
   const subscriptionStatus = subscription?.status ?? "free";
+  const FREE_PLAN_NAME: Record<string, string> = {
+    chef_business: "Chef Free",
+    home_catering: "Catering Free",
+    restaurant: "Restaurant Free",
+  };
+  const FREE_PLAN_DESCRIPTION: Record<string, string> = {
+    chef_business: "Start your home chef business with a public profile and core request tools.",
+    home_catering: "Launch your catering operation with core order tools.",
+    restaurant: "Get your restaurant listed and start accepting orders.",
+  };
+  const planDisplayName = plan?.name ?? FREE_PLAN_NAME[session.activeOrganization.organizationType] ?? "Free";
+  const planDisplayDescription =
+    plan?.description ??
+    FREE_PLAN_DESCRIPTION[session.activeOrganization.organizationType] ??
+    "Start with core planning tools, then upgrade when you need more capacity.";
   const latestInvoice = invoices[0] ?? null;
   const latestReceipt = receipts[0] ?? null;
   const paymentMessage =
@@ -105,10 +236,10 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   Current subscription
                 </p>
                 <h2 className="mt-4 font-serif text-4xl leading-tight md:text-5xl">
-                  {plan?.name ?? "Free / Starter"}
+                  {planDisplayName}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-50/85">
-                  {plan?.description ?? "Start with core planning tools, then upgrade when your household or seller workflow needs more capacity."}
+                  {planDisplayDescription}
                 </p>
               </div>
               <div className="rounded-3xl border border-white/15 bg-white/10 p-5 shadow-2xl shadow-black/20 backdrop-blur">
@@ -138,13 +269,13 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             />
             <StatusTile
               label="Renewal"
-              value={subscription?.currentPeriodEnd ? formatDate(subscription.currentPeriodEnd) : "Not scheduled"}
+              value={subscription?.currentPeriodEnd ? formatCalendarDate(subscription.currentPeriodEnd) : "Not scheduled"}
               detail={subscription?.currentPeriodEnd ? "Your plan renews on this date." : "No recurring renewal date is available yet."}
               tone="neutral"
             />
             <StatusTile
               label="Trial"
-              value={subscription?.trialEndsAt ? formatDate(subscription.trialEndsAt) : "No active trial"}
+              value={subscription?.trialEndsAt ? formatCalendarDate(subscription.trialEndsAt) : "No active trial"}
               detail={subscription?.trialEndsAt ? "Trial benefits remain active until this date." : "Your account is not currently in a trial period."}
               tone="neutral"
             />
@@ -183,14 +314,11 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             </Link>
           </div>
           <div className="mt-6 divide-y divide-[var(--color-border)]">
-            <LimitRow label="Meal plans" value={entitlement.limits.maxMealPlans} />
-            <LimitRow label="Grocery lists per month" value={entitlement.limits.maxGroceryListsPerMonth} />
-            <LimitRow label="Household members" value={entitlement.limits.maxHouseholdMembers} />
-            <LimitRow label="Saved restaurants" value={entitlement.limits.maxSavedRestaurants} />
-            <LimitRow label="Chef requests per month" value={entitlement.limits.maxChefRequestsPerMonth} />
-            <LimitRow label="Chef marketplace" value={entitlement.features.chefMarketplace} />
-            <LimitRow label="Grocery exports" value={entitlement.features.groceryExports} />
-            <LimitRow label="Restaurant search" value={entitlement.features.restaurantSearch} />
+            <PlanLimitRows
+              entitlement={entitlement}
+              sellerMetrics={sellerUsage.metrics}
+              orgType={session.activeOrganization.organizationType}
+            />
           </div>
         </Card>
 
