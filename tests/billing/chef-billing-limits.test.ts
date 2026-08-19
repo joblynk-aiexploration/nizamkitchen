@@ -37,8 +37,12 @@ describe("plan catalog — home-chef-free limits", () => {
     expect(chefFree?.limitsJson.maxBookingsPerMonth).toBe(20);
   });
 
-  it("home-chef-free: maxStaffMembers = 1", () => {
-    expect(chefFree?.limitsJson.maxStaffMembers).toBe(1);
+  it("home-chef-free: maxStaffMembers = 0 (staff is a Professional+ feature, not Free)", () => {
+    // 0 means staff accounts are NOT a feature of this plan tier.
+    // Catering Free and Restaurant Free are both 0; Chef Free was incorrectly 1 (catalog typo).
+    // Fixed to 0 to match the cross-audience pattern and TIER_SELLER_FEATURES.free.staffAccounts=false.
+    // canInviteStaff() requires maxStaffMembers > 0, so Free correctly blocks staff invitations.
+    expect(chefFree?.limitsJson.maxStaffMembers).toBe(0);
   });
 
   it("home-chef-free: has no household capacity (maxMealPlans = 0)", () => {
