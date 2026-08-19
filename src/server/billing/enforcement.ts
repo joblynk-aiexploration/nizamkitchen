@@ -204,7 +204,9 @@ export async function assertLocationLimit(organizationId: string): Promise<void>
 
 /**
  * Throws EntitlementLimitError if the org has reached its staff member cap.
- * Applies to professional+ restaurant/catering orgs; most free plans have maxStaffMembers = 0.
+ * The numeric maxStaffMembers limit is authoritative: 0 = staff not metered on this plan (skip),
+ * positive = capped (allows up to limit, blocks at limit), Infinity = unlimited.
+ * Chef Free includes 1 staff seat; Professional plans include 10.
  */
 export async function assertStaffLimit(organizationId: string): Promise<void> {
   const entitlement = await getEntitlement(organizationId);

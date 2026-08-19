@@ -107,7 +107,7 @@ export const PLAN_CATALOG: PlanDefinition[] = [
       maxMenuItems: 5,
       maxActiveServices: 1,
       maxLocations: 1,
-      maxStaffMembers: 0,
+      maxStaffMembers: 1,
       maxOrdersPerMonth: 0,
       maxBookingsPerMonth: 20,
     },

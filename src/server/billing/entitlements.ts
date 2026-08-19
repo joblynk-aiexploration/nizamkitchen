@@ -2,6 +2,7 @@ import { PLAN_CATALOG, type PlanTier, type PlanLimitsJson } from "./plan-catalog
 import { getActiveSubscription } from "./subscriptions";
 import { getUsageForPeriod, currentBillingPeriod } from "./usage";
 import { getLimitOverrides, getLastMonthlyResetAt, type LimitOverrides } from "./limit-overrides";
+import { prisma } from "@/lib/prisma";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,7 @@ function buildEntitlement(
       chefMarketplace:  limitsJson.chefMarketplaceEnabled,
       restaurantSearch: limitsJson.restaurantFallbackEnabled,
       ...TIER_SELLER_FEATURES[tier],
+      staffAccounts: toPublicLimit(limitsJson.maxStaffMembers) > 0,
     },
   };
 }
@@ -170,6 +172,36 @@ const FALLBACK_ENTITLEMENT: Entitlement = {
   },
 };
 
+// ── Household hardcoded entitlement ──────────────────────────────────────────
+
+const HOUSEHOLD_FREE_CATALOG = PLAN_CATALOG.find((p) => p.slug === "household-free");
+const HOUSEHOLD_FREE_ENTITLEMENT: Entitlement = HOUSEHOLD_FREE_CATALOG
+  ? buildEntitlement(
+      HOUSEHOLD_FREE_CATALOG.slug,
+      HOUSEHOLD_FREE_CATALOG.name,
+      HOUSEHOLD_FREE_CATALOG.tier,
+      HOUSEHOLD_FREE_CATALOG.planAudience,
+      HOUSEHOLD_FREE_CATALOG.limitsJson,
+    )
+  : {
+      planSlug: "household-free",
+      planName: "Household",
+      planTier: "free",
+      planAudience: "household",
+      limits: {
+        maxMealPlans: Infinity, maxGroceryListsPerMonth: Infinity, maxHouseholdMembers: Infinity,
+        maxSavedRestaurants: Infinity, maxChefRequestsPerMonth: Infinity,
+        maxMenuItems: 0, maxActiveServices: 0, maxStaffMembers: 0, maxLocations: 0,
+        maxOrdersPerMonth: 0, maxBookingsPerMonth: 0,
+      },
+      features: {
+        groceryExports: true, chefMarketplace: true, restaurantSearch: true,
+        analytics: false, advancedReporting: false, customerMessaging: false,
+        priorityPlacement: false, staffAccounts: false, payoutAcceleration: false,
+        multiLocation: false, promotions: false,
+      },
+    };
+
 // ── Core async functions ───────────────────────────────────────────────────────
 
 /**
@@ -179,13 +211,26 @@ const FALLBACK_ENTITLEMENT: Entitlement = {
  *
  * Admin-set limit overrides are merged on top of the plan's limitsJson so every
  * downstream enforcement and usage path automatically respects them.
+ *
+ * Household plans are always treated as unlimited regardless of the subscription
+ * row's limitsJson — this prevents legacy or mis-migrated finite-limit plans
+ * from ever gating household access.
  */
 export async function getEntitlement(organizationId: string): Promise<Entitlement> {
   const [subscription, overrides] = await Promise.all([
     getActiveSubscription(organizationId),
     getLimitOverrides(organizationId),
   ]);
-  if (!subscription) return applyOverrides(FALLBACK_ENTITLEMENT, overrides);
+
+  if (!subscription) {
+    // Household orgs are always unlimited even when no subscription row exists
+    // (e.g. brand-new org, no plan assigned yet). Use the same safe-accessor
+    // pattern as getBillingDelegates so limited test mocks don't break.
+    const safeClient = prisma as typeof prisma & { organization?: { findUnique?: typeof prisma.organization.findUnique } };
+    const org = await safeClient.organization?.findUnique?.({ where: { id: organizationId }, select: { organizationType: true } }) ?? null;
+    if (org?.organizationType === "household") return HOUSEHOLD_FREE_ENTITLEMENT;
+    return applyOverrides(FALLBACK_ENTITLEMENT, overrides);
+  }
 
   const slug = subscription.plan.slug;
   const catalogEntry = PLAN_CATALOG.find((p) => p.slug === slug);
@@ -197,6 +242,12 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       { ...FALLBACK_ENTITLEMENT, planSlug: slug, planName: subscription.plan.name },
       overrides,
     );
+  }
+
+  // Household plans are structurally unlimited — always return the catalog entitlement
+  // with no overrides. Admin overrides must not cap household access.
+  if (catalogEntry.planAudience === "household") {
+    return HOUSEHOLD_FREE_ENTITLEMENT;
   }
 
   const base = buildEntitlement(
@@ -310,7 +361,7 @@ export function canCreateLocation(entitlement: Entitlement): boolean {
   return isUnlimited(entitlement.limits.maxLocations) || entitlement.limits.maxLocations > 1;
 }
 
-/** True when the plan includes staff seat access (maxStaffMembers > 0, i.e. Professional+). */
+/** True when the plan's numeric limit permits at least one staff seat (maxStaffMembers > 0 or unlimited). Chef Free includes 1 staff seat; Professional plans include 10. The tier-level `features.staffAccounts` boolean is NOT consulted here — the numeric limit is authoritative. */
 export function canInviteStaff(entitlement: Entitlement): boolean {
   return isUnlimited(entitlement.limits.maxStaffMembers) || entitlement.limits.maxStaffMembers > 0;
 }

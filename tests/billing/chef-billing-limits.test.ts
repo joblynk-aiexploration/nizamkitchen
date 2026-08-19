@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PLAN_CATALOG } from "@/server/billing/plan-catalog";
-import { isUnlimited } from "@/server/billing/entitlements";
+import { isUnlimited, canInviteStaff, type Entitlement } from "@/server/billing/entitlements";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REAL USER ISSUE #3 — Regression tests
@@ -37,12 +37,11 @@ describe("plan catalog — home-chef-free limits", () => {
     expect(chefFree?.limitsJson.maxBookingsPerMonth).toBe(20);
   });
 
-  it("home-chef-free: maxStaffMembers = 0 (staff is a Professional+ feature, not Free)", () => {
-    // 0 means staff accounts are NOT a feature of this plan tier.
-    // Catering Free and Restaurant Free are both 0; Chef Free was incorrectly 1 (catalog typo).
-    // Fixed to 0 to match the cross-audience pattern and TIER_SELLER_FEATURES.free.staffAccounts=false.
-    // canInviteStaff() requires maxStaffMembers > 0, so Free correctly blocks staff invitations.
-    expect(chefFree?.limitsJson.maxStaffMembers).toBe(0);
+  it("home-chef-free: maxStaffMembers = 1 (finalized product rule: Chef Free includes 1 staff seat)", () => {
+    // Authoritative business rule: Chef Free ships with 1 staff member included.
+    // The tier matrix (TIER_SELLER_FEATURES.free.staffAccounts = false) is a coarse tier label
+    // and does not override the plan-level numeric limit. Enforcement reads maxStaffMembers directly.
+    expect(chefFree?.limitsJson.maxStaffMembers).toBe(1);
   });
 
   it("home-chef-free: has no household capacity (maxMealPlans = 0)", () => {
@@ -260,5 +259,86 @@ describe("cross-audience regression — billing page renders correct rows per au
     const entSource = readFileSync("src/server/billing/entitlements.ts", "utf8");
     expect(entSource).toContain('planAudience: "none"');
     expect(entSource).not.toMatch(/FALLBACK_ENTITLEMENT[\s\S]{0,200}planAudience: "household"/);
+  });
+});
+
+// ── Group 7: Staff enforcement — Chef Free 1-seat business rule ───────────────
+//
+// Required tests for the corrected Chef Free maxStaffMembers = 1 business rule.
+// Business rule (finalized): Chef Free → 1 staff seat. Professional → 10 staff seats.
+// Chef Growth staff policy is unspecified in finalized rules; current value (0) retained.
+
+describe("staff enforcement — Chef Free maxStaffMembers = 1 business rule", () => {
+  // Test 1: effective limit in catalog (maxStaffMembers = 1 for Chef Free)
+  // — already covered in Group 1 ("home-chef-free: maxStaffMembers = 1")
+
+  // Test 2: Billing page renders staff row for plans where limit > 0
+  it("billing/page.tsx: staff row shown when maxStaffMembers > 0 (Chef Free = 1)", () => {
+    const source = readFileSync("src/app/(app)/billing/page.tsx", "utf8");
+    // The billing page must gate the staff row on the numeric limit, not a feature flag.
+    expect(source).toContain("maxStaffMembers > 0");
+    expect(source).toContain('"Staff members"');
+  });
+
+  // Test 3: canInviteStaff returns true for Chef Free (maxStaffMembers = 1) — first seat allowed
+  it("canInviteStaff: maxStaffMembers=1 (Chef Free) → true (first staff member permitted)", () => {
+    const stub = { limits: { maxStaffMembers: 1 } } as unknown as Entitlement;
+    expect(canInviteStaff(stub)).toBe(true);
+  });
+
+  // Test 4: canInviteStaff returns false for Chef Growth (maxStaffMembers = 0) — no seats, blocks immediately
+  it("canInviteStaff: maxStaffMembers=0 (Chef Growth) → false (no staff seats on this plan)", () => {
+    const stub = { limits: { maxStaffMembers: 0 } } as unknown as Entitlement;
+    expect(canInviteStaff(stub)).toBe(false);
+  });
+
+  // Test 3+4 cont: assertStaffLimit enforcement logic (requires DB — verified via source)
+  it("assertStaffLimit: skips at limit=0, throws STAFF_LIMIT_EXCEEDED when current >= limit", () => {
+    const source = readFileSync("src/server/billing/enforcement.ts", "utf8");
+    // limit=0: return early (plan has no staff feature — invitation is separately blocked by canInviteStaff)
+    expect(source).toContain("if (limit === 0) return;");
+    // limit=1, current=0: 0 < 1 → no throw (first member allowed)
+    // limit=1, current=1: 1 >= 1 → throws (second member blocked)
+    expect(source).toContain("if (current >= limit)");
+    expect(source).toContain("STAFF_LIMIT_EXCEEDED");
+  });
+
+  // Test 5: Seller billing and server enforcement agree — canInviteStaff checks numeric limit only
+  it("canInviteStaff: reads maxStaffMembers numeric limit, not features.staffAccounts boolean", () => {
+    const source = readFileSync("src/server/billing/entitlements.ts", "utf8");
+    const fnStart = source.indexOf("export function canInviteStaff");
+    const fnEnd = source.indexOf("\n}", fnStart) + 2;
+    const fnBody = source.slice(fnStart, fnEnd);
+    expect(fnBody).toContain("maxStaffMembers");
+    expect(fnBody).not.toContain("staffAccounts");
+  });
+
+  // Test 5 cont: buildEntitlement derives staffAccounts from numeric limit, not tier matrix
+  it("buildEntitlement: staffAccounts derived from maxStaffMembers (overrides TIER_SELLER_FEATURES tier boolean)", () => {
+    const source = readFileSync("src/server/billing/entitlements.ts", "utf8");
+    // The override after spreading TIER_SELLER_FEATURES ensures Chef Free (limit=1) gets
+    // staffAccounts=true even though the free tier matrix has staffAccounts=false.
+    expect(source).toContain("staffAccounts: toPublicLimit(limitsJson.maxStaffMembers) > 0");
+  });
+
+  // Test 6: Household limits do not appear on Chef billing (covered in Group 4)
+  // — see "does NOT render Meal plans via entitlement.limits directly in page JSX"
+
+  // Test 7: Restaurant and Catering Free plans are NOT affected — still 0 staff (regression)
+  it("cross-audience regression: Catering Free and Restaurant Free retain maxStaffMembers = 0", () => {
+    const cateringFree = PLAN_CATALOG.find((p) => p.slug === "catering-free");
+    const restaurantFree = PLAN_CATALOG.find((p) => p.slug === "restaurant-free");
+    expect(cateringFree).toBeDefined();
+    expect(restaurantFree).toBeDefined();
+    expect(cateringFree?.limitsJson.maxStaffMembers).toBe(0);
+    expect(restaurantFree?.limitsJson.maxStaffMembers).toBe(0);
+  });
+
+  // Test 8: Chef Growth maxStaffMembers unchanged — not accidentally downgraded by stale feature-gate logic
+  it("home-chef-growth-monthly: maxStaffMembers not altered (established catalog value 0 preserved)", () => {
+    const chefGrowth = PLAN_CATALOG.find((p) => p.slug === "home-chef-growth-monthly");
+    // Chef Growth staff policy (0) is retained unchanged. The finalized product spec defines
+    // only Chef Free (1) and Professional (10). Growth is not specified; catalog value is authoritative.
+    expect(chefGrowth?.limitsJson.maxStaffMembers).toBe(0);
   });
 });
