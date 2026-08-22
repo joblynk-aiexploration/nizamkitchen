@@ -11,5 +11,10 @@ qa-artifacts
 *.tsbuildinfo
 backups
 tmp
+tmp-deploy
 *.log
 .DS_Store
+release-current
+nizamkitchen-production-validation
+nizamkitchen-safe-release
+test-results
