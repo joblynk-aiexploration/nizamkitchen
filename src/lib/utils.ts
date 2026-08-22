@@ -33,6 +33,21 @@ export function formatAppDate(value: Date | string | null | undefined) {
   }).format(new Date(value));
 }
 
+// Use for calendar-day dates (subscription periods, expiry dates) stored as UTC midnight.
+// UTC avoids off-by-one when the app timezone is behind UTC (e.g. Dec 25 00:00 UTC → Dec 24 CT).
+export function formatCalendarDate(value: Date | string | null | undefined) {
+  if (!value) {
+    return "N/A";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
 export function formatAppDateTime(value: Date | string | null | undefined, { showTimeZone = false } = {}) {
   if (!value) {
     return "Not available";
